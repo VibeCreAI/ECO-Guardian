@@ -8,6 +8,8 @@ interface AiDirectorState {
     gameOverMessage: string | null;
     isGenerating: boolean;
     error: string | null;
+    usedQuizQuestions: string[];
+    resetQuizHistory: () => void;
     generateNextStage: (stats: PlayerStats, currentStage: number, lastResult?: string) => Promise<void>;
     generateMidStageQuiz: (stage: number, availableOptions: string[], difficulty: QuizDifficulty) => Promise<void>;
     generateUpgradeAdvice: (stats: PlayerStats, options: UpgradeOption[]) => Promise<AdviceResult>;
@@ -253,18 +255,28 @@ const FIXED_STAGES: AiStageConfig[] = [
 function selectQuizQuestion(
     stageName: string,
     difficulty: QuizDifficulty,
-    availableOptions?: string[]
+    availableOptions?: string[],
+    excludedQuestions: string[] = []
 ): AiStageConfig['quiz'] {
     // 1. Get the pool for this stage, fall back to global pool
     const stagePool = STAGE_QUIZ_POOLS[stageName];
     const pool: QuizTemplate[] = stagePool ?? FALLBACK_QUIZ_POOL;
 
-    // 2. Filter by difficulty, fall back to full pool if no matches
-    const filtered = pool.filter(q => q.difficulty === difficulty);
-    const sourcePool = filtered.length > 0 ? filtered : pool;
+    // 2. Prefer the requested difficulty, but use any unused question before repeating.
+    const difficultyPool = pool.filter(q => q.difficulty === difficulty);
+    const preferredPool = difficultyPool.length > 0 ? difficultyPool : pool;
+    const excluded = new Set(excludedQuestions);
+    const unusedPreferredPool = preferredPool.filter(template => !excluded.has(template.q));
+    const unusedPool = pool.filter(template => !excluded.has(template.q));
+    const finalPool =
+        unusedPreferredPool.length > 0
+            ? unusedPreferredPool
+            : unusedPool.length > 0
+                ? unusedPool
+                : preferredPool;
 
     // 3. Pick a random question
-    const template = sourcePool[Math.floor(Math.random() * sourcePool.length)];
+    const template = finalPool[Math.floor(Math.random() * finalPool.length)];
 
     // 4. Assign correct answer to a random option slot
     const slots = availableOptions ?? ['A', 'B', 'C'];
@@ -295,10 +307,21 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
     gameOverMessage: null,
     isGenerating: false,
     error: null,
+    usedQuizQuestions: [],
+
+    resetQuizHistory: () => set({ usedQuizQuestions: [] }),
 
     generateNextStage: async (stats, currentStage, lastResult) => {
         set({ isGenerating: true, error: null });
         const targetStage = currentStage + 1;
+        const askedQuestions = [
+            ...new Set([
+                ...get().usedQuizQuestions,
+                ...stats.impactHistory
+                    .map(entry => entry.question)
+                    .filter((question): question is string => Boolean(question)),
+            ]),
+        ];
 
         // 1. SELECT FIXED STAGE
         const stageIndex = (targetStage - 1) % FIXED_STAGES.length;
@@ -315,9 +338,13 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
 
         // 3. GENERATE QUIZ FROM STATIC POOL
         const difficulty = stats.quizDifficulty || 'MEDIUM';
-        finalConfig.quiz = selectQuizQuestion(finalConfig.stageName, difficulty);
+        finalConfig.quiz = selectQuizQuestion(finalConfig.stageName, difficulty, undefined, askedQuestions);
 
-        set({ currentConfig: finalConfig, isGenerating: false });
+        set({
+            currentConfig: finalConfig,
+            isGenerating: false,
+            usedQuizQuestions: [...new Set([...askedQuestions, finalConfig.quiz.question])],
+        });
     },
 
     generateMidStageQuiz: async (stage, availableOptions, difficulty) => {
@@ -329,14 +356,16 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
         const quiz = selectQuizQuestion(
             state.currentConfig.stageName,
             difficulty,
-            availableOptions.length > 0 ? availableOptions : ['A', 'B', 'C']
+            availableOptions.length > 0 ? availableOptions : ['A', 'B', 'C'],
+            state.usedQuizQuestions
         );
 
         set((prevState) => {
             if (!prevState.currentConfig) return { isGenerating: false };
             return {
                 isGenerating: false,
-                currentConfig: { ...prevState.currentConfig, quiz }
+                currentConfig: { ...prevState.currentConfig, quiz },
+                usedQuizQuestions: [...new Set([...prevState.usedQuizQuestions, quiz.question])],
             };
         });
     },

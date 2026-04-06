@@ -8,6 +8,7 @@ import { StatusModal } from './StatusModal';
 import { LibraryModal } from './LibraryModal';
 import { ShopModal } from './ShopModal';
 import { WEAPONS_DATA, EVOLUTION_RECIPES, PASSIVES_DATA } from '../../constants';
+import { ASSET_PATHS } from '../../assets';
 
 interface UIOverlayProps {
   inputVector: React.MutableRefObject<{x: number, y: number}>;
@@ -17,7 +18,7 @@ interface UIOverlayProps {
 
 const MenuHero = () => {
     const [frame, setFrame] = useState(0);
-    const spriteUrl = "https://storage.googleapis.com/eco-guardian/player/walk-north2.png";
+    const spriteUrl = ASSET_PATHS.images.player.walkNorth;
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -126,7 +127,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   }, [mode]);
 
   const lastNarrativeStage = useRef(0);
-  const lastQuizQuestion = useRef<string>(""); 
+  const lastQuizSignature = useRef<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
 
@@ -134,7 +135,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   useEffect(() => {
       if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS) {
           lastNarrativeStage.current = 0;
-          lastQuizQuestion.current = "";
+          lastQuizSignature.current = "";
       }
   }, [mode]);
 
@@ -153,12 +154,23 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
   useEffect(() => {
       if (mode === GameMode.OVERWORLD && currentConfig?.quiz && narrativeDismissed) {
-          if (currentConfig.quiz.question !== lastQuizQuestion.current) {
+          const optionSignature = Object.entries(currentConfig.quiz.options || {})
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([key, value]) => `${key}:${value}`)
+              .join('|');
+          const quizSignature = [
+              activeStage,
+              currentConfig.quiz.question,
+              currentConfig.quiz.correctOption,
+              optionSignature,
+          ].join('::');
+
+          if (quizSignature !== lastQuizSignature.current) {
               setQuizOpen(true);
-              lastQuizQuestion.current = currentConfig.quiz.question;
+              lastQuizSignature.current = quizSignature;
           }
       }
-  }, [mode, currentConfig, setQuizOpen, narrativeDismissed]);
+  }, [mode, currentConfig, setQuizOpen, narrativeDismissed, activeStage]);
 
   const handleDismissNarrative = () => {
       setShowNarrative(false);
@@ -782,7 +794,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     return (
       <div 
         className="absolute inset-0 flex items-center justify-center z-50 overflow-hidden bg-cover bg-center"
-        style={{ backgroundImage: "url('https://storage.googleapis.com/eco-guardian/start/background.png')" }}
+        style={{ backgroundImage: `url('${ASSET_PATHS.images.start.background}')` }}
       >
         {/* Dark overlay for better menu contrast */}
         <div className="absolute inset-0 bg-black/40 pointer-events-none" />
@@ -814,20 +826,21 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
             className="relative z-10 flex flex-col items-center justify-center h-full w-full px-4 transition-transform duration-200 ease-out"
             style={{ transform: `scale(${uiScale})` }}
         >
-            <div className="max-w-lg w-full flex flex-col items-center">
+            <div className="max-w-lg w-full flex flex-col items-center mt-12 md:mt-16">
                 
                 {/* TITLE IMAGE - CLICKABLE FOR AUDIO START */}
                 <button 
-                    className="mb-6 cursor-pointer focus:outline-none hover:scale-105 transition-transform duration-500" 
+                    className="mb-12 cursor-pointer focus:outline-none hover:scale-105 transition-transform duration-500" 
                     onClick={() => {
                         const audio = document.querySelector('audio');
                         if (audio && audio.paused) audio.play().catch(e => console.log(e));
                     }}
                 >
-                    <img 
-                        src="https://storage.googleapis.com/eco-guardian/start/title2.png" 
+                    <img
+                        src={ASSET_PATHS.images.start.title}
                         alt="ECO GUARDIAN"
                         className="w-full max-w-4xl drop-shadow-[0_0_25px_rgba(74,222,128,0.6)]"
+                        style={{ transform: 'scale(1.4)', transformOrigin: 'center' }}
                     />
                 </button>
 
@@ -975,7 +988,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                       {playerStats.impactHistory.length === 0 ? (
                           <div className="text-center text-gray-500 italic mt-10">No impact data recorded yet. Complete stages or scans to see history!</div>
                       ) : (
-                          playerStats.impactHistory.map((entry, idx) => (
+                          playerStats.impactHistory.map((entry: any, idx) => (
                               <div key={entry.id || idx} className={`p-4 border-l-4 ${entry.type === 'SCAN' ? 'border-green-500 bg-green-900/20' : (entry.isCorrect ? 'border-green-500 bg-green-900/20' : 'border-red-500 bg-red-900/20')} rounded-r`}>
                                   {entry.type === 'SCAN' ? (
                                       <>

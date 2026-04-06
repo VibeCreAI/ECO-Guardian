@@ -2,20 +2,18 @@
 import React, { useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { GameMode } from '../../types';
+import { ASSET_PATHS } from '../../assets';
 
 export const AudioManager: React.FC = () => {
   const { mode, activeStage, activeBattle, lastGameplayMode, isMuted } = useGameStore();
   const audioRef = useRef<HTMLAudioElement>(null);
   const hasInteracted = useRef(false);
   
-  // Base URL for audio assets
-  const BASE_URL = 'https://storage.googleapis.com/eco-guardian/audio';
-
   // Map game state to audio file
   const getTrackForState = () => {
     // Priority 1: Menu / Intro / Game Over / Leaderboard
     if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.GAMEOVER || mode === GameMode.LEADERBOARD) {
-      return `${BASE_URL}/menu.mp3`;
+      return ASSET_PATHS.audio.music.menu;
     }
 
     // Priority 2: Battle Context (Actual Fighting, or Paused/Menu inside Battle)
@@ -23,15 +21,15 @@ export const AudioManager: React.FC = () => {
 
     if (isBattleContext) {
       if (activeBattle.isBoss) {
-        return `${BASE_URL}/boss.mp3`;
+        return ASSET_PATHS.audio.music.boss;
       } else {
-        return `${BASE_URL}/battle.mp3`;
+        return ASSET_PATHS.audio.music.battle;
       }
     }
 
     // Priority 3: Stage / Overworld (Default)
     const trackNum = ((activeStage - 1) % 10) + 1;
-    return `${BASE_URL}/stage_${trackNum}.mp3`;
+    return ASSET_PATHS.audio.music.stage(trackNum);
   };
 
   const targetTrack = getTrackForState();
@@ -115,7 +113,6 @@ export const AudioManager: React.FC = () => {
     <audio 
         ref={audioRef} 
         loop 
-        crossOrigin="anonymous" 
         preload="auto"
         className="hidden" 
     />

@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES } from '../../constants';
+import { ASSET_PATHS } from '../../assets';
 
 const PlayerIdleSprite = () => {
     const [frame, setFrame] = useState(0);
-    const spriteUrl = "https://storage.googleapis.com/eco-guardian/player/idle.png";
+    const spriteUrl = ASSET_PATHS.images.player.idle;
 
     useEffect(() => {
         const interval = setInterval(() => {

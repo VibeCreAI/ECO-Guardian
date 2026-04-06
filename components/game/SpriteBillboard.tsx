@@ -2,6 +2,7 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
+import { ASSET_PATHS } from '../../assets';
 
 interface SpriteBillboardProps {
   position?: [number, number, number];
@@ -328,12 +329,12 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
 
 export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, scale = 1.0, facing, action, viewDirection, isHit }) => {
     const [idleTex, walkSouthTex, walkNorthTex, walkEastTex, walkWestTex] = useLoader(THREE.TextureLoader, [
-        'https://storage.googleapis.com/eco-guardian/player/idle.png',
-        'https://storage.googleapis.com/eco-guardian/player/walk-south.png',
-        'https://storage.googleapis.com/eco-guardian/player/walk-north2.png',
-        'https://storage.googleapis.com/eco-guardian/player/walk-east.png',
-        'https://storage.googleapis.com/eco-guardian/player/walk-west.png',
-    ], (loader) => { loader.setCrossOrigin('anonymous'); });
+        ASSET_PATHS.images.player.idle,
+        ASSET_PATHS.images.player.walkSouth,
+        ASSET_PATHS.images.player.walkNorth,
+        ASSET_PATHS.images.player.walkEast,
+        ASSET_PATHS.images.player.walkWest,
+    ]);
 
     useMemo(() => {
         [idleTex, walkSouthTex, walkNorthTex, walkEastTex, walkWestTex].forEach(t => { if (t) { t.minFilter = THREE.NearestFilter; t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping; t.repeat.set(0.25, 0.25); }});

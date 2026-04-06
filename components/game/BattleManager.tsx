@@ -8,6 +8,7 @@ import { SpriteBillboard, ExternalBossSprite } from './SpriteBillboard';
 import { ProjectileRender } from './ProjectileRender';
 import { PixelGround } from './PixelGround';
 import { WEAPONS_DATA } from '../../constants';
+import { ASSET_PATHS } from '../../assets';
 import * as THREE from 'three';
 import { QuestArrow } from './QuestArrow';
 
@@ -1357,7 +1358,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
           const eType = e.type as string;
           if (eType === 'BOSS') {
               const stageNum = ((activeStage - 1) % 10) + 1;
-              const bossUrl = `https://storage.googleapis.com/eco-guardian/boss/boss_${stageNum}.png`;
+              const bossUrl = ASSET_PATHS.images.bosses.byStage(stageNum);
               return (
                   <Suspense fallback={null} key={e.id}>
                       <ExternalBossSprite position={[e.x, 0, e.z]} entity={e} scale={5.5} opacity={e.opacity} textureUrl={bossUrl} />

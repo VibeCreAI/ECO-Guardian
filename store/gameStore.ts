@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { GameMode, PlayerStats, UpgradeOption, Portal, ActiveBattleState, HighScore, ImpactLogEntry, QuizDifficulty, AdviceResult } from '../types';
 import { useAiDirectorStore } from './aiDirectorStore';
-import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint } from '../constants';
+import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint, PassiveDef } from '../constants';
 
 export const SHOP_REFRESH_COST = 50;
 const SAVE_KEY = 'pixel_realm_save_v1';
@@ -304,6 +304,37 @@ const generateShopOptions = (stats: PlayerStats): UpgradeOption[] => {
     return pool.sort(() => 0.5 - Math.random()).slice(0, 6);
 };
 
+const getPassiveUpgradeDescription = (passive: PassiveDef, currentLevel: number) => {
+  const nextLevel = currentLevel + 1;
+
+  switch (passive.key) {
+    case 'DUPLICATOR':
+      return currentLevel === 0
+        ? passive.description
+        : `+1 Projectile to all weapons. Lv.${nextLevel} total: +${nextLevel} projectiles.`;
+    case 'SPINACH':
+      return currentLevel === 0
+        ? passive.description
+        : `+15% Damage Multiplier. Lv.${nextLevel} total: +${Math.round(nextLevel * 15)}% damage.`;
+    case 'TOME':
+      return currentLevel === 0
+        ? passive.description
+        : `-10% Cooldown Reduction. Lv.${nextLevel} total: -${Math.round(nextLevel * 10)}% cooldown.`;
+    case 'CANDLE':
+      return currentLevel === 0
+        ? passive.description
+        : `+20% Area of Effect. Lv.${nextLevel} total: +${Math.round(nextLevel * 20)}% area.`;
+    case 'BACKPACK':
+      return passive.description;
+    case 'GAUNTLET':
+      return currentLevel === 0
+        ? passive.description
+        : `+20% Knockback Force. Lv.${nextLevel} total: +${Math.round(nextLevel * 20)}% knockback.`;
+    default:
+      return passive.description;
+  }
+};
+
 const generateOptions = (stats: PlayerStats): UpgradeOption[] => {
   const pool: UpgradeOption[] = [
     { id: 'hp', type: 'STAT', key: 'HP', label: 'Max HP Up', description: '+50 Max HP & Full Heal', icon: '❤️', value: 50 },
@@ -346,7 +377,7 @@ const generateOptions = (stats: PlayerStats): UpgradeOption[] => {
               type: 'PASSIVE',
               key: pData.key,
               label: pData.label,
-              description: currentLevel === 0 ? pData.description : `${pData.label} Lv.${currentLevel + 1}`,
+              description: getPassiveUpgradeDescription(pData, currentLevel),
               icon: pData.icon,
               value: pData.value
           });
@@ -479,6 +510,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const freshStats = getInitialStats(false);
       freshStats.quizDifficulty = difficulty;
       localStorage.removeItem(SAVE_KEY);
+      useAiDirectorStore.getState().resetQuizHistory();
 
       set({ 
           mode: GameMode.INSTRUCTIONS,
@@ -1097,6 +1129,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => {
     const freshStats = getInitialStats(false);
     localStorage.removeItem(SAVE_KEY);
+    useAiDirectorStore.getState().resetQuizHistory();
 
     set({
       mode: GameMode.MENU,
