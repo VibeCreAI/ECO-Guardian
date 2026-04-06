@@ -305,7 +305,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       {sceneTheme === 'SKY' && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
       {showStars && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
       {(sceneTheme === 'FOREST' || sceneTheme === 'SKY') && <AnimatedClouds />}
-      <hemisphereLight skyColor={hemisphereColors.sky} groundColor={hemisphereColors.ground} intensity={0.75} />
+      <hemisphereLight args={[hemisphereColors.sky, hemisphereColors.ground, 0.75]} />
       <directionalLight
         position={[10, 20, 10]}
         intensity={1.2}
@@ -340,7 +340,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             <BattleManager playerPosition={playerRef.current ? playerRef.current.position : new THREE.Vector3(0,0,0)} activeBattle={activeBattle} />
         )}
       </Suspense>
-      <EffectComposer disableNormalPass>
+      <EffectComposer>
         <Bloom luminanceThreshold={0.6} intensity={0.6} />
         <Vignette eskil={false} offset={0.1} darkness={0.5} />
       </EffectComposer>

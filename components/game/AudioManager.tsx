@@ -102,7 +102,7 @@ export const AudioManager: React.FC = () => {
     if (!audioRef.current) return;
     
     // Lower volume during pause menus or non-action modals
-    if (mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || mode === GameMode.ECO_BUILDING || mode === GameMode.REWARD) {
+    if (mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || mode === GameMode.REWARD) {
       audioRef.current.volume = 0.15;
     } else {
       audioRef.current.volume = 0.4;
