@@ -61,6 +61,43 @@ const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }
   HELL: { sky: '#f87171', ground: '#450a0a' },
 };
 
+const CLOUD_CONFIGS = [
+  { x: -20, y: 7,  z: -28, speed: 1.0, scale: 1.0 },
+  { x:   5, y: 9,  z: -35, speed: 0.6, scale: 1.3 },
+  { x:  30, y: 6,  z: -24, speed: 1.3, scale: 0.8 },
+  { x: -40, y: 8,  z: -20, speed: 0.8, scale: 1.1 },
+  { x:  18, y: 10, z: -40, speed: 0.5, scale: 1.5 },
+  { x:  -8, y: 7,  z: -18, speed: 1.1, scale: 0.9 },
+];
+
+const AnimatedClouds = () => {
+  const cloudRefs = useRef<(THREE.Group | null)[]>([]);
+  const positions = useRef(CLOUD_CONFIGS.map(c => c.x));
+
+  useFrame((_, delta) => {
+    CLOUD_CONFIGS.forEach((cfg, i) => {
+      const mesh = cloudRefs.current[i];
+      if (!mesh) return;
+      positions.current[i] += cfg.speed * delta;
+      if (positions.current[i] > 58) positions.current[i] = -58;
+      mesh.position.x = positions.current[i];
+    });
+  });
+
+  return (
+    <group>
+      {CLOUD_CONFIGS.map((cfg, i) => (
+        <group key={i} ref={el => { cloudRefs.current[i] = el; }} position={[cfg.x, cfg.y, cfg.z]} scale={cfg.scale}>
+          <mesh position={[0, 0, 0]}><boxGeometry args={[5, 1.5, 2.5]} /><meshStandardMaterial color="#ffffff" roughness={1} fog={false} /></mesh>
+          <mesh position={[2.5, 0.8, 0]}><boxGeometry args={[3, 1.2, 2]} /><meshStandardMaterial color="#f0f0f0" roughness={1} fog={false} /></mesh>
+          <mesh position={[-2.5, 0.6, 0]}><boxGeometry args={[2.5, 1, 2]} /><meshStandardMaterial color="#f5f5f5" roughness={1} fog={false} /></mesh>
+          <mesh position={[0.5, 1.5, 0]}><boxGeometry args={[2.5, 1.2, 2]} /><meshStandardMaterial color="#ffffff" roughness={1} fog={false} /></mesh>
+        </group>
+      ))}
+    </group>
+  );
+};
+
 const PlayerTrailRenderer = ({ playerRef, dashTimer }: { playerRef: React.RefObject<THREE.Group>, dashTimer: React.MutableRefObject<number> }) => {
     const trails = useRef<{id: string, x: number, z: number, life: number}[]>([]);
     const [renderTrails, setRenderTrails] = useState<any[]>([]);
@@ -105,6 +142,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const shakeIntensity = useRef(0);
   const lastProcessedDamageTime = useRef(0);
   const prevModeRef = useRef<GameMode>(mode);
+  const zoomTarget = useRef(1.0);
+  const zoomCurrent = useRef(1.0);
+  const fogRef = useRef<THREE.Fog>(null);
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
   const landmarkType = React.useMemo(() => getLandmarkType(activeStage, aiConfig), [activeStage, aiConfig]);
@@ -125,7 +165,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     let possibleTypes: string[] = ['TREE', 'STONE', 'MUSHROOM']; 
     if (aiConfig) { possibleTypes = [aiConfig.theme.propType, 'STONE']; if (aiConfig.theme.propType === 'TREE') possibleTypes.push('MUSHROOM'); } 
     else { if (themeId === 2) possibleTypes = ['GRAVE', 'RUIN', 'STONE']; else if (themeId === 3) possibleTypes = ['SNOW_TREE', 'CRYSTAL', 'STONE']; else if (themeId === 4) possibleTypes = ['MAGMA_ROCK', 'LAVA_PILLAR']; else if (themeId === 5) possibleTypes = ['CACTUS', 'PALM', 'STONE']; else if (themeId === 6) possibleTypes = ['SWAMP_TREE', 'VINE', 'MUSHROOM']; else if (themeId === 7) possibleTypes = ['SERVER', 'NEON_SIGN']; else if (themeId === 8) possibleTypes = ['VOID_ROCK', 'STAR_PILLAR']; else if (themeId === 9) possibleTypes = ['CLOUD_PILLAR', 'GOLD_GATE']; else if (themeId === 10) possibleTypes = ['SPIKE_ROCK', 'LAVA_PILLAR']; }
-    const items = []; for(let i=0; i<150; i++) { const type = possibleTypes[Math.floor(Math.random() * possibleTypes.length)]; const x = (Math.random() - 0.5) * 90; const z = (Math.random() - 0.5) * 90; const dist = Math.sqrt(x*x + z*z); if (z > -20 && z < 1 && x > -10 && x < 10) continue; 
+    const items = []; for(let i=0; i<150; i++) { const type = possibleTypes[Math.floor(Math.random() * possibleTypes.length)]; const x = (Math.random() - 0.5) * 54; const z = (Math.random() - 0.5) * 54; const dist = Math.sqrt(x*x + z*z); if (z > -16 && z < 1 && x > -8 && x < 8) continue;
     const distToShop = Math.sqrt((x - SHOP_POS.x)**2 + (z - SHOP_POS.z)**2); if (distToShop < 8) continue;
     if (dist < 6) continue; items.push({ id: i, type, x, z }); }
     return items;
@@ -179,7 +219,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         playerRef.current.position.x = nextX; playerRef.current.position.z = nextZ;
         const isCurrentlyMoving = Math.abs(moveX) > 0.001 || Math.abs(moveZ) > 0.001; setIsMoving(isCurrentlyMoving);
         if (isCurrentlyMoving) { if (Math.abs(inputVector.current.y) > Math.abs(inputVector.current.x)) { if (inputVector.current.y > 0.1) setViewDirection('DOWN'); else if (inputVector.current.y < -0.1) setViewDirection('UP'); } else if (Math.abs(inputVector.current.x) > 0.1) { setViewDirection('SIDE'); if (inputVector.current.x > 0) setFacing(1); if (inputVector.current.x < 0) setFacing(-1); } }
-        const limit = mode === GameMode.BATTLE ? 24.5 : 49.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
+        const limit = mode === GameMode.BATTLE ? 24.5 : 30.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
         if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) { for (const portal of portals) { const distToPortal = playerRef.current.position.distanceTo(new THREE.Vector3(portal.x, 0, portal.z)); if (distToPortal < 1.5) { if (!isGenerating) { enterBattle(portal); } break; } } }
@@ -188,20 +228,26 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     
     // --- DYNAMIC CAMERA ZOOM LOGIC ---
     const aspect = state.size.width / state.size.height;
-    
-    // Landscape Base (closer than original to fix "too zoomed out")
-    let camY = 18; 
-    let camZ = 16; 
+
+    zoomCurrent.current = THREE.MathUtils.lerp(zoomCurrent.current, zoomTarget.current, delta * 6);
+
+    // Scale fog with zoom so it doesn't eat the scene when zoomed out
+    if (fogRef.current) {
+      fogRef.current.near = 20 * zoomCurrent.current;
+      fogRef.current.far  = 45 * zoomCurrent.current;
+    }
+
+    let camY = 18 * zoomCurrent.current;
+    let camZ = 16 * zoomCurrent.current;
 
     // Portrait Adjustment (further to fix "too zoomed in")
-    // If aspect < 1.0, we smoothly increase camera distance
     if (aspect < 1.0) {
-        const boost = (1.0 - aspect) * 32; // e.g. at aspect 0.5 -> +16 units -> Y=34
+        const boost = (1.0 - aspect) * 32;
         camY += boost;
         camZ += boost;
     }
 
-    const targetCamPos = new THREE.Vector3(playerRef.current.position.x, playerRef.current.position.y + camY, playerRef.current.position.z + camZ); 
+    const targetCamPos = new THREE.Vector3(playerRef.current.position.x, playerRef.current.position.y + camY, playerRef.current.position.z + camZ);
     camera.position.lerp(targetCamPos, 4 * delta);
     
     if (shakeIntensity.current > 0) { const s = shakeIntensity.current; camera.position.x += (Math.random() - 0.5) * s; camera.position.y += (Math.random() - 0.5) * s; camera.position.z += (Math.random() - 0.5) * s; shakeIntensity.current = Math.max(0, shakeIntensity.current - (delta * 8.0)); }
@@ -223,13 +269,42 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     gl.shadowMap.type = THREE.PCFSoftShadowMap;
   }, [gl]);
 
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomTarget.current = THREE.MathUtils.clamp(zoomTarget.current + e.deltaY * 0.001, 0.5, 2.0);
+    };
+    gl.domElement.addEventListener('wheel', onWheel, { passive: false });
+    return () => gl.domElement.removeEventListener('wheel', onWheel);
+  }, [gl, mode]);
+
+  useEffect(() => {
+    let lastPinchDist = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2)
+        lastPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      zoomTarget.current = THREE.MathUtils.clamp(zoomTarget.current - (dist - lastPinchDist) * 0.005, 0.5, 2.0);
+      lastPinchDist = dist;
+    };
+    gl.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
+    gl.domElement.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      gl.domElement.removeEventListener('touchstart', onTouchStart);
+      gl.domElement.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [gl, mode]);
+
   return (
     <>
       <color attach="background" args={[backgroundColor]} />
-      <fog attach="fog" args={[fogColor, 25, 65]} />
       {showDefaultSky && <Sky sunPosition={[100, 20, 100]} />}
       {sceneTheme === 'SKY' && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
       {showStars && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
+      {(sceneTheme === 'FOREST' || sceneTheme === 'SKY') && <AnimatedClouds />}
       <hemisphereLight skyColor={hemisphereColors.sky} groundColor={hemisphereColors.ground} intensity={0.75} />
       <directionalLight
         position={[10, 20, 10]}
@@ -247,7 +322,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       />
       {showOverworldScene && (
           <group>
-            <PixelGround width={100} height={100} themeId={themeId} mode="OVERWORLD" aiConfig={aiConfig} />
+            <PixelGround width={64} height={64} themeId={themeId} mode="OVERWORLD" aiConfig={aiConfig} />
             <VoxelLandmark type={landmarkType} position={[LANDMARK_POS.x, 0, LANDMARK_POS.z]} />
             <VoxelShop position={[SHOP_POS.x, 0, SHOP_POS.z]} />
             {props.map((p) => {
@@ -266,7 +341,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         )}
       </Suspense>
       <EffectComposer disableNormalPass>
-        <Bloom luminanceThreshold={0.3} intensity={1.5} />
+        <Bloom luminanceThreshold={0.6} intensity={0.6} />
         <Vignette eskil={false} offset={0.1} darkness={0.5} />
       </EffectComposer>
     </>
