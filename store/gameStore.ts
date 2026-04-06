@@ -188,10 +188,10 @@ const getInitialStats = (useSaved = true): PlayerStats => {
 
 const generatePortals = (stage: number): Portal[] => {
   const baseLevel = (stage - 1) * 5;
+  // Two YES/NO portals south of the landmark (landmark is at x:0, z:-10, south = higher z)
   const quizPortals: Portal[] = [
-      { id: `p_A`, x: -20, z: 15, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#ef4444' }, 
-      { id: `p_B`, x: 0, z: 25, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#22c55e' }, 
-      { id: `p_C`, x: 20, z: 15, level: baseLevel + 1, type: 'NORMAL', quizOption: 'C', colorOverride: '#3b82f6' } 
+      { id: `p_A`, x: -7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' }, // YES = green
+      { id: `p_B`, x:  7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' }, // NO  = red
   ];
   return quizPortals;
 };
@@ -1034,28 +1034,43 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   completePortal: (portalId) => set((state) => {
       const remainingPortals = state.portals.filter(p => p.id !== portalId);
-      const remainingNormalPortals = remainingPortals.filter(p => p.type === 'NORMAL');
+      // isRound1 = just completed a round-1 portal (p_A or p_B, no _r2 suffix)
+      const isRound1 = !portalId.includes('_r2');
 
-      if (remainingNormalPortals.length > 1) {
-          const availableOptions = remainingNormalPortals.map(p => p.quizOption!).filter(Boolean);
-          useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, availableOptions, state.playerStats.quizDifficulty);
-      } else if (remainingNormalPortals.length === 1) {
-          useAiDirectorStore.getState().setLastPortalMessage(remainingNormalPortals[0].quizOption!);
+      if (isRound1) {
+          // Respawn BOTH YES and NO portals fresh for round 2
+          const baseLevel = (state.activeStage - 1) * 5;
+          const freshPortals: Portal[] = [
+              { id: `p_A_r2`, x: -7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' },
+              { id: `p_B_r2`, x:  7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' },
+          ];
+          useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty);
+
+          return {
+              portals: freshPortals,
+              mode: GameMode.OVERWORLD,
+              lastGameplayMode: GameMode.OVERWORLD,
+              worldPosition: state.savedOverworldPosition,
+              battleWon: false,
+              bossStats: null,
+              quizResult: null,
+              highlightedPortalId: null
+          };
       } else {
            const baseLevel = (state.activeStage - 1) * 5;
            const bossPortal: Portal = {
             id: `stage_${state.activeStage}_boss`,
-            x: 0, 
-            z: 45,
+            x: 0,
+            z: -2, // South of the landmark (landmark at z:-10)
             level: baseLevel + 5,
             type: 'BOSS',
             colorOverride: '#aa00ff'
            };
            remainingPortals.push(bossPortal);
-           
+
            return {
                portals: remainingPortals,
-               mode: GameMode.OVERWORLD, 
+               mode: GameMode.OVERWORLD,
                lastGameplayMode: GameMode.OVERWORLD,
                worldPosition: state.savedOverworldPosition,
                battleWon: false,
@@ -1065,17 +1080,6 @@ export const useGameStore = create<GameState>((set, get) => ({
                highlightedPortalId: null
            };
       }
-
-      return {
-          portals: remainingPortals,
-          mode: GameMode.OVERWORLD, 
-          lastGameplayMode: GameMode.OVERWORLD,
-          worldPosition: state.savedOverworldPosition,
-          battleWon: false,
-          bossStats: null,
-          quizResult: null,
-          highlightedPortalId: null
-      };
   }),
 
   dismissQuizResult: () => set({

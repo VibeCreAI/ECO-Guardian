@@ -160,6 +160,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   });
 
   const getPortalColor = (portal: any) => { if (portal.colorOverride) return portal.colorOverride; if (portal.type === 'BOSS') return '#aa00ff'; return '#00ffff'; };
+  // Map quizOption key to display label for portals
+  const getPortalLabel = (portal: any): string | undefined => { if (!portal.quizOption) return undefined; if (portal.quizOption === 'A') return 'YES'; if (portal.quizOption === 'B') return 'NO'; return portal.quizOption; };
   const isPlayerHit = (Date.now() - playerStats.lastDamageTime) < 200;
   const arrowTarget = useMemo(() => { if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } const bossPortal = portals.find(p => p.type === 'BOSS'); if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [portals, highlightedPortalId]);
 
@@ -176,7 +178,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
                 const s = getPropScale(p.type);
                 return <PropSprite key={p.id} position={[p.x, s * 0.5, p.z]} type={p.type as any} scale={s} />;
             })}
-            {portals.map((portal) => ( <VoxelPortal key={portal.id} position={[portal.x, 0, portal.z]} color={getPortalColor(portal)} isBoss={portal.type === 'BOSS'} label={portal.quizOption} /> ))}
+            {portals.map((portal) => ( <VoxelPortal key={portal.id} position={[portal.x, 0, portal.z]} color={getPortalColor(portal)} isBoss={portal.type === 'BOSS'} label={getPortalLabel(portal)} /> ))}
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}
           </group>
       )}

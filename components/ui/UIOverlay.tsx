@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
-import { GameMode, QuizDifficulty, UpgradeOption } from '../../types';
+import { GameMode, UpgradeOption } from '../../types';
 import { VirtualJoystick } from './VirtualJoystick';
 import { StatusModal } from './StatusModal';
 import { LibraryModal } from './LibraryModal';
@@ -221,13 +221,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       resetGame();
   };
 
-  const handleAnswerSelect = (option: 'A' | 'B' | 'C') => {
+  const handleAnswerSelect = (option: 'A' | 'B') => {
       setHighlightedPortal(`p_${option}`);
       setQuizOpen(false);
-  };
-
-  const handleDifficultySelect = (diff: QuizDifficulty) => {
-      preloadGame(diff);
   };
 
   const renderMinimap = () => {
@@ -290,8 +286,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                         }} 
                     >
                         {portal.quizOption && (
-                            <span className="text-[8px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
-                                {portal.quizOption}
+                            <span className="text-[7px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                                {portal.quizOption === 'A' ? 'Y' : portal.quizOption === 'B' ? 'N' : portal.quizOption}
                             </span>
                         )}
                     </div>
@@ -604,69 +600,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       );
   }
 
-  // --- DIFFICULTY SELECTION ---
-  if (mode === GameMode.DIFFICULTY_SELECT) {
-      return (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/95 z-[100] p-4">
-              <div className="flex flex-col w-full max-w-4xl h-full md:h-auto gap-6 bg-slate-900/50 p-4 md:p-8 rounded-lg overflow-y-auto">
-                  <div className="text-center mb-4 shrink-0">
-                      <h2 className="text-3xl md:text-5xl text-yellow-400 font-bold tracking-tighter mb-2">SELECT DIFFICULTY</h2>
-                      <p className="text-gray-400 text-sm md:text-base">Choose your Eco-Guardian clearance level</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-                      {/* EASY */}
-                      <button 
-                          onClick={() => handleDifficultySelect('EASY')}
-                          className="group relative bg-green-900/40 border-4 border-green-600 hover:bg-green-800/60 hover:border-green-400 p-6 flex flex-col items-center justify-center transition-all duration-200 retro-btn hover:-translate-y-1 min-h-[200px]"
-                      >
-                          <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🌱</div>
-                          <h3 className="text-2xl font-black text-green-300 mb-2">RECRUIT</h3>
-                          <div className="text-white text-xs bg-green-700 px-3 py-1 rounded-full font-bold mb-4">Ages 5-10</div>
-                          <p className="text-gray-300 text-sm text-center leading-relaxed">
-                              Simple language. Basic recycling concepts. Perfect for beginners.
-                          </p>
-                      </button>
-
-                      {/* MEDIUM */}
-                      <button 
-                          onClick={() => handleDifficultySelect('MEDIUM')}
-                          className="group relative bg-blue-900/40 border-4 border-blue-600 hover:bg-blue-800/60 hover:border-blue-400 p-6 flex flex-col items-center justify-center transition-all duration-200 retro-btn hover:-translate-y-1 min-h-[200px]"
-                      >
-                          <div className="absolute -top-4 bg-yellow-500 text-black font-bold px-4 py-1 text-xs shadow-lg">RECOMMENDED</div>
-                          <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🛡️</div>
-                          <h3 className="text-2xl font-black text-blue-300 mb-2">GUARDIAN</h3>
-                          <div className="text-white text-xs bg-blue-700 px-3 py-1 rounded-full font-bold mb-4">Ages 11-16</div>
-                          <p className="text-gray-300 text-sm text-center leading-relaxed">
-                              Practical sustainability facts. Science & nature trivia. The standard experience.
-                          </p>
-                      </button>
-
-                      {/* HARD */}
-                      <button 
-                          onClick={() => handleDifficultySelect('HARD')}
-                          className="group relative bg-red-900/40 border-4 border-red-600 hover:bg-red-800/60 hover:border-red-400 p-6 flex flex-col items-center justify-center transition-all duration-200 retro-btn hover:-translate-y-1 min-h-[200px]"
-                      >
-                          <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🔥</div>
-                          <h3 className="text-2xl font-black text-red-300 mb-2">VETERAN</h3>
-                          <div className="text-white text-xs bg-red-700 px-3 py-1 rounded-full font-bold mb-4">Ages 17+</div>
-                          <p className="text-gray-300 text-sm text-center leading-relaxed">
-                              Complex environmental science. Policy & data analysis. For experts only.
-                          </p>
-                      </button>
-                  </div>
-
-                  <button 
-                      onClick={() => setMode(GameMode.MENU)}
-                      className="mt-4 md:mt-0 w-full md:w-auto mx-auto px-8 py-3 text-gray-400 hover:text-white font-bold tracking-widest text-sm shrink-0"
-                  >
-                      ← BACK TO MENU
-                  </button>
-              </div>
-          </div>
-      );
-  }
-
   // --- LEADERBOARD ---
   if (mode === GameMode.LEADERBOARD) {
     return (
@@ -878,7 +811,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
                 <div className="space-y-4">
                     <button
-                    onClick={() => setMode(GameMode.DIFFICULTY_SELECT)}
+                    onClick={() => preloadGame('MEDIUM')}
                     className="
                         group relative w-full
                         bg-gradient-to-r from-cyan-600 to-emerald-600
@@ -1111,10 +1044,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                       </div>
 
                       <div className="flex gap-4 items-center">
-                          <div className="text-2xl">⚡</div>
+                          <div className="text-2xl">🌿</div>
                           <div>
-                              <h3 className="text-green-400 font-bold mb-1">QUIZ PORTALS</h3>
-                              <p>Answer Gaia's question. <span className="text-green-300 font-bold">Enter the matching Portal for a BONUS CHEST.</span></p>
+                              <h3 className="text-green-400 font-bold mb-1">GAIA'S CHALLENGE</h3>
+                              <p>Gaia asks a <span className="text-green-300 font-bold">YES or NO</span> sustainability question. Walk into the matching portal — answer correctly for <span className="text-yellow-300 font-bold">+100kg CO2!</span></p>
                           </div>
                       </div>
 
@@ -1122,7 +1055,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                           <div className="text-2xl">⚔️</div>
                           <div>
                               <h3 className="text-red-400 font-bold mb-1">BATTLE</h3>
-                              <p>Survive waves. Kill for XP. <span className="text-green-400">Collect ORBS for CO2 Currency.</span></p>
+                              <p>Survive two mob waves, answer both challenges, then face the <span className="text-red-300 font-bold">Stage Boss.</span> Collect ORBS for CO2 currency.</p>
                           </div>
                       </div>
 
@@ -1130,15 +1063,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                           <div className="text-2xl">♻️</div>
                           <div>
                               <h3 className="text-blue-400 font-bold mb-1">THE SHOP</h3>
-                              <p>Visit the <span className="text-blue-300 font-bold">Eco-Exchange</span> near the Landmark to buy upgrades.</p>
-                          </div>
-                      </div>
-
-                      <div className="flex gap-4 items-center">
-                          <div className="text-2xl">📸</div>
-                          <div>
-                              <h3 className="text-cyan-400 font-bold mb-1">REAL WORLD SCAN</h3>
-                              <p>Scan real-world trash at the Recycle Center for <span className="text-cyan-300 font-bold">massive CO2 rewards!</span></p>
+                              <p>Visit the <span className="text-blue-300 font-bold">Eco-Exchange</span> near the Landmark to spend CO2 on upgrades.</p>
                           </div>
                       </div>
                   </div>
@@ -1163,7 +1088,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                   {/* Header */}
                   <div className="p-6 pb-2 shrink-0 text-center">
                     <h2 className={`text-2xl md:text-4xl mb-2 font-bold ${quizResult.correct ? 'text-green-300' : 'text-red-300'}`}>
-                        {quizResult.correct ? "CORRECT!" : "WRONG PORTAL!"}
+                        {quizResult.correct ? "GAIA APPROVES!" : "OOPS!"}
                     </h2>
                   </div>
                   
@@ -1175,11 +1100,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                         </div>
                     )}
 
-                    <p className="text-white text-base mb-4">You chose: <span className="font-bold text-xl block mt-1">{quizResult.answerLabel}</span></p>
-                    
-                    {quizResult.correct && (
+                    <p className="text-white text-base mb-2">You answered: <span className="font-bold text-xl">{quizResult.answerLabel}</span></p>
+
+                    {quizResult.correct ? (
                         <div className="text-green-400 font-bold text-sm mb-4">
-                            + {quizResult.carbonValue}kg CO2 Saved!
+                            +{quizResult.carbonValue}kg CO2 Saved!
+                        </div>
+                    ) : (
+                        <div className="text-red-400 font-bold text-sm mb-4">
+                            The oceans felt that one.
                         </div>
                     )}
 
@@ -1234,89 +1163,38 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       );
   }
 
-  // --- QUIZ MODAL ---
+  // --- GAIA YES/NO MODAL ---
   if (isQuizOpen && currentConfig?.quiz && !showNarrative) {
-      const isEncouragement = Object.keys(currentConfig.quiz.options).length === 0;
-
       return (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-[100] p-4 animate-in fade-in duration-200">
-              <div className={`bg-slate-900 border-4 ${isEncouragement ? 'border-yellow-500' : 'border-blue-500'} retro-border w-full max-w-lg relative shadow-[0_0_50px_rgba(59,130,246,0.3)] flex flex-col max-h-[90vh]`}>
-                  
-                  <div className="p-6 pb-2 shrink-0">
-                      <button 
-                          onClick={() => setQuizOpen(false)}
-                          className="absolute top-2 right-2 text-gray-400 hover:text-white font-bold p-2 z-10"
-                      >
-                          ✕
-                      </button>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/75 z-[100] p-4 animate-in fade-in duration-200">
+              <div className="bg-slate-900 border-4 border-green-500 retro-border w-full max-w-md relative shadow-[0_0_50px_rgba(34,197,94,0.3)] flex flex-col max-h-[90vh]">
 
-                      <h2 className={`text-center text-lg md:text-xl mb-4 font-bold border-b-2 border-slate-700 pb-3 tracking-wide ${isEncouragement ? 'text-yellow-300' : 'text-yellow-400'}`}>
-                          {isEncouragement ? "FINAL PUSH!" : "GAIA'S CHALLENGE"}
+                  <div className="p-6 pb-3 shrink-0 text-center">
+                      <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-2">Gaia Asks...</p>
+                      <h2 className="text-yellow-300 text-lg md:text-xl font-bold leading-snug">
+                          {currentConfig.quiz.question}
                       </h2>
                   </div>
-                  
-                  <div ref={scrollRef} className="overflow-y-auto p-6 pt-0 flex-1">
-                      <p className="text-white text-base md:text-lg mb-6 text-center leading-relaxed font-bold">
-                          {currentConfig.quiz.question}
-                      </p>
 
-                      <div className="space-y-4 mb-6">
-                          {currentConfig.quiz.options.A && currentConfig.quiz.options.A !== 'null' && (
-                            <button 
-                                onClick={() => handleAnswerSelect('A')}
-                                className="w-full flex items-center gap-4 bg-slate-800 p-3 rounded border border-red-500/50 hover:bg-slate-700 transition-colors text-left"
-                            >
-                                <div className="w-10 h-10 flex-shrink-0 bg-red-600 rounded-full border-2 border-white shadow-[0_0_10px_red] flex items-center justify-center font-bold text-white text-lg">A</div>
-                                <span className="text-gray-100 text-sm md:text-base font-bold">{currentConfig.quiz.options.A}</span>
-                            </button>
-                          )}
-                          {currentConfig.quiz.options.B && currentConfig.quiz.options.B !== 'null' && (
-                            <button 
-                                onClick={() => handleAnswerSelect('B')}
-                                className="w-full flex items-center gap-4 bg-slate-800 p-3 rounded border border-green-500/50 hover:bg-slate-700 transition-colors text-left"
-                            >
-                                <div className="w-10 h-10 flex-shrink-0 bg-green-600 rounded-full border-2 border-white shadow-[0_0_10px_lime] flex items-center justify-center font-bold text-white text-lg">B</div>
-                                <span className="text-gray-100 text-sm md:text-base font-bold">{currentConfig.quiz.options.B}</span>
-                            </button>
-                          )}
-                          {currentConfig.quiz.options.C && currentConfig.quiz.options.C !== 'null' && (
-                            <button 
-                                onClick={() => handleAnswerSelect('C')}
-                                className="w-full flex items-center gap-4 bg-slate-800 p-3 rounded border border-blue-500/50 hover:bg-slate-700 transition-colors text-left"
-                            >
-                                <div className="w-10 h-10 flex-shrink-0 bg-blue-600 rounded-full border-2 border-white shadow-[0_0_10px_cyan] flex items-center justify-center font-bold text-white text-lg">C</div>
-                                <span className="text-gray-100 text-sm md:text-base font-bold">{currentConfig.quiz.options.C}</span>
-                            </button>
-                          )}
-                      </div>
-
-                      {!isEncouragement && (
-                        <div className="bg-blue-950/50 p-4 rounded border border-blue-500/30 text-center shadow-inner mt-2">
-                            <p className="text-yellow-400 text-xs font-bold uppercase mb-3 tracking-widest border-b border-blue-800/50 pb-1 inline-block">MISSION PROTOCOL</p>
-                            <div className="text-gray-300 text-xs space-y-2 text-left px-2">
-                                <div className="flex gap-3 items-start">
-                                    <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-                                    <span>Select the best answer above.</span>
-                                </div>
-                                <div className="flex gap-3 items-start">
-                                    <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-                                    <span>Travel to the <span className="text-green-400 font-bold">Matching Tower</span> on your map.</span>
-                                </div>
-                                <div className="flex gap-3 items-start">
-                                    <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
-                                    <span>Walk into the portal to verify and claim loot!</span>
-                                </div>
-                            </div>
-                        </div>
-                      )}
+                  <div className="flex gap-4 px-6 pb-6 shrink-0">
+                      <button
+                          onClick={() => handleAnswerSelect('A')}
+                          className="flex-1 py-5 bg-green-700 hover:bg-green-600 border-4 border-green-400 retro-border retro-btn text-white font-black text-3xl tracking-widest shadow-[0_0_20px_rgba(34,197,94,0.5)] transition-colors"
+                      >
+                          YES
+                      </button>
+                      <button
+                          onClick={() => handleAnswerSelect('B')}
+                          className="flex-1 py-5 bg-red-700 hover:bg-red-600 border-4 border-red-400 retro-border retro-btn text-white font-black text-3xl tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.5)] transition-colors"
+                      >
+                          NO
+                      </button>
                   </div>
 
-                  <div className="p-6 pt-0 mt-auto shrink-0">
-                      <button 
-                          onClick={() => setQuizOpen(false)}
-                          className={`w-full text-white py-3 font-bold retro-btn retro-border text-lg ${isEncouragement ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                      >
-                          {isEncouragement ? "LET'S GO!" : "CLOSE & PLAY"}
+                  <div className="px-6 pb-5 shrink-0 text-center">
+                      <p className="text-slate-400 text-xs">Walk into the portal matching your answer</p>
+                      <button onClick={() => setQuizOpen(false)} className="mt-3 text-slate-500 hover:text-white text-xs underline">
+                          Dismiss
                       </button>
                   </div>
               </div>

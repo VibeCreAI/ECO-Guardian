@@ -13,7 +13,6 @@ interface AiDirectorState {
     generateNextStage: (stats: PlayerStats, currentStage: number, lastResult?: string) => Promise<void>;
     generateMidStageQuiz: (stage: number, availableOptions: string[], difficulty: QuizDifficulty) => Promise<void>;
     generateUpgradeAdvice: (stats: PlayerStats, options: UpgradeOption[]) => Promise<AdviceResult>;
-    setLastPortalMessage: (portalLetter: string) => void;
     generateDeathMessage: (stats: PlayerStats, stage: number, killer: string) => Promise<void>;
 }
 
@@ -36,117 +35,144 @@ const VALID_PROPS = [
     'CLOUD_PILLAR', 'GOLD_GATE', 'SPIKE_ROCK'
 ];
 
-// --- STATIC QUIZ POOL ---
+// --- YES/NO QUESTION POOL ---
 
-interface QuizTemplate {
-    q: string;
-    a: string;
-    w: [string, string];
-    e: string;
-    difficulty: QuizDifficulty;
+interface YesNoTemplate {
+    q: string;          // question text
+    a: 'YES' | 'NO';   // correct answer
+    e: string;          // explanation shown after answering
 }
 
-const STAGE_QUIZ_POOLS: Record<string, QuizTemplate[]> = {
+const YES_NO_POOLS: Record<string, YesNoTemplate[]> = {
     "The Plastic Woods": [
-        { q: "Which everyday item takes 450 years to decompose?", a: "Plastic bottle", w: ["Banana peel", "Cotton shirt"], e: "Plastic bottles can linger in the environment for over four centuries!", difficulty: 'EASY' },
-        { q: "What is the best way to carry groceries?", a: "Reusable bag", w: ["Plastic bag", "Paper bag every time"], e: "Reusable bags can replace hundreds of single-use plastic bags over their lifetime.", difficulty: 'EASY' },
-        { q: "Which material is plastic most commonly made from?", a: "Fossil fuels (petroleum)", w: ["Sand", "Wood pulp"], e: "Most plastics are derived from petroleum or natural gas, non-renewable resources.", difficulty: 'MEDIUM' },
-        { q: "What percentage of all plastic ever produced has been recycled?", a: "About 9%", w: ["About 50%", "About 30%"], e: "Only ~9% of plastic has been recycled; most ends up in landfills or the environment.", difficulty: 'MEDIUM' },
-        { q: "Which enzyme discovered in 2016 can break down PET plastic?", a: "PETase", w: ["Cellulase", "Amylase"], e: "PETase was discovered in a bacterium that evolved to eat plastic at a Japanese recycling site.", difficulty: 'HARD' },
-        { q: "The EU 2021 Single-Use Plastics Directive bans what?", a: "10 categories of single-use plastic items", w: ["All plastic packaging", "Plastic in food products"], e: "The directive targets items like straws, cutlery, and cotton bud sticks most commonly found on beaches.", difficulty: 'HARD' },
+        { q: "Does a plastic bag take more than 100 years to break down?", a: "YES", e: "Plastic bags can take up to 1,000 years to decompose — they just fragment into microplastics." },
+        { q: "Is most plastic packaging recycled after use?", a: "NO", e: "Only about 9% of all plastic ever produced has been recycled. Most ends up in landfill or the ocean." },
+        { q: "Can you recycle a greasy pizza box in standard recycling?", a: "NO", e: "Grease contaminates paper recycling. Tear off the clean lid — that part can be recycled." },
+        { q: "Are bioplastics always better for the environment than regular plastic?", a: "NO", e: "Many bioplastics need industrial composting facilities to break down, and still emit CO2 when they do." },
+        { q: "Does sunlight eventually make plastic safe for the environment?", a: "NO", e: "UV light just breaks plastic into microplastics — tiny fragments that enter the food chain." },
+        { q: "Does plastic production contribute to greenhouse gas emissions?", a: "YES", e: "Making plastic from fossil fuels releases CO2 at every stage: extraction, refining, and manufacturing." },
     ],
     "E-Waste Graveyard": [
-        { q: "What does 'e-waste' stand for?", a: "Electronic waste", w: ["Energy waste", "Environmental waste"], e: "E-waste includes discarded electronics like phones, TVs, and computers.", difficulty: 'EASY' },
-        { q: "Which toxic metal is found in old car batteries?", a: "Lead", w: ["Copper", "Tin"], e: "Lead is highly toxic and can contaminate soil and water if batteries are not recycled properly.", difficulty: 'EASY' },
-        { q: "What fraction of global e-waste is formally recycled?", a: "About 17%", w: ["About 60%", "About 40%"], e: "The rest is often dumped or informally processed, releasing toxic substances.", difficulty: 'MEDIUM' },
-        { q: "Which country generates the most e-waste per person per year?", a: "Norway", w: ["China", "USA"], e: "Norway tops per-capita e-waste generation due to high rates of consumer electronics use.", difficulty: 'MEDIUM' },
-        { q: "What does the Basel Convention regulate?", a: "Trade of hazardous waste between countries", w: ["Deep-sea nuclear dumping", "Greenhouse gas emissions"], e: "The 1989 Basel Convention restricts the export of hazardous waste to developing nations.", difficulty: 'HARD' },
-        { q: "Approximately how much gold is in one tonne of discarded mobile phones?", a: "About 300 grams", w: ["About 10 grams", "About 1 kilogram"], e: "Urban mining of e-waste is often more efficient than gold ore mining from the earth.", difficulty: 'HARD' },
+        { q: "Does one old smartphone contain toxic metals like lead and mercury?", a: "YES", e: "Old phones contain lead solder, mercury switches, and cadmium batteries — all hazardous if landfilled." },
+        { q: "Is most electronic waste formally recycled worldwide?", a: "NO", e: "Only about 17% of e-waste is formally recycled. The rest is often dumped or informally processed." },
+        { q: "Can rare earth metals in phones be recovered through recycling?", a: "YES", e: "Urban mining of e-waste can recover gold, silver, and rare earths more efficiently than mining virgin ore." },
+        { q: "Does buying a new phone every year help the environment?", a: "NO", e: "Manufacturing a smartphone produces the equivalent of 70kg of CO2 — most of a phone's lifetime emissions." },
+        { q: "Is e-waste the fastest growing waste stream in the world?", a: "YES", e: "Global e-waste grew to 53.6 million tonnes in 2019 and is increasing by about 2 million tonnes per year." },
+        { q: "Can you safely throw household batteries in regular bins?", a: "NO", e: "Batteries contain toxic chemicals that leak into soil and groundwater. Always use battery recycling points." },
     ],
     "Frozen Server Farm": [
-        { q: "What is the main source of energy for a solar panel?", a: "Sunlight", w: ["Wind", "Heat"], e: "Photovoltaic cells convert sunlight directly into electricity.", difficulty: 'EASY' },
-        { q: "What gas is released when ice melts in the Arctic?", a: "Methane", w: ["Oxygen", "Nitrogen"], e: "Permafrost contains trapped methane; its release accelerates climate change.", difficulty: 'MEDIUM' },
-        { q: "Which activity uses the most household electricity globally?", a: "Heating and cooling (HVAC)", w: ["Lighting", "Cooking"], e: "Space heating and cooling accounts for roughly 50% of household energy use.", difficulty: 'MEDIUM' },
-        { q: "What is 'embodied carbon' in a product?", a: "CO2 emitted during its manufacture and transport", w: ["CO2 it absorbs while in use", "CO2 released when burned"], e: "Embodied carbon accounts for all emissions before a product is even used.", difficulty: 'HARD' },
-        { q: "Data centers account for approximately what share of global electricity use?", a: "About 1–2%", w: ["About 10%", "About 0.1%"], e: "Despite rapid growth in data, efficiency gains have kept data center energy use relatively stable.", difficulty: 'HARD' },
-        { q: "Which renewable energy type works best in cold, windy climates?", a: "Wind power", w: ["Solar power", "Geothermal power"], e: "Cold air is denser, which means wind turbines can produce more energy in cold climates.", difficulty: 'EASY' },
+        { q: "Can wind turbines work in freezing temperatures?", a: "YES", e: "Modern turbines are designed for Arctic conditions and can operate down to -40°C using heated components." },
+        { q: "Does streaming video online produce zero carbon emissions?", a: "NO", e: "Streaming uses data centers and network infrastructure — it produces roughly 36g of CO2 per hour of viewing." },
+        { q: "Is nuclear energy considered low-carbon by the IPCC?", a: "YES", e: "The IPCC classifies nuclear as one of the lowest lifecycle carbon energy sources, comparable to wind." },
+        { q: "Does keeping your home 1°C cooler in winter save energy?", a: "YES", e: "Lowering your thermostat by 1°C typically reduces heating energy use by about 8–10%." },
+        { q: "Are heat pumps more efficient than gas boilers for heating?", a: "YES", e: "Heat pumps move heat rather than create it — they deliver 3–4 units of heat for every unit of electricity used." },
+        { q: "Do data centers use more electricity than the entire airline industry?", a: "NO", e: "Data centers use about 1–2% of global electricity; aviation uses around 2–3%. But both are growing fast." },
     ],
     "Magma Refinery": [
-        { q: "Which gas is the primary contributor to the greenhouse effect?", a: "Carbon dioxide (CO2)", w: ["Oxygen", "Hydrogen"], e: "CO2 traps heat in the atmosphere, warming the planet over time.", difficulty: 'EASY' },
-        { q: "What is 'fracking' used to extract?", a: "Oil and natural gas", w: ["Gold", "Drinking water"], e: "Hydraulic fracturing injects high-pressure fluid into rock to release fossil fuels.", difficulty: 'MEDIUM' },
-        { q: "Which sector produces the most global greenhouse gas emissions?", a: "Energy (electricity and heat)", w: ["Agriculture", "Transportation"], e: "Energy production for electricity and heat accounts for about 34% of global emissions.", difficulty: 'MEDIUM' },
-        { q: "What is 'carbon capture and storage' (CCS)?", a: "Trapping CO2 before it enters the atmosphere", w: ["Planting trees to absorb CO2", "Burning fossil fuels more cleanly"], e: "CCS captures emissions at source (e.g. power plants) and stores them underground.", difficulty: 'HARD' },
-        { q: "What percentage of global CO2 emissions does cement production contribute?", a: "About 8%", w: ["About 1%", "About 20%"], e: "Cement production releases CO2 both from burning fuel and from the chemical reaction itself.", difficulty: 'HARD' },
-        { q: "Which fossil fuel produces the least CO2 when burned?", a: "Natural gas", w: ["Coal", "Oil"], e: "Natural gas produces about half the CO2 of coal per unit of energy, though it is still a fossil fuel.", difficulty: 'EASY' },
+        { q: "Is cement production responsible for about 8% of global CO2 emissions?", a: "YES", e: "Cement releases CO2 both from burning fuel and from the chemical conversion of limestone — making it hard to decarbonise." },
+        { q: "Does natural gas produce less CO2 than coal when burned?", a: "YES", e: "Natural gas produces about half the CO2 of coal per unit of energy — though it is still a fossil fuel." },
+        { q: "Is fracking considered safe for local groundwater?", a: "NO", e: "Multiple studies link hydraulic fracturing to methane contamination of groundwater and induced earthquakes." },
+        { q: "Do fossil fuels still receive more global subsidies than renewables?", a: "YES", e: "The IMF estimated fossil fuel subsidies at $5.9 trillion globally in 2020 when implicit costs are included." },
+        { q: "Can carbon capture technology remove CO2 from power plant emissions?", a: "YES", e: "CCS can capture up to 90% of CO2 at the point of emission, though large-scale deployment remains expensive." },
+        { q: "Is oil a finite, non-renewable resource?", a: "YES", e: "Oil takes millions of years to form from organic matter under extreme heat and pressure — we cannot replace what we burn." },
     ],
     "Silicon Dunes": [
-        { q: "What does 'reduce, reuse, recycle' encourage first?", a: "Reduce consumption", w: ["Recycle everything", "Reuse then buy new"], e: "The most effective action is to reduce how much we consume in the first place.", difficulty: 'EASY' },
-        { q: "Which material takes the longest to decompose in a landfill?", a: "Glass (up to 1 million years)", w: ["Plastic bag (20 years)", "Aluminum can (80 years)"], e: "Glass can persist almost indefinitely in landfills, yet it is 100% recyclable.", difficulty: 'MEDIUM' },
-        { q: "What is the circular economy?", a: "A system that keeps materials in use as long as possible", w: ["An economy based on oil circles", "A global trading loop"], e: "The circular economy aims to eliminate waste by designing products for reuse, repair, and recycling.", difficulty: 'MEDIUM' },
-        { q: "Silicon for electronics is derived from which abundant resource?", a: "Sand (quartz)", w: ["Limestone", "Iron ore"], e: "Sand is processed into pure silicon for semiconductors, though mining impacts ecosystems.", difficulty: 'HARD' },
-        { q: "What is 'planned obsolescence'?", a: "Designing products to fail or become outdated quickly", w: ["Recycling programs that expire", "Carbon offset expiry dates"], e: "Planned obsolescence drives consumers to replace products faster, increasing waste.", difficulty: 'HARD' },
-        { q: "Which action saves more water: a bath or a short shower?", a: "Short shower (under 5 minutes)", w: ["Bath", "They use the same amount"], e: "A typical bath uses 150 litres; a short shower uses around 35 litres.", difficulty: 'EASY' },
+        { q: "Does manufacturing a smartphone produce more CO2 than a year of using it?", a: "YES", e: "About 80% of a smartphone's lifetime carbon footprint comes from manufacturing, not usage — buy less, keep longer." },
+        { q: "Is glass 100% recyclable without quality loss?", a: "YES", e: "Glass can be recycled endlessly without losing clarity or purity — unlike plastic, which degrades each cycle." },
+        { q: "Does recycling aluminium save 95% of the energy needed to make it from ore?", a: "YES", e: "Aluminium smelting is extremely energy-intensive. Recycling the same aluminium uses only a fraction of that energy." },
+        { q: "Can you recycle most types of plastic in standard household bins?", a: "NO", e: "Most recycling systems only accept PET (#1) and HDPE (#2). Other plastic types often go to landfill." },
+        { q: "Is bamboo a faster-growing material than most timber?", a: "YES", e: "Some bamboo species grow up to 91cm per day — making it one of the most renewable building materials available." },
+        { q: "Is 'planned obsolescence' a strategy used by some manufacturers?", a: "YES", e: "Designing products to fail or become outdated quickly drives consumers to buy replacements, increasing waste." },
     ],
     "Toxic Swamp": [
-        { q: "What is composting?", a: "Recycling food scraps into soil", w: ["Burning garden waste", "Burying plastic"], e: "Composting turns organic waste into nutrient-rich soil, reducing landfill methane.", difficulty: 'EASY' },
-        { q: "Which household chemical should never be poured down the drain?", a: "Paint or motor oil", w: ["Vinegar", "Dish soap"], e: "Toxic liquids contaminate waterways and harm aquatic life.", difficulty: 'EASY' },
-        { q: "What percentage of Earth's water is safe to drink?", a: "Less than 1%", w: ["About 10%", "About 50%"], e: "97% is saltwater, and most freshwater is locked in glaciers.", difficulty: 'MEDIUM' },
-        { q: "Which farming practice reduces chemical runoff?", a: "Buffer strips of vegetation near waterways", w: ["Tilling more frequently", "Increasing fertiliser use"], e: "Vegetation buffers absorb runoff and filter pollutants before they reach rivers.", difficulty: 'MEDIUM' },
-        { q: "What is eutrophication?", a: "Excess nutrients causing algae blooms that deplete oxygen", w: ["Acid rain damage to forests", "Salt build-up in soil"], e: "Fertiliser runoff triggers algae growth that suffocates fish and aquatic life.", difficulty: 'HARD' },
-        { q: "Which pesticide caused widespread bird egg-shell thinning in the 1960s?", a: "DDT", w: ["Glyphosate", "Chlorpyrifos"], e: "DDT's environmental persistence led to near-extinction of species like bald eagles.", difficulty: 'HARD' },
+        { q: "Does agriculture account for most of the world's freshwater use?", a: "YES", e: "Irrigation for crops uses roughly 70% of all freshwater withdrawn globally each year." },
+        { q: "Can you pour motor oil down a household drain safely?", a: "NO", e: "One litre of motor oil can contaminate one million litres of drinking water. Always take it to a hazardous waste site." },
+        { q: "Is less than 1% of Earth's total water available as fresh drinking water?", a: "YES", e: "97% is saltwater, and most freshwater is locked in glaciers. Only about 0.5% is accessible for humans." },
+        { q: "Does eutrophication mean oceans getting warmer?", a: "NO", e: "Eutrophication is nutrient pollution causing algae blooms that deplete oxygen and suffocate aquatic life." },
+        { q: "Is organic farming always better for biodiversity than conventional?", a: "NO", e: "Organic farming has complex trade-offs — it often uses more land per unit of food, which can reduce biodiversity overall." },
+        { q: "Is composting meat and dairy at home always safe?", a: "NO", e: "Home composting meat attracts pests and creates odour. Industrial composting handles it safely at high temperatures." },
     ],
     "Cyber City Ruins": [
-        { q: "Which light bulb type uses least energy?", a: "LED", w: ["Incandescent", "Halogen"], e: "LEDs use up to 90% less energy than traditional incandescent bulbs.", difficulty: 'EASY' },
-        { q: "What is 'smart grid' technology?", a: "A power network that uses digital communication to manage electricity", w: ["A graph showing energy prices", "Solar panels on every house"], e: "Smart grids balance supply and demand in real time, reducing waste.", difficulty: 'MEDIUM' },
-        { q: "Which transport mode produces the least CO2 per passenger kilometre?", a: "Electric rail (train)", w: ["Petrol car (solo)", "Short-haul flight"], e: "Rail transport is among the lowest-emission ways to move people over long distances.", difficulty: 'MEDIUM' },
-        { q: "What is 'urban heat island' effect?", a: "Cities being warmer than surrounding rural areas", w: ["Heat trapped inside buildings", "Warming caused by traffic fumes"], e: "Dark pavements and buildings absorb more heat; green spaces and cool roofs help reduce it.", difficulty: 'HARD' },
-        { q: "By 2030, what share of new cars sold globally need to be electric to meet climate goals (IEA)?", a: "About 60%", w: ["About 20%", "About 90%"], e: "The IEA's Net Zero scenario requires around 60% EV share in new car sales by 2030.", difficulty: 'HARD' },
-        { q: "What does 'unplugging devices on standby' reduce?", a: "Phantom (standby) power consumption", w: ["Battery charge cycles", "Network radiation"], e: "Devices on standby can account for up to 10% of household electricity use.", difficulty: 'EASY' },
+        { q: "Do LED bulbs use around 90% less energy than traditional incandescent bulbs?", a: "YES", e: "LEDs convert most electricity directly to light. Incandescents waste 90% as heat — basically a heater that glows." },
+        { q: "Is electric rail the lowest-emission form of long-distance passenger transport?", a: "YES", e: "Electric trains running on clean grids produce less than 15g CO2 per passenger-km — far below cars or planes." },
+        { q: "Do devices left on standby use meaningful electricity over a year?", a: "YES", e: "Standby power can account for up to 10% of household electricity use. Switching off saves real money and emissions." },
+        { q: "Does planting trees in cities reduce local temperatures?", a: "YES", e: "Urban trees provide shade and evaporative cooling, reducing temperatures by 2–8°C in their immediate vicinity." },
+        { q: "Do short-haul flights have a higher per-km carbon footprint than long-haul flights?", a: "YES", e: "Takeoff and landing burn the most fuel. A 1-hour flight produces almost as much CO2 per seat as a 3-hour one." },
+        { q: "Is cycling to work always a zero-emission form of transport?", a: "YES", e: "Cycling produces no direct emissions — the only carbon cost is in manufacturing the bike and the extra food you eat." },
     ],
     "The Null Void": [
-        { q: "What is biodiversity?", a: "The variety of life on Earth", w: ["The study of plants only", "The number of bacteria species"], e: "Biodiversity includes all species of animals, plants, fungi, and micro-organisms.", difficulty: 'EASY' },
-        { q: "Which gas makes up most of Earth's atmosphere?", a: "Nitrogen (78%)", w: ["Oxygen (78%)", "Carbon dioxide (78%)"], e: "Nitrogen is the most abundant gas; oxygen is second at about 21%.", difficulty: 'EASY' },
-        { q: "What is the 'sixth mass extinction'?", a: "Current human-driven loss of species at 1,000× natural rate", w: ["A historic meteor event", "Predictions for the year 3000"], e: "Scientists say we are in the sixth mass extinction event, primarily driven by human activity.", difficulty: 'MEDIUM' },
-        { q: "What fraction of species are threatened according to the IUCN Red List?", a: "More than 1 in 4 assessed species", w: ["1 in 100", "1 in 1,000"], e: "Over 44,000 species are listed as threatened with extinction on the IUCN Red List.", difficulty: 'MEDIUM' },
-        { q: "Which ecosystem stores the most carbon per hectare?", a: "Peatlands", w: ["Tropical rainforests", "Temperate grasslands"], e: "Peatlands store twice as much carbon as all forests combined despite covering only 3% of land.", difficulty: 'HARD' },
-        { q: "What is 'trophic cascade'?", a: "Ripple effects when a predator population changes", w: ["Energy flow through food chains", "Water flowing downhill through ecosystems"], e: "Removing wolves from Yellowstone changed rivers — an example of trophic cascade.", difficulty: 'HARD' },
+        { q: "Are scientists saying we are currently in a mass extinction event?", a: "YES", e: "The 6th mass extinction is underway, driven by habitat loss, pollution, and climate change — at 1,000× the natural rate." },
+        { q: "Do peatlands store more carbon per hectare than tropical rainforests?", a: "YES", e: "Peatlands cover only 3% of land but store twice the carbon of all forests combined." },
+        { q: "Is the Amazon rainforest still a net carbon absorber overall?", a: "NO", e: "Parts of the Amazon now emit more CO2 than they absorb due to deforestation and fires — a critical tipping point." },
+        { q: "Can a single species going extinct trigger ecosystem collapse?", a: "YES", e: "Keystone species like wolves, bees, and sharks regulate entire ecosystems. Their loss causes cascading failures." },
+        { q: "Did reintroducing wolves to Yellowstone change how rivers flow?", a: "YES", e: "Wolves changed deer grazing patterns, allowing riverbank vegetation to recover and reshape river courses — a trophic cascade." },
+        { q: "Is more than 1 in 4 assessed species currently threatened with extinction?", a: "YES", e: "The IUCN Red List shows over 44,000 of the 147,500 assessed species are threatened with extinction." },
     ],
     "Cloud Data Center": [
-        { q: "What is the ozone layer's main role?", a: "Absorb harmful UV radiation from the sun", w: ["Keep Earth warm at night", "Produce oxygen for breathing"], e: "The ozone layer in the stratosphere filters UV-B and UV-C radiation.", difficulty: 'EASY' },
-        { q: "What does 'carbon neutral' mean for a company?", a: "Net zero CO2 emissions after offsets", w: ["Using only renewable energy", "Zero emissions with no offsets"], e: "Carbon neutral includes buying offsets to balance out remaining emissions.", difficulty: 'MEDIUM' },
-        { q: "Which cloud type stores the most water?", a: "Cumulonimbus", w: ["Cirrus", "Stratus"], e: "Cumulonimbus are towering storm clouds that can produce heavy rain, hail, and thunderstorms.", difficulty: 'EASY' },
-        { q: "What is 'greenwashing'?", a: "Misleading claims about environmental benefits", w: ["Painting rooftops green for cooling", "Eco-friendly software development"], e: "Greenwashing misleads consumers into thinking products are more sustainable than they are.", difficulty: 'MEDIUM' },
-        { q: "What is the global average temperature increase agreed to limit under the Paris Agreement?", a: "1.5°C above pre-industrial levels", w: ["2.5°C", "3°C"], e: "The Paris Agreement aims to limit warming to 1.5°C, with a harder limit of 2°C.", difficulty: 'HARD' },
-        { q: "What is the carbon footprint of streaming one hour of video online?", a: "About 36 grams of CO2", w: ["About 1 kg of CO2", "About 500 grams of CO2"], e: "Streaming has a much smaller footprint than often reported, roughly equivalent to boiling a kettle.", difficulty: 'HARD' },
+        { q: "Does the Paris Agreement aim to limit warming to 1.5°C above pre-industrial levels?", a: "YES", e: "The 2015 Paris Agreement set 1.5°C as the aspirational limit, with 2°C as the harder backstop." },
+        { q: "Is greenwashing currently illegal in all countries?", a: "NO", e: "Greenwashing regulations vary widely. The EU is introducing stricter rules, but enforcement remains inconsistent globally." },
+        { q: "Can solar panels generate electricity on a cloudy day?", a: "YES", e: "Solar panels work on diffuse light, not just direct sunlight — output drops 10–25% on cloudy days, but they still produce power." },
+        { q: "Is the ozone layer fully recovered from CFC damage?", a: "NO", e: "The ozone layer is recovering but won't fully heal until around 2066 — the Montreal Protocol was a huge success, but it takes time." },
+        { q: "Does cloud computing always reduce a company's carbon footprint?", a: "NO", e: "Cloud efficiency depends entirely on the data center's energy source. Coal-powered clouds can be worse than local servers." },
+        { q: "Do airlines currently offset all their carbon emissions through voluntary schemes?", a: "NO", e: "Voluntary offsets cover only a fraction of aviation emissions, and many offset projects have been found ineffective." },
     ],
     "Digital Hell": [
-        { q: "What is the most powerful greenhouse gas?", a: "Methane (CH4) over 20 years", w: ["Carbon dioxide (CO2)", "Water vapour"], e: "Methane is over 80× more potent than CO2 over 20 years, though it breaks down faster.", difficulty: 'MEDIUM' },
-        { q: "What is nuclear energy's carbon footprint compared to coal?", a: "About 70× lower", w: ["About the same", "About 5× lower"], e: "Nuclear power produces very little CO2 per kWh, making it one of the lowest-carbon energy sources.", difficulty: 'HARD' },
-        { q: "What is 'fast fashion'?", a: "Cheap, trend-driven clothes produced at high volume", w: ["Sportswear for running", "Tailored high-quality suits"], e: "Fast fashion contributes 10% of global carbon emissions and is a major source of water pollution.", difficulty: 'EASY' },
-        { q: "Which single diet change reduces a person's carbon footprint the most?", a: "Cutting out beef and dairy", w: ["Switching to organic chicken", "Avoiding air-flown produce"], e: "Livestock farming, especially beef, accounts for the largest share of food-related emissions.", difficulty: 'MEDIUM' },
-        { q: "What is the 'social cost of carbon'?", a: "The estimated economic damage caused by emitting one tonne of CO2", w: ["The price of carbon credits on exchanges", "The cost of building solar panels"], e: "The social cost of carbon helps governments weigh the true cost of climate damage in policy decisions.", difficulty: 'HARD' },
-        { q: "Which action reduces food waste most at home?", a: "Meal planning before shopping", w: ["Buying in bulk always", "Freezing everything immediately"], e: "Planning meals prevents over-buying — the leading cause of household food waste.", difficulty: 'EASY' },
+        { q: "Is methane more potent than CO2 as a greenhouse gas over 20 years?", a: "YES", e: "Methane is over 80× more potent than CO2 over a 20-year period, making livestock and landfill methane critical targets." },
+        { q: "Does beef production produce more CO2 per kg than chicken?", a: "YES", e: "Beef produces about 60kg CO2e per kg of food; chicken is around 6kg. Switching to chicken cuts footprint by 10×." },
+        { q: "Can nuclear power be considered a genuinely low-carbon energy source?", a: "YES", e: "Nuclear produces about 12g CO2 per kWh over its lifecycle — comparable to wind and solar, far below gas or coal." },
+        { q: "Is air travel the single biggest contributor to most people's personal carbon footprint?", a: "NO", e: "Diet and home energy use are typically larger. One transatlantic flight is roughly equivalent to months of plant-based eating." },
+        { q: "Does the fashion industry produce more CO2 than aviation and shipping combined?", a: "YES", e: "Fashion accounts for roughly 10% of global carbon emissions — more than international flights and maritime shipping together." },
+        { q: "Has any country run on 100% renewable electricity for extended periods?", a: "YES", e: "Iceland runs almost entirely on geothermal and hydro; Costa Rica has hit 100% renewable electricity for months at a time." },
     ],
 };
 
-// Global fallback pool used when no stage-specific pool is available
-const FALLBACK_QUIZ_POOL: QuizTemplate[] = [
-    { q: "Which of these takes the longest to decompose?", a: "Plastic Bottle", w: ["Banana Peel", "Cotton Shirt"], e: "Plastic bottles can take 450 years to decompose!", difficulty: 'EASY' },
-    { q: "What is the best way to reduce plastic waste?", a: "Reusable Bottles", w: ["Buying more plastic", "Single-use cups"], e: "Reusable bottles replace hundreds of single-use plastic bottles!", difficulty: 'EASY' },
-    { q: "Which of these is a renewable energy source?", a: "Solar Power", w: ["Coal", "Natural Gas"], e: "Solar energy comes from the sun and is infinite.", difficulty: 'EASY' },
-    { q: "What gas do trees absorb?", a: "Carbon Dioxide", w: ["Oxygen", "Helium"], e: "Trees act as carbon sinks, absorbing CO2 from the air.", difficulty: 'EASY' },
-    { q: "What material can be recycled indefinitely without losing quality?", a: "Aluminum", w: ["Plastic", "Paper"], e: "Aluminum and glass can be recycled over and over without losing quality.", difficulty: 'MEDIUM' },
-    { q: "Which of these is a greenhouse gas?", a: "Methane", w: ["Oxygen", "Nitrogen"], e: "Methane is a potent greenhouse gas emitted during decomposition.", difficulty: 'MEDIUM' },
-    { q: "What is composting?", a: "Recycling organic waste into soil", w: ["Burning trash", "Throwing food away"], e: "Composting turns food scraps into nutrient-rich soil.", difficulty: 'EASY' },
-    { q: "Which bulb is most energy efficient?", a: "LED", w: ["Incandescent", "Halogen"], e: "LEDs use up to 90% less energy than traditional bulbs.", difficulty: 'EASY' },
-    { q: "What is 'Fast Fashion'?", a: "Cheap, disposable clothes", w: ["Running gear", "High quality suits"], e: "Fast fashion contributes heavily to landfill waste and water pollution.", difficulty: 'MEDIUM' },
-    { q: "How much of Earth's water is drinkable?", a: "Less than 1%", w: ["50%", "10%"], e: "Most water is salty or frozen; preserving fresh water is vital.", difficulty: 'MEDIUM' },
-    { q: "Which is a major cause of ocean pollution?", a: "Plastic Waste", w: ["Seaweed", "Fish migration"], e: "Millions of tons of plastic enter the oceans every year.", difficulty: 'EASY' },
-    { q: "What does 'Biodegradable' mean?", a: "Breaks down naturally", w: ["Lasts forever", "Made of metal"], e: "Biodegradable materials can be decomposed by bacteria or other living organisms.", difficulty: 'EASY' },
-    { q: "What is the 'Great Pacific Garbage Patch'?", a: "Floating Plastic Debris", w: ["A tropical island", "A coral reef"], e: "It is a massive collection of marine debris in the North Pacific Ocean.", difficulty: 'MEDIUM' },
-    { q: "Which gas makes up most of the Earth's atmosphere?", a: "Nitrogen", w: ["Oxygen", "Carbon Dioxide"], e: "Nitrogen makes up about 78% of the atmosphere.", difficulty: 'MEDIUM' },
-    { q: "What is the Paris Agreement's temperature limit target?", a: "1.5°C above pre-industrial levels", w: ["3°C", "2.5°C"], e: "The Paris Agreement aims to limit global warming to 1.5°C.", difficulty: 'HARD' },
+// Global fallback pool
+const YES_NO_FALLBACK: YesNoTemplate[] = [
+    { q: "Do trees absorb CO2 from the atmosphere?", a: "YES", e: "Trees absorb CO2 through photosynthesis, storing carbon in their wood, roots, and surrounding soil." },
+    { q: "Is recycling aluminium more efficient than making it from raw ore?", a: "YES", e: "Recycling aluminium uses 95% less energy than smelting it from bauxite ore." },
+    { q: "Does composting food waste reduce methane emissions from landfills?", a: "YES", e: "Food in landfills produces methane as it decomposes without oxygen. Composting prevents this." },
+    { q: "Is the Great Pacific Garbage Patch visible from space?", a: "NO", e: "It is mostly microplastics suspended in water — not a visible island. Satellites can only detect it with sensors." },
+    { q: "Does meat production use more water per kg than vegetable farming?", a: "YES", e: "1kg of beef requires about 15,000 litres of water. 1kg of wheat needs around 1,500 litres." },
+    { q: "Can solar panels generate power at night?", a: "NO", e: "Solar panels require light photons to generate electricity. Batteries store daytime energy for overnight use." },
+    { q: "Is tap water generally more eco-friendly than bottled water?", a: "YES", e: "Tap water has a carbon footprint up to 300× lower than bottled water once you account for plastic production and transport." },
+    { q: "Are coral reefs threatened by ocean warming?", a: "YES", e: "Coral bleaching occurs when water warms just 1–2°C above normal. About 50% of the world's corals have already been lost." },
+    { q: "Does switching to a plant-based diet reduce your carbon footprint?", a: "YES", e: "Food accounts for roughly 25% of global emissions. A vegan diet can cut your food footprint by up to 73%." },
+    { q: "Can you recycle a plastic straw in standard household recycling?", a: "NO", e: "Straws are too small for most sorting machines and contaminate other recyclables. They usually end up in landfill." },
+    { q: "Does deforestation contribute to climate change?", a: "YES", e: "Forests store vast amounts of carbon. Cutting them releases CO2 and removes a future carbon sink — a double blow." },
+    { q: "Is wind energy now more expensive than coal energy in most markets?", a: "NO", e: "Wind power is now cheaper than new coal in most of the world, and often cheaper than running existing coal plants." },
+    { q: "Can a single tree absorb roughly 1 tonne of CO2 over its lifetime?", a: "YES", e: "A mature tree absorbs around 22kg of CO2 per year. Over 50+ years that adds up to over a tonne of carbon stored." },
+    { q: "Is household food waste a significant source of greenhouse gas emissions?", a: "YES", e: "If food waste were a country, it would be the world's third-largest emitter of greenhouse gases." },
+    { q: "Does taking a shower always use less water than a bath?", a: "NO", e: "A short shower (under 5 min) beats a bath, but a 20-minute power shower uses far more water than a typical bath." },
 ];
+
+// --- YES/NO SELECTION HELPER ---
+
+function selectYesNoQuestion(
+    stageName: string,
+    excludedQuestions: string[] = []
+): AiStageConfig['quiz'] {
+    const stagePool = YES_NO_POOLS[stageName] ?? [];
+    const combinedPool = [...stagePool, ...YES_NO_FALLBACK];
+
+    const excluded = new Set(excludedQuestions);
+    const unusedPool = combinedPool.filter(t => !excluded.has(t.q));
+    const finalPool = unusedPool.length > 0 ? unusedPool : combinedPool;
+
+    const template = finalPool[Math.floor(Math.random() * finalPool.length)];
+
+    // A = YES portal (green), B = NO portal (red)
+    const correctOption = template.a === 'YES' ? 'A' : 'B';
+
+    return {
+        question: template.q,
+        options: { A: 'YES', B: 'NO' },
+        correctOption,
+        explanation: template.e,
+        impactValue: 100
+    };
+}
+
+// --- DEATH MESSAGES ---
 
 const DEATH_MESSAGES = [
     "The forests remembered your name, though the machines did not.",
@@ -250,58 +276,6 @@ const FIXED_STAGES: AiStageConfig[] = [
     }
 ];
 
-// --- QUIZ SELECTION HELPER ---
-
-function selectQuizQuestion(
-    stageName: string,
-    difficulty: QuizDifficulty,
-    availableOptions?: string[],
-    excludedQuestions: string[] = []
-): AiStageConfig['quiz'] {
-    // 1. Get the pool for this stage, fall back to global pool
-    const stagePool = STAGE_QUIZ_POOLS[stageName];
-    const pool: QuizTemplate[] = stagePool ?? FALLBACK_QUIZ_POOL;
-
-    // 2. Prefer the requested difficulty, but use any unused question before repeating.
-    const difficultyPool = pool.filter(q => q.difficulty === difficulty);
-    const preferredPool = difficultyPool.length > 0 ? difficultyPool : pool;
-    const excluded = new Set(excludedQuestions);
-    const unusedPreferredPool = preferredPool.filter(template => !excluded.has(template.q));
-    const unusedPool = pool.filter(template => !excluded.has(template.q));
-    const finalPool =
-        unusedPreferredPool.length > 0
-            ? unusedPreferredPool
-            : unusedPool.length > 0
-                ? unusedPool
-                : preferredPool;
-
-    // 3. Pick a random question
-    const template = finalPool[Math.floor(Math.random() * finalPool.length)];
-
-    // 4. Assign correct answer to a random option slot
-    const slots = availableOptions ?? ['A', 'B', 'C'];
-    const correctKey = slots[Math.floor(Math.random() * slots.length)] as 'A' | 'B' | 'C';
-    const options: { A?: string; B?: string; C?: string } = {};
-    options[correctKey] = template.a;
-
-    const otherSlots = slots.filter(s => s !== correctKey);
-    const wrongs = [...template.w].sort(() => 0.5 - Math.random());
-    otherSlots.forEach((slot, i) => {
-        (options as any)[slot] = wrongs[i % wrongs.length];
-    });
-
-    // 5. Impact value by difficulty
-    const impactByDifficulty: Record<QuizDifficulty, number> = { EASY: 75, MEDIUM: 100, HARD: 150 };
-
-    return {
-        question: template.q,
-        options,
-        correctOption: correctKey,
-        explanation: template.e,
-        impactValue: impactByDifficulty[difficulty]
-    };
-}
-
 export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
     currentConfig: null,
     gameOverMessage: null,
@@ -336,9 +310,8 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
             finalConfig.boss.name = `ASCENDED ${finalConfig.boss.name}`;
         }
 
-        // 3. GENERATE QUIZ FROM STATIC POOL
-        const difficulty = stats.quizDifficulty || 'MEDIUM';
-        finalConfig.quiz = selectQuizQuestion(finalConfig.stageName, difficulty, undefined, askedQuestions);
+        // 3. GENERATE YES/NO QUESTION FROM STATIC POOL
+        finalConfig.quiz = selectYesNoQuestion(finalConfig.stageName, askedQuestions);
 
         set({
             currentConfig: finalConfig,
@@ -353,10 +326,8 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
 
         set({ isGenerating: true });
 
-        const quiz = selectQuizQuestion(
+        const quiz = selectYesNoQuestion(
             state.currentConfig.stageName,
-            difficulty,
-            availableOptions.length > 0 ? availableOptions : ['A', 'B', 'C'],
             state.usedQuizQuestions
         );
 
@@ -366,25 +337,6 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
                 isGenerating: false,
                 currentConfig: { ...prevState.currentConfig, quiz },
                 usedQuizQuestions: [...new Set([...prevState.usedQuizQuestions, quiz.question])],
-            };
-        });
-    },
-
-    setLastPortalMessage: (portalLetter: string) => {
-        set((state) => {
-            if (!state.currentConfig) return {};
-            return {
-                isGenerating: false,
-                currentConfig: {
-                    ...state.currentConfig,
-                    quiz: {
-                        question: "The final source of corruption is close! Purify the last portal to summon the Goliath!",
-                        options: {},
-                        correctOption: portalLetter as any,
-                        explanation: "Gaia's strength is returning. One more push!",
-                        impactValue: 150
-                    }
-                }
             };
         });
     },
