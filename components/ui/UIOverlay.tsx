@@ -8,7 +8,7 @@ import { StatusModal } from './StatusModal';
 import { LibraryModal } from './LibraryModal';
 import { ShopModal } from './ShopModal';
 import { WEAPONS_DATA, EVOLUTION_RECIPES, PASSIVES_DATA } from '../../constants';
-import { ASSET_PATHS } from '../../assets';
+import { ASSET_PATHS, preloadStartupAssets } from '../../assets';
 
 interface UIOverlayProps {
   inputVector: React.MutableRefObject<{x: number, y: number}>;
@@ -47,12 +47,24 @@ const MenuHero = () => {
     );
 };
 
+const describeStartupAsset = (assetUrl: string) => {
+    if (!assetUrl) return 'Opening command channel...';
+    if (assetUrl.includes('/player/')) return 'Caching player sprite sheets...';
+    if (assetUrl.includes('/audio/')) return 'Priming soundtrack buffers...';
+    if (assetUrl.includes('/start/')) return 'Preparing mission display assets...';
+    return 'Synchronizing field assets...';
+};
+
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, activeBattle, isQuizOpen, setQuizOpen, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, setHighlightedPortal, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, activeBattle, isQuizOpen, setQuizOpen, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, setHighlightedPortal, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [startupAssetProgress, setStartupAssetProgress] = useState(0);
+  const [startupDisplayedProgress, setStartupDisplayedProgress] = useState(0);
+  const [startupAssetsReady, setStartupAssetsReady] = useState(false);
+  const [startupStatusDetail, setStartupStatusDetail] = useState('Opening command channel...');
   
   // UI Scaling for short screens (mobile landscape)
   const [uiScale, setUiScale] = useState(1);
@@ -130,6 +142,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const lastQuizSignature = useRef<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const startupSequenceRef = useRef(0);
+  const startupLaunchTimeoutRef = useRef<number | null>(null);
 
   // Fix: Reset tracking refs when returning to Menu/Setup so narrative triggers again on restart
   useEffect(() => {
@@ -198,6 +212,87 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     window.addEventListener('keydown', handleScrollKey);
     return () => window.removeEventListener('keydown', handleScrollKey);
   }, [mode]);
+
+  useEffect(() => {
+      if (mode !== GameMode.INSTRUCTIONS) {
+          startupSequenceRef.current += 1;
+          setStartupAssetProgress(0);
+          setStartupDisplayedProgress(0);
+          setStartupAssetsReady(false);
+          setStartupStatusDetail('Opening command channel...');
+          return;
+      }
+
+      const sequenceId = startupSequenceRef.current + 1;
+      startupSequenceRef.current = sequenceId;
+      setStartupAssetProgress(0);
+      setStartupDisplayedProgress(0);
+      setStartupAssetsReady(false);
+      setStartupStatusDetail('Opening command channel...');
+
+      let active = true;
+
+      preloadStartupAssets((loaded, total, assetUrl) => {
+          if (!active || startupSequenceRef.current !== sequenceId) return;
+          setStartupAssetProgress(total === 0 ? 1 : loaded / total);
+          setStartupStatusDetail(describeStartupAsset(assetUrl));
+      }).then(() => {
+          if (!active || startupSequenceRef.current !== sequenceId) return;
+          setStartupAssetProgress(1);
+          setStartupAssetsReady(true);
+      });
+
+      return () => {
+          active = false;
+      };
+  }, [mode]);
+
+  const startupTargetProgress = mode === GameMode.INSTRUCTIONS
+      ? Math.min(100, Math.round((startupAssetProgress * 0.7 + (isStageReady ? 0.25 : 0) + 0.05) * 100))
+      : 0;
+
+  useEffect(() => {
+      if (mode !== GameMode.INSTRUCTIONS) return;
+
+      const interval = window.setInterval(() => {
+          setStartupDisplayedProgress((current) => {
+              if (current === startupTargetProgress) return current;
+              const delta = startupTargetProgress - current;
+              if (delta <= 0) return startupTargetProgress;
+              return Math.min(startupTargetProgress, current + Math.max(1, Math.ceil(delta * 0.16)));
+          });
+      }, 16);
+
+      return () => window.clearInterval(interval);
+  }, [mode, startupTargetProgress]);
+
+  useEffect(() => {
+      if (startupLaunchTimeoutRef.current !== null) {
+          window.clearTimeout(startupLaunchTimeoutRef.current);
+          startupLaunchTimeoutRef.current = null;
+      }
+
+      if (
+          mode !== GameMode.INSTRUCTIONS ||
+          !isStageReady ||
+          !startupAssetsReady ||
+          startupDisplayedProgress < 100
+      ) {
+          return;
+      }
+
+      startupLaunchTimeoutRef.current = window.setTimeout(() => {
+          startGame();
+          startupLaunchTimeoutRef.current = null;
+      }, 350);
+
+      return () => {
+          if (startupLaunchTimeoutRef.current !== null) {
+              window.clearTimeout(startupLaunchTimeoutRef.current);
+              startupLaunchTimeoutRef.current = null;
+          }
+      };
+  }, [mode, isStageReady, startupAssetsReady, startupDisplayedProgress, startGame]);
 
   const handleJoystick = (vec: { x: number, y: number }) => {
     inputVector.current = vec;
@@ -1029,6 +1124,94 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
   // --- INSTRUCTIONS / MISSION BRIEFING ---
   if (mode === GameMode.INSTRUCTIONS) {
+      const startupHeadline = !isStageReady
+          ? 'Consulting Gaia'
+          : !startupAssetsReady
+              ? 'Caching Mission Assets'
+              : 'Deploying Guardian';
+      const startupSummary = !isStageReady
+          ? 'Generating the first biome, mission question, and combat state.'
+          : !startupAssetsReady
+              ? 'Preloading sprites, music, and first-run assets for a smoother mobile handoff.'
+              : 'Launch window acquired. Entering the overworld now.';
+
+      return (
+          <div 
+              className="absolute inset-0 flex items-center justify-center z-50 overflow-hidden bg-cover bg-center p-4"
+              style={{ backgroundImage: `url('${ASSET_PATHS.images.start.background}')` }}
+          >
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-[2px]" />
+
+              <div className="relative w-full max-w-4xl border border-cyan-400/30 bg-slate-950/85 p-6 md:p-8 shadow-[0_0_80px_rgba(34,211,238,0.14)]">
+                  <div
+                      className="pointer-events-none absolute inset-0 opacity-20"
+                      style={{ backgroundImage: 'repeating-linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px)' }}
+                  />
+
+                  <div className="relative flex items-start justify-between gap-4 border-b border-slate-800 pb-5">
+                      <div>
+                          <p className="text-cyan-300 text-[11px] uppercase tracking-[0.35em] mb-2">Mission Protocol</p>
+                          <h2 className="text-2xl md:text-4xl font-black text-white tracking-tight">{startupHeadline}</h2>
+                          <p className="mt-3 max-w-2xl text-sm md:text-base text-slate-300 leading-relaxed">{startupSummary}</p>
+                      </div>
+                      <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-cyan-200 md:flex">
+                          01
+                      </div>
+                  </div>
+
+                  <div className="relative mt-6 grid gap-3 md:grid-cols-3">
+                      <div className="border border-slate-800 bg-black/25 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Objective</p>
+                          <p className="mt-2 text-sm text-slate-200">Cleanse 10 polluted biomes and restore balance for Gaia.</p>
+                      </div>
+                      <div className="border border-slate-800 bg-black/25 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Protocol</p>
+                          <p className="mt-2 text-sm text-slate-200">Answer Gaia with YES or NO, then enter the matching portal for bonus carbon.</p>
+                      </div>
+                      <div className="border border-slate-800 bg-black/25 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Support</p>
+                          <p className="mt-2 text-sm text-slate-200">Use the Eco-Exchange between waves to convert saved CO2 into upgrades.</p>
+                      </div>
+                  </div>
+
+                  <div className="relative mt-6 border border-slate-800 bg-black/35 p-5">
+                      <div className="flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.3em] text-slate-400">
+                          <span>{currentConfig?.stageName ? `First Biome: ${currentConfig.stageName}` : 'Preparing First Biome'}</span>
+                          <span>{startupDisplayedProgress}%</span>
+                      </div>
+
+                      <div className="mt-3 h-4 overflow-hidden border border-slate-700 bg-slate-900">
+                          <div
+                              className="h-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-lime-300 transition-[width] duration-200 ease-out"
+                              style={{ width: `${startupDisplayedProgress}%` }}
+                          />
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+                          <p className="text-slate-200">{startupStatusDetail}</p>
+                          <p className="text-slate-400">
+                              {isStageReady ? 'mission data locked' : 'mission data compiling'}
+                              {' · '}
+                              {startupAssetsReady ? 'assets cached' : 'assets streaming'}
+                          </p>
+                      </div>
+                  </div>
+
+                  <div className="relative mt-6 flex flex-col gap-3 border-t border-slate-800 pt-5 md:flex-row md:items-center md:justify-between">
+                      <p className="text-xs text-slate-400">
+                          The game launches automatically when the initial mission payload is fully ready.
+                      </p>
+                      <button 
+                          onClick={() => setMode(GameMode.MENU)}
+                          className="bg-slate-800 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-700"
+                      >
+                          ABORT MISSION
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+/*
       return (
           <div className="absolute inset-0 flex items-center justify-center bg-black/95 z-50">
               <div className="bg-slate-900 p-6 retro-border w-full max-w-2xl border-4 border-blue-600 overflow-y-auto max-h-[90vh]">
@@ -1077,6 +1260,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
               </div>
           </div>
       );
+*/
   }
 
   // --- QUIZ RESULT MODAL ---
@@ -1360,7 +1544,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                         className={`w-full border-r border-slate-700 ${isShortHeight ? 'py-2' : 'py-4'} px-2 flex flex-col items-center justify-center gap-1 group transition-colors ${isGenerating ? 'opacity-50 cursor-not-allowed bg-slate-900' : 'hover:bg-slate-800 active:bg-slate-700'}`}
                       >
                           <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} ${!isGenerating && 'group-hover:scale-110 transition-transform'}`}>📜</span>
-                          <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-blue-200`}>{isGenerating ? 'WAITING...' : 'MISSION'}</span>
+                          <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-blue-200`}>{isGenerating ? 'WAITING...' : 'Yes or No'}</span>
                       </button>
                   ) : (
                       <div className="w-full border-r border-slate-700 bg-slate-950/50"></div>

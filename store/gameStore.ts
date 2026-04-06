@@ -190,8 +190,8 @@ const generatePortals = (stage: number): Portal[] => {
   const baseLevel = (stage - 1) * 5;
   // Two YES/NO portals south of the landmark (landmark is at x:0, z:-10, south = higher z)
   const quizPortals: Portal[] = [
-      { id: `p_A`, x: -7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' }, // YES = green
-      { id: `p_B`, x:  7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' }, // NO  = red
+      { id: `p_A`, x: -7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' }, // YES = green
+      { id: `p_B`, x:  7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' }, // NO  = red
   ];
   return quizPortals;
 };
@@ -1061,7 +1061,7 @@ export const useGameStore = create<GameState>((set, get) => ({
            const bossPortal: Portal = {
             id: `stage_${state.activeStage}_boss`,
             x: 0,
-            z: -2, // South of the landmark (landmark at z:-10)
+            z: 6, // South of the landmark (landmark at z:-10)
             level: baseLevel + 5,
             type: 'BOSS',
             colorOverride: '#aa00ff'

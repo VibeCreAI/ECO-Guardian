@@ -1,6 +1,7 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { Suspense, useRef, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { Preload } from '@react-three/drei';
 import { UIOverlay } from './components/ui/UIOverlay';
 import { Scene } from './components/game/Scene';
 import { AudioManager } from './components/game/AudioManager';
@@ -81,7 +82,10 @@ const App: React.FC = () => {
       <AudioManager />
       {/* Performance Optimization: Removed shadows={true} */}
       <Canvas camera={{ position: [0, 10, 10], fov: 45 }}>
-        <Scene inputVector={inputVector} dashTrigger={dashTrigger} />
+        <Suspense fallback={null}>
+          <Scene inputVector={inputVector} dashTrigger={dashTrigger} />
+          <Preload all />
+        </Suspense>
       </Canvas>
       
       <UIOverlay 
