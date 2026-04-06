@@ -1041,8 +1041,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           // Respawn BOTH YES and NO portals fresh for round 2
           const baseLevel = (state.activeStage - 1) * 5;
           const freshPortals: Portal[] = [
-              { id: `p_A_r2`, x: -7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' },
-              { id: `p_B_r2`, x:  7, z: -2, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' },
+              { id: `p_A_r2`, x: -7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' },
+              { id: `p_B_r2`, x:  7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' },
           ];
           useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty);
 
