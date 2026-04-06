@@ -143,6 +143,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const lastMapUpdate = useRef(0);
   const dashTimer = useRef(0);
   const dashDirection = useRef(new THREE.Vector2(0, 0));
+  const lastMoveDir = useRef(new THREE.Vector2(1, 0));
   const shakeIntensity = useRef(0);
   const lastProcessedDamageTime = useRef(0);
   const prevModeRef = useRef<GameMode>(mode);
@@ -192,7 +193,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (dashTimer.current > 0) dashTimer.current -= delta;
     if ((mode === GameMode.OVERWORLD || mode === GameMode.BATTLE)) {
         let moveX = 0; let moveZ = 0;
-        if ((mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) && dashTrigger.current && dashCooldownCurrent <= 0) { setDashCooldown(playerStats.dashCooldownTime); dashTimer.current = 0.25; if (Math.abs(inputVector.current.x) > 0.1 || Math.abs(inputVector.current.y) > 0.1) { const len = Math.sqrt(inputVector.current.x**2 + inputVector.current.y**2); dashDirection.current.set(inputVector.current.x / len, inputVector.current.y / len); } else dashDirection.current.set(facing, 0); dashTrigger.current = false; } 
+        if (Math.abs(inputVector.current.x) > 0.1 || Math.abs(inputVector.current.y) > 0.1) { const len = Math.sqrt(inputVector.current.x**2 + inputVector.current.y**2); lastMoveDir.current.set(inputVector.current.x / len, inputVector.current.y / len); }
+        if ((mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) && dashTrigger.current && dashCooldownCurrent <= 0) { setDashCooldown(playerStats.dashCooldownTime); dashTimer.current = 0.25; if (Math.abs(inputVector.current.x) > 0.1 || Math.abs(inputVector.current.y) > 0.1) { const len = Math.sqrt(inputVector.current.x**2 + inputVector.current.y**2); dashDirection.current.set(inputVector.current.x / len, inputVector.current.y / len); } else dashDirection.current.set(lastMoveDir.current.x, lastMoveDir.current.y); dashTrigger.current = false; }
         if (dashTimer.current > 0) { const dashSpeed = playerStats.moveSpeed * 3.5; moveX = dashDirection.current.x * dashSpeed * delta; moveZ = dashDirection.current.y * dashSpeed * delta; } else { const speed = playerStats.moveSpeed; moveX = inputVector.current.x * speed * delta; moveZ = inputVector.current.y * speed * delta; }
         let nextX = playerRef.current.position.x + moveX; let nextZ = playerRef.current.position.z + moveZ;
         

@@ -26,29 +26,17 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   }, [active, onMove]);
 
   const handleStart = (e: React.TouchEvent) => {
-    if (e.touches.length > 1) {
-      releaseJoystick();
-      return;
-    }
-
-    // Only accept one touch for the joystick
+    // Already tracking a joystick touch — ignore new touches (e.g. dash button)
     if (touchId !== null) return;
-    
+
     const touch = e.changedTouches[0];
     setTouchId(touch.identifier);
-    
-    // Set origin to the initial touch point
     setOrigin({ x: touch.clientX, y: touch.clientY });
     setCurrentPos({ x: 0, y: 0 });
     setActive(true);
   };
 
   const handleMove = (e: React.TouchEvent) => {
-    if (e.touches.length > 1) {
-      releaseJoystick();
-      return;
-    }
-
     if (touchId === null) return;
     
     // Find the active touch
