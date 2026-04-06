@@ -150,6 +150,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const zoomTarget = useRef(1.0);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
+  const _camTarget = useRef(new THREE.Vector3());
+  const _portalVec = useRef(new THREE.Vector3());
   const clampZoom = (value: number) => THREE.MathUtils.clamp(value, 0.5, 2.0);
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
@@ -189,7 +191,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (!playerRef.current) return;
     if (mode === GameMode.PAUSED || isQuizOpen || isImpactOpen || showNarrative || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) return;
     if (battleCooldown.current > 0) battleCooldown.current -= delta;
-    if (dashCooldownCurrent > 0) setDashCooldown(Math.max(0, dashCooldownCurrent - delta));
+    if (dashCooldownCurrent > 0) { const next = dashCooldownCurrent - delta; setDashCooldown(next > 0 ? next : 0); }
     if (dashTimer.current > 0) dashTimer.current -= delta;
     if ((mode === GameMode.OVERWORLD || mode === GameMode.BATTLE)) {
         let moveX = 0; let moveZ = 0;
@@ -229,7 +231,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         const limit = mode === GameMode.BATTLE ? 24.5 : 30.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
-        if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) { for (const portal of portals) { const distToPortal = playerRef.current.position.distanceTo(new THREE.Vector3(portal.x, 0, portal.z)); if (distToPortal < 1.5) { if (!isGenerating) { enterBattle(portal); } break; } } }
+        if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) { for (const portal of portals) { _portalVec.current.set(portal.x, 0, portal.z); if (playerRef.current.position.distanceTo(_portalVec.current) < 1.5) { if (!isGenerating) { enterBattle(portal); } break; } } }
     } else { setIsMoving(false); }
     const currentStats = useGameStore.getState().playerStats; if (currentStats.lastDamageTime > lastProcessedDamageTime.current) { shakeIntensity.current = 2.5; lastProcessedDamageTime.current = currentStats.lastDamageTime; }
     
@@ -254,8 +256,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         camZ += boost;
     }
 
-    const targetCamPos = new THREE.Vector3(playerRef.current.position.x, playerRef.current.position.y + camY, playerRef.current.position.z + camZ);
-    camera.position.lerp(targetCamPos, 4 * delta);
+    _camTarget.current.set(playerRef.current.position.x, playerRef.current.position.y + camY, playerRef.current.position.z + camZ);
+    camera.position.lerp(_camTarget.current, 4 * delta);
     
     if (shakeIntensity.current > 0) { const s = shakeIntensity.current; camera.position.x += (Math.random() - 0.5) * s; camera.position.y += (Math.random() - 0.5) * s; camera.position.z += (Math.random() - 0.5) * s; shakeIntensity.current = Math.max(0, shakeIntensity.current - (delta * 8.0)); }
     camera.lookAt(playerRef.current.position);
@@ -374,10 +376,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       <group ref={playerRef}><Suspense fallback={null}><PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} /></Suspense><mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.5, 16]} /><meshBasicMaterial color="black" opacity={0.5} transparent /></mesh></group>
       <Suspense fallback={null}>
         {showBattleScene && (
-          <>
-            {!showStars && <AnimatedClouds />}
             <BattleManager playerPosition={playerRef.current ? playerRef.current.position : new THREE.Vector3(0,0,0)} activeBattle={activeBattle} />
-          </>
         )}
       </Suspense>
       <EffectComposer>
