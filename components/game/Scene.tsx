@@ -341,7 +341,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       {showDefaultSky && <Sky sunPosition={[100, 20, 100]} />}
       {sceneTheme === 'SKY' && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
       {showStars && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
-      {(sceneTheme === 'FOREST' || sceneTheme === 'SKY') && <AnimatedClouds />}
+      {!showStars && <AnimatedClouds />}
       <hemisphereLight args={[hemisphereColors.sky, hemisphereColors.ground, 0.75]} />
       <directionalLight
         position={[10, 20, 10]}
@@ -374,7 +374,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       <group ref={playerRef}><Suspense fallback={null}><PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} /></Suspense><mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.5, 16]} /><meshBasicMaterial color="black" opacity={0.5} transparent /></mesh></group>
       <Suspense fallback={null}>
         {showBattleScene && (
+          <>
+            {!showStars && <AnimatedClouds />}
             <BattleManager playerPosition={playerRef.current ? playerRef.current.position : new THREE.Vector3(0,0,0)} activeBattle={activeBattle} />
+          </>
         )}
       </Suspense>
       <EffectComposer>
