@@ -47,16 +47,9 @@ const MenuHero = () => {
     );
 };
 
-const describeStartupAsset = (assetUrl: string) => {
-    if (!assetUrl) return 'Opening command channel...';
-    if (assetUrl.includes('/player/')) return 'Caching player sprite sheets...';
-    if (assetUrl.includes('/audio/')) return 'Priming soundtrack buffers...';
-    if (assetUrl.includes('/start/')) return 'Preparing mission display assets...';
-    return 'Synchronizing field assets...';
-};
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, activeBattle, isQuizOpen, setQuizOpen, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, setHighlightedPortal, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, isQuizOpen, setQuizOpen, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, setHighlightedPortal, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -64,7 +57,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const [startupAssetProgress, setStartupAssetProgress] = useState(0);
   const [startupDisplayedProgress, setStartupDisplayedProgress] = useState(0);
   const [startupAssetsReady, setStartupAssetsReady] = useState(false);
-  const [startupStatusDetail, setStartupStatusDetail] = useState('Opening command channel...');
   
   // UI Scaling for short screens (mobile landscape)
   const [uiScale, setUiScale] = useState(1);
@@ -118,25 +110,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     }
   };
   
-  // Loading Screen Tips Cycle
-  const [loadingTipIndex, setLoadingTipIndex] = useState(0);
-  const loadingTips = [
-      "TIP: Answering Gaia's questions correctly grants a BONUS CHEST before battle!",
-      "TIP: Dash through enemies to escape tight corners.",
-      "TIP: XP comes from KILLING enemies. Orbs now give CO2 currency!",
-      "TIP: Visit the Eco-Exchange near the landmark to spend CO2.",
-      "TIP: Evolution Weapons are significantly stronger than basic ones.",
-      "TIP: Different stages have different environmental themes and enemies."
-  ];
-  
-  useEffect(() => {
-      if (mode === GameMode.LOADING_LEVEL) {
-          const interval = setInterval(() => {
-              setLoadingTipIndex(prev => (prev + 1) % loadingTips.length);
-          }, 2500);
-          return () => clearInterval(interval);
-      }
-  }, [mode]);
 
   const lastNarrativeStage = useRef(0);
   const lastQuizSignature = useRef<string>("");
@@ -144,6 +117,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const resultScrollRef = useRef<HTMLDivElement>(null);
   const startupSequenceRef = useRef(0);
   const startupLaunchTimeoutRef = useRef<number | null>(null);
+  const startupShownAtRef = useRef<number>(0);
+  const [startupMinElapsed, setStartupMinElapsed] = useState(false);
 
   // Fix: Reset tracking refs when returning to Menu/Setup so narrative triggers again on restart
   useEffect(() => {
@@ -219,7 +194,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           setStartupAssetProgress(0);
           setStartupDisplayedProgress(0);
           setStartupAssetsReady(false);
-          setStartupStatusDetail('Opening command channel...');
           return;
       }
 
@@ -228,14 +202,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       setStartupAssetProgress(0);
       setStartupDisplayedProgress(0);
       setStartupAssetsReady(false);
-      setStartupStatusDetail('Opening command channel...');
+      setStartupMinElapsed(false);
+      startupShownAtRef.current = Date.now();
+      window.setTimeout(() => setStartupMinElapsed(true), 2000);
 
       let active = true;
 
-      preloadStartupAssets((loaded, total, assetUrl) => {
+      preloadStartupAssets((loaded, total) => {
           if (!active || startupSequenceRef.current !== sequenceId) return;
           setStartupAssetProgress(total === 0 ? 1 : loaded / total);
-          setStartupStatusDetail(describeStartupAsset(assetUrl));
       }).then(() => {
           if (!active || startupSequenceRef.current !== sequenceId) return;
           setStartupAssetProgress(1);
@@ -276,7 +251,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           mode !== GameMode.INSTRUCTIONS ||
           !isStageReady ||
           !startupAssetsReady ||
-          startupDisplayedProgress < 100
+          startupDisplayedProgress < 100 ||
+          !startupMinElapsed
       ) {
           return;
       }
@@ -292,7 +268,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
               startupLaunchTimeoutRef.current = null;
           }
       };
-  }, [mode, isStageReady, startupAssetsReady, startupDisplayedProgress, startGame]);
+  }, [mode, isStageReady, startupAssetsReady, startupDisplayedProgress, startupMinElapsed, startGame]);
 
   const handleJoystick = (vec: { x: number, y: number }) => {
     inputVector.current = vec;
@@ -320,6 +296,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       setHighlightedPortal(`p_${option}`);
       setQuizOpen(false);
   };
+
 
   const renderMinimap = () => {
     if (mode !== GameMode.OVERWORLD) return null;
@@ -393,20 +370,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       </div>
     );
   };
+
+  const renderZoomControls = () => null;
   
   // --- LOADING SCREEN ---
   if (mode === GameMode.LOADING_LEVEL) {
       return (
-          <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
-              <div className="text-center p-8 max-w-lg">
-                  <h2 className="text-3xl md:text-4xl text-green-400 font-bold mb-6 animate-pulse">CONSULTING GAIA...</h2>
-                  <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-8"/>
-                  <div className="bg-slate-900 border-2 border-slate-700 p-6 rounded-lg retro-border h-40 flex items-center justify-center">
-                     <p className="text-yellow-200 text-sm md:text-base italic leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-500 key={loadingTipIndex}">
-                         {loadingTips[loadingTipIndex]}
-                     </p>
-                  </div>
-              </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-5">
+              <div className="w-14 h-14 border-4 border-green-500 border-t-transparent rounded-full animate-spin"/>
+              <p className="text-green-400 font-bold animate-pulse tracking-widest text-sm">LOADING...</p>
           </div>
       );
   }
@@ -1122,145 +1094,28 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       );
   }
 
-  // --- INSTRUCTIONS / MISSION BRIEFING ---
+  // --- LOADING / MISSION BRIEFING ---
   if (mode === GameMode.INSTRUCTIONS) {
-      const startupHeadline = !isStageReady
-          ? 'Consulting Gaia'
-          : !startupAssetsReady
-              ? 'Caching Mission Assets'
-              : 'Deploying Guardian';
-      const startupSummary = !isStageReady
-          ? 'Generating the first biome, mission question, and combat state.'
-          : !startupAssetsReady
-              ? 'Preloading sprites, music, and first-run assets for a smoother mobile handoff.'
-              : 'Launch window acquired. Entering the overworld now.';
-
       return (
-          <div 
-              className="absolute inset-0 flex items-center justify-center z-50 overflow-hidden bg-cover bg-center p-4"
-              style={{ backgroundImage: `url('${ASSET_PATHS.images.start.background}')` }}
-          >
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-[2px]" />
-
-              <div className="relative w-full max-w-4xl border border-cyan-400/30 bg-slate-950/85 p-6 md:p-8 shadow-[0_0_80px_rgba(34,211,238,0.14)]">
-                  <div
-                      className="pointer-events-none absolute inset-0 opacity-20"
-                      style={{ backgroundImage: 'repeating-linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px)' }}
-                  />
-
-                  <div className="relative flex items-start justify-between gap-4 border-b border-slate-800 pb-5">
-                      <div>
-                          <p className="text-cyan-300 text-[11px] uppercase tracking-[0.35em] mb-2">Mission Protocol</p>
-                          <h2 className="text-2xl md:text-4xl font-black text-white tracking-tight">{startupHeadline}</h2>
-                          <p className="mt-3 max-w-2xl text-sm md:text-base text-slate-300 leading-relaxed">{startupSummary}</p>
-                      </div>
-                      <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-cyan-200 md:flex">
-                          01
-                      </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-6 p-6">
+              <div className="w-14 h-14 border-4 border-green-500 border-t-transparent rounded-full animate-spin"/>
+              <p className="text-green-400 font-bold tracking-widest text-sm animate-pulse">
+                  {!isStageReady ? 'CONSULTING GAIA...' : 'DEPLOYING GUARDIAN...'}
+              </p>
+              <div className="w-full max-w-xs">
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                      <span>{currentConfig?.stageName ?? 'Preparing biome'}</span>
+                      <span>{startupDisplayedProgress}%</span>
                   </div>
-
-                  <div className="relative mt-6 grid gap-3 md:grid-cols-3">
-                      <div className="border border-slate-800 bg-black/25 p-4">
-                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Objective</p>
-                          <p className="mt-2 text-sm text-slate-200">Cleanse 10 polluted biomes and restore balance for Gaia.</p>
-                      </div>
-                      <div className="border border-slate-800 bg-black/25 p-4">
-                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Protocol</p>
-                          <p className="mt-2 text-sm text-slate-200">Answer Gaia with YES or NO, then enter the matching portal for bonus carbon.</p>
-                      </div>
-                      <div className="border border-slate-800 bg-black/25 p-4">
-                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Support</p>
-                          <p className="mt-2 text-sm text-slate-200">Use the Eco-Exchange between waves to convert saved CO2 into upgrades.</p>
-                      </div>
-                  </div>
-
-                  <div className="relative mt-6 border border-slate-800 bg-black/35 p-5">
-                      <div className="flex items-center justify-between gap-4 text-[11px] uppercase tracking-[0.3em] text-slate-400">
-                          <span>{currentConfig?.stageName ? `First Biome: ${currentConfig.stageName}` : 'Preparing First Biome'}</span>
-                          <span>{startupDisplayedProgress}%</span>
-                      </div>
-
-                      <div className="mt-3 h-4 overflow-hidden border border-slate-700 bg-slate-900">
-                          <div
-                              className="h-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-lime-300 transition-[width] duration-200 ease-out"
-                              style={{ width: `${startupDisplayedProgress}%` }}
-                          />
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
-                          <p className="text-slate-200">{startupStatusDetail}</p>
-                          <p className="text-slate-400">
-                              {isStageReady ? 'mission data locked' : 'mission data compiling'}
-                              {' · '}
-                              {startupAssetsReady ? 'assets cached' : 'assets streaming'}
-                          </p>
-                      </div>
-                  </div>
-
-                  <div className="relative mt-6 flex flex-col gap-3 border-t border-slate-800 pt-5 md:flex-row md:items-center md:justify-between">
-                      <p className="text-xs text-slate-400">
-                          The game launches automatically when the initial mission payload is fully ready.
-                      </p>
-                      <button 
-                          onClick={() => setMode(GameMode.MENU)}
-                          className="bg-slate-800 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-700"
-                      >
-                          ABORT MISSION
-                      </button>
+                  <div className="h-3 bg-slate-900 border border-slate-700 overflow-hidden">
+                      <div
+                          className="h-full bg-green-500 transition-[width] duration-200"
+                          style={{ width: `${startupDisplayedProgress}%` }}
+                      />
                   </div>
               </div>
           </div>
       );
-/*
-      return (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/95 z-50">
-              <div className="bg-slate-900 p-6 retro-border w-full max-w-2xl border-4 border-blue-600 overflow-y-auto max-h-[90vh]">
-                  <h2 className="text-2xl md:text-3xl text-blue-400 mb-6 font-bold text-center border-b-2 border-blue-900 pb-4">MISSION PROTOCOL</h2>
-                  
-                  <div className="space-y-6 text-sm md:text-base text-gray-200 mb-8">
-                      <div className="flex gap-4 items-center">
-                          <div className="text-2xl">📜</div>
-                          <div>
-                              <h3 className="text-yellow-400 font-bold mb-1">THE MISSION</h3>
-                              <p>Pollution chokes the 10 Biomes. Gaia needs a champion to cleanse the land.</p>
-                          </div>
-                      </div>
-
-                      <div className="flex gap-4 items-center">
-                          <div className="text-2xl">🌿</div>
-                          <div>
-                              <h3 className="text-green-400 font-bold mb-1">GAIA'S CHALLENGE</h3>
-                              <p>Gaia asks a <span className="text-green-300 font-bold">YES or NO</span> sustainability question. Walk into the matching portal — answer correctly for <span className="text-yellow-300 font-bold">+100kg CO2!</span></p>
-                          </div>
-                      </div>
-
-                      <div className="flex gap-4 items-center">
-                          <div className="text-2xl">⚔️</div>
-                          <div>
-                              <h3 className="text-red-400 font-bold mb-1">BATTLE</h3>
-                              <p>Survive two mob waves, answer both challenges, then face the <span className="text-red-300 font-bold">Stage Boss.</span> Collect ORBS for CO2 currency.</p>
-                          </div>
-                      </div>
-
-                      <div className="flex gap-4 items-center">
-                          <div className="text-2xl">♻️</div>
-                          <div>
-                              <h3 className="text-blue-400 font-bold mb-1">THE SHOP</h3>
-                              <p>Visit the <span className="text-blue-300 font-bold">Eco-Exchange</span> near the Landmark to spend CO2 on upgrades.</p>
-                          </div>
-                      </div>
-                  </div>
-
-                  <button 
-                      onClick={startGame}
-                      className="w-full bg-green-600 hover:bg-green-500 text-white py-4 font-bold retro-btn retro-border text-xl"
-                  >
-                      I AM READY
-                  </button>
-              </div>
-          </div>
-      );
-*/
   }
 
   // --- QUIZ RESULT MODAL ---
@@ -1412,6 +1267,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const dashRadius = 40;
   const dashCircumference = 2 * Math.PI * dashRadius;
   const dashOffset = dashCircumference * (1 - dashProgress);
+  const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
+  const bottomHudPaddingBottom = `calc(${safeAreaBottom} + ${isShortHeight ? 4 : 8}px)`;
+  const gameplayOverlayMarginBottom = `calc(${safeAreaBottom} + ${isShortHeight ? 64 : 96}px)`;
 
   return (
     <>
@@ -1465,18 +1323,18 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
             className="h-full bg-red-600 transition-all duration-200" 
             style={{ width: `${(playerStats.hp / playerStats.maxHp) * 100}%` }}
           />
-          <span className="absolute inset-0 flex items-center justify-center text-xs text-white drop-shadow-md font-bold" style={{ textShadow: '1px 1px 0 #000' }}>
-            HP {Math.ceil(playerStats.hp)} / {playerStats.maxHp}
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold whitespace-nowrap" style={{ textShadow: '1px 1px 0 #000' }}>
+            HP {Math.ceil(playerStats.hp)}/{playerStats.maxHp}
           </span>
         </div>
 
         <div className="w-36 md:w-64 h-6 bg-slate-900 border-2 border-gray-400 relative -mt-1">
-          <div 
-            className="h-full bg-cyan-500 transition-all duration-200" 
+          <div
+            className="h-full bg-cyan-500 transition-all duration-200"
             style={{ width: `${Math.min(100, (playerStats.xp / playerStats.xpToNextLevel) * 100)}%` }}
           />
-          <span className="absolute inset-0 flex items-center justify-center text-xs text-white drop-shadow-md font-bold" style={{ textShadow: '1px 1px 0 #000' }}>
-            XP {Math.floor(playerStats.xp)} / {playerStats.xpToNextLevel}
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold whitespace-nowrap" style={{ textShadow: '1px 1px 0 #000' }}>
+            XP {Math.floor(playerStats.xp)}/{playerStats.xpToNextLevel}
           </span>
         </div>
 
@@ -1532,10 +1390,14 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       </div>
 
       {renderMinimap()}
+      {renderZoomControls()}
       
       {/* Fix: cast mode to any to prevent narrowing error because PAUSED already returned */}
       {((mode as any) === GameMode.OVERWORLD || (mode as any) === GameMode.BATTLE || (mode as any) === GameMode.PAUSED) && (
-          <div className={`absolute bottom-0 left-0 w-full bg-slate-900 border-t-2 border-slate-600 z-[60] pointer-events-auto flex items-stretch ${isShortHeight ? 'py-1' : ''}`}>
+          <div
+            className={`absolute bottom-0 left-0 w-full bg-slate-900 border-t-2 border-slate-600 z-[60] pointer-events-auto flex items-stretch ${isShortHeight ? 'py-1' : ''}`}
+            style={{ paddingBottom: bottomHudPaddingBottom }}
+          >
               <div className="flex-1 flex justify-center">
                   {mode === GameMode.OVERWORLD ? (
                       <button 
@@ -1579,7 +1441,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           </div>
       )}
       
-      <div className={`absolute inset-0 z-50 pointer-events-none ${isShortHeight ? 'mb-14' : 'mb-24'}`}>
+      <div
+        className="absolute inset-0 z-50 pointer-events-none"
+        style={{ marginBottom: gameplayOverlayMarginBottom }}
+      >
         {isMobile && <VirtualJoystick onMove={handleJoystick} />}
         
         {/* Fix: cast mode to any to prevent narrowing error due to early returns */}

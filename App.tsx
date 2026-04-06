@@ -78,7 +78,10 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-screen h-screen bg-neutral-900 overflow-hidden pixel-art">
+    <div
+      className="relative bg-neutral-900 overflow-hidden pixel-art"
+      style={{ width: '100vw', height: '100dvh', minHeight: '100dvh' }}
+    >
       <AudioManager />
       {/* Performance Optimization: Removed shadows={true} */}
       <Canvas camera={{ position: [0, 10, 10], fov: 45 }}>

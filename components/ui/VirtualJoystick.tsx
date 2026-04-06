@@ -12,6 +12,13 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   const [currentPos, setCurrentPos] = useState({ x: 0, y: 0 }); // The current touch position relative to origin
   const [active, setActive] = useState(false);
 
+  const releaseJoystick = () => {
+    setTouchId(null);
+    setActive(false);
+    setCurrentPos({ x: 0, y: 0 });
+    onMove({ x: 0, y: 0 });
+  };
+
   useEffect(() => {
     if (!active) {
       onMove({ x: 0, y: 0 });
@@ -19,6 +26,11 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   }, [active, onMove]);
 
   const handleStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      releaseJoystick();
+      return;
+    }
+
     // Only accept one touch for the joystick
     if (touchId !== null) return;
     
@@ -32,6 +44,11 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   };
 
   const handleMove = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      releaseJoystick();
+      return;
+    }
+
     if (touchId === null) return;
     
     // Find the active touch
@@ -66,9 +83,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   const handleEnd = (e: React.TouchEvent) => {
      for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === touchId) {
-        setTouchId(null);
-        setActive(false);
-        setCurrentPos({ x: 0, y: 0 });
+        releaseJoystick();
         break;
       }
     }

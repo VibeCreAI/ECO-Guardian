@@ -20,6 +20,10 @@ interface SceneProps {
   dashTrigger: React.MutableRefObject<boolean>;
 }
 
+type ZoomControlDetail = {
+  delta?: number;
+};
+
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
 
 const THEME_FOG_COLORS: Record<ThemeName, string> = {
@@ -145,6 +149,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const zoomTarget = useRef(1.0);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
+  const clampZoom = (value: number) => THREE.MathUtils.clamp(value, 0.5, 2.0);
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
   const landmarkType = React.useMemo(() => getLandmarkType(activeStage, aiConfig), [activeStage, aiConfig]);
@@ -272,7 +277,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      zoomTarget.current = THREE.MathUtils.clamp(zoomTarget.current + e.deltaY * 0.001, 0.5, 2.0);
+      zoomTarget.current = clampZoom(zoomTarget.current + e.deltaY * 0.001);
     };
     gl.domElement.addEventListener('wheel', onWheel, { passive: false });
     return () => gl.domElement.removeEventListener('wheel', onWheel);
@@ -280,23 +285,53 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
   useEffect(() => {
     let lastPinchDist = 0;
+    const canZoom = () =>
+      mode === GameMode.OVERWORLD ||
+      mode === GameMode.BATTLE ||
+      mode === GameMode.PAUSED ||
+      mode === GameMode.STATUS ||
+      mode === GameMode.LIBRARY ||
+      mode === GameMode.SHOP;
+
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2)
-        lastPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      if (!canZoom() || e.touches.length !== 2) return;
+      lastPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     };
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2) return;
+      if (!canZoom() || e.touches.length !== 2) return;
+      e.preventDefault();
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-      zoomTarget.current = THREE.MathUtils.clamp(zoomTarget.current - (dist - lastPinchDist) * 0.005, 0.5, 2.0);
+      if (lastPinchDist > 0) {
+        zoomTarget.current = clampZoom(zoomTarget.current - (dist - lastPinchDist) * 0.005);
+      }
       lastPinchDist = dist;
     };
-    gl.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
-    gl.domElement.addEventListener('touchmove', onTouchMove, { passive: true });
-    return () => {
-      gl.domElement.removeEventListener('touchstart', onTouchStart);
-      gl.domElement.removeEventListener('touchmove', onTouchMove);
+    const resetPinch = () => {
+      lastPinchDist = 0;
     };
-  }, [gl, mode]);
+
+    window.addEventListener('touchstart', onTouchStart, { passive: false });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', resetPinch);
+    window.addEventListener('touchcancel', resetPinch);
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', resetPinch);
+      window.removeEventListener('touchcancel', resetPinch);
+    };
+  }, [mode]);
+
+  useEffect(() => {
+    const onZoomControl = (event: Event) => {
+      const detail = (event as CustomEvent<ZoomControlDetail>).detail;
+      if (!detail || typeof detail.delta !== 'number') return;
+      zoomTarget.current = clampZoom(zoomTarget.current + detail.delta);
+    };
+
+    window.addEventListener('eco-guardian:zoom', onZoomControl as EventListener);
+    return () => window.removeEventListener('eco-guardian:zoom', onZoomControl as EventListener);
+  }, []);
 
   return (
     <>
