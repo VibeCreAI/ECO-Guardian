@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>ECO Guardian</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="https://storage.googleapis.com/eco-guardian/start/favicon.png" />
+
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ECO Guardian" />
+    <meta property="og:description" content="A 2.5D survival RPG with ecological world building, sustainability quizzes, and weapon evolution." />
+    <meta property="og:image" content="https://storage.googleapis.com/eco-guardian/start/og_image.png" />
+    
+    <!-- Twitter Card Data -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ECO Guardian" />
+    <meta name="twitter:description" content="A 2.5D survival RPG with ecological world building, sustainability quizzes, and weapon evolution." />
+    <meta name="twitter:image" content="https://storage.googleapis.com/eco-guardian/start/og_image.png" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+      
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #1a1a1a;
+        font-family: 'Press Start 2P', monospace; /* Retro font fallback */
+        touch-action: none; /* Prevent browser zooming/scrolling on mobile */
+      }
+      
+      /* Pixel Art aesthetic utilities */
+      .pixel-art {
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+      }
+      
+      .retro-border {
+        box-shadow: 
+          -4px 0 0 0 #000,
+          4px 0 0 0 #000,
+          0 -4px 0 0 #000,
+          0 4px 0 0 #000;
+        margin: 4px;
+      }
+
+      .retro-btn:active {
+        transform: translateY(2px);
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@^18.2.0/",
+    "react/": "https://esm.sh/react@^18.2.0/",
+    "zustand": "https://esm.sh/zustand@^4.5.2",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@^8.15.16",
+    "three": "https://esm.sh/three@^0.160.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

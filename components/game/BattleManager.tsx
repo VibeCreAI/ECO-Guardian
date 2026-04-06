@@ -1,0 +1,1405 @@
+
+import React, { useEffect, useRef, useState, useMemo, Suspense } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Enemy, Projectile, GameMode, ActiveBattleState, XpOrb, Chest } from '../../types';
+import { useGameStore } from '../../store/gameStore';
+import { useAiDirectorStore } from '../../store/aiDirectorStore';
+import { SpriteBillboard, ExternalBossSprite } from './SpriteBillboard';
+import { ProjectileRender } from './ProjectileRender';
+import { PixelGround } from './PixelGround';
+import { WEAPONS_DATA } from '../../constants';
+import * as THREE from 'three';
+import { QuestArrow } from './QuestArrow';
+
+interface BattleManagerProps {
+  playerPosition: THREE.Vector3;
+  activeBattle: ActiveBattleState;
+}
+
+const FireAura: React.FC<{ radius: number, position: THREE.Vector3 }> = ({ radius, position }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    const mesh1 = useRef<THREE.Mesh>(null);
+    const mesh2 = useRef<THREE.Mesh>(null);
+
+    const texture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0,0,128,128);
+            ctx.strokeStyle = '#f97316'; ctx.lineWidth = 8; ctx.beginPath();
+            for(let i=0; i<=360; i+=10) {
+                const rad = (i * Math.PI) / 180;
+                const r = 54 + (Math.random() * 8); 
+                const x = 64 + Math.cos(rad) * r;
+                const y = 64 + Math.sin(rad) * r;
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            }
+            ctx.closePath(); ctx.stroke();
+            ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4; ctx.beginPath();
+            for(let i=0; i<=360; i+=15) {
+                const rad = (i * Math.PI) / 180;
+                const r = 46 + (Math.random() * 6);
+                const x = 64 + Math.cos(rad) * r;
+                const y = 64 + Math.sin(rad) * r;
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            }
+            ctx.closePath(); ctx.stroke();
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }, []);
+
+    useFrame((state, delta) => {
+        if (useGameStore.getState().mode === GameMode.PAUSED) return;
+        if (groupRef.current) groupRef.current.position.set(position.x, 0.05, position.z);
+        if(mesh1.current) {
+            mesh1.current.rotation.z += delta * 2; 
+            const s = 1 + Math.sin(state.clock.elapsedTime * 10) * 0.05;
+            mesh1.current.scale.set(s, s, 1);
+        }
+        if (mesh2.current) mesh2.current.rotation.z -= delta * 1.5; 
+    });
+
+    return (
+        <group ref={groupRef} rotation={[-Math.PI/2, 0, 0]}><mesh ref={mesh1}><planeGeometry args={[radius * 2, radius * 2]} /><meshBasicMaterial map={texture} transparent opacity={0.6} depthWrite={false} side={THREE.DoubleSide} /></mesh><mesh ref={mesh2} position={[0,0,-0.01]}><planeGeometry args={[radius * 2, radius * 2]} /><meshBasicMaterial map={texture} color="#ef4444" transparent opacity={0.4} depthWrite={false} side={THREE.DoubleSide} /></mesh></group>
+    );
+};
+
+const TeslaCoil: React.FC<{ radius: number, position: THREE.Vector3 }> = ({ radius, position }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    const mesh1 = useRef<THREE.Mesh>(null);
+
+    const texture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0,0,128,128);
+            ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 6; ctx.beginPath();
+            for(let i=0; i<=360; i+=10) {
+                const rad = (i * Math.PI) / 180;
+                const r = 50 + (Math.random() * 12); 
+                const x = 64 + Math.cos(rad) * r;
+                const y = 64 + Math.sin(rad) * r;
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            }
+            ctx.closePath(); ctx.stroke();
+            ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2; ctx.beginPath();
+            for(let i=0; i<=360; i+=20) {
+                const rad = (i * Math.PI) / 180;
+                const x1 = 64 + Math.cos(rad) * 40;
+                const y1 = 64 + Math.sin(rad) * 40;
+                const x2 = 64 + Math.cos(rad) * 60;
+                const y2 = 64 + Math.sin(rad) * 60;
+                ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+            }
+            ctx.stroke();
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter;
+        return tex;
+    }, []);
+
+    useFrame((state, delta) => {
+        if (useGameStore.getState().mode === GameMode.PAUSED) return;
+        if (groupRef.current) groupRef.current.position.set(position.x, 0.05, position.z);
+        if (mesh1.current) {
+            mesh1.current.rotation.z += delta * 0.5; // Slowed down from 5.0
+            const s = 1 + Math.sin(state.clock.elapsedTime * 20) * 0.1;
+            mesh1.current.scale.set(s, s, 1);
+        }
+    });
+
+    return (
+        <group ref={groupRef} rotation={[-Math.PI/2, 0, 0]}><mesh ref={mesh1}><planeGeometry args={[radius * 2, radius * 2]} /><meshBasicMaterial map={texture} transparent opacity={0.15} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} /></mesh></group>
+    );
+};
+
+interface LightningBoltProps { 
+    path: {x: number, y?: number, z: number}[];
+    life: number; 
+    initialLife: number;
+    color?: string;
+    glowColor?: string;
+}
+
+const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, color="#ffffff", glowColor="#0ea5e9" }) => {
+    const segments = useMemo(() => {
+        const segs = [];
+        if (!path || path.length < 2) return [];
+
+        for(let i=0; i<path.length-1; i++) {
+            const start = new THREE.Vector3(path[i].x, path[i].y ?? 1, path[i].z);
+            const end = new THREE.Vector3(path[i+1].x, path[i+1].y ?? 1, path[i+1].z);
+            const dist = start.distanceTo(end);
+            const steps = Math.max(3, Math.floor(dist * 2.0)); 
+
+            let prev = start.clone();
+            for(let j=1; j<=steps; j++) {
+                const t = j/steps;
+                const next = new THREE.Vector3().lerpVectors(start, end, t);
+                if (j < steps) {
+                    const offset = 0.25; 
+                    next.x += (Math.random() - 0.5) * offset;
+                    next.y += (Math.random() - 0.5) * offset;
+                    next.z += (Math.random() - 0.5) * offset;
+                }
+                segs.push({ start: prev, end: next });
+                prev = next;
+            }
+        }
+        return segs;
+    }, [path]);
+
+    const opacity = Math.min(1, life / (initialLife * 0.5));
+
+    return (
+        <group>
+            {segments.map((s, i) => {
+                const mid = new THREE.Vector3().addVectors(s.start, s.end).multiplyScalar(0.5);
+                const dir = new THREE.Vector3().subVectors(s.end, s.start);
+                const len = dir.length();
+                const quaternion = new THREE.Quaternion();
+                quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.normalize());
+                
+                return (
+                    <group key={i} position={mid} quaternion={quaternion}><mesh><boxGeometry args={[len, 0.05, 0.05]} /><meshBasicMaterial color={color} transparent opacity={opacity} /></mesh><mesh><boxGeometry args={[len + 0.1, 0.25, 0.25]} /><meshBasicMaterial color={glowColor} transparent opacity={opacity * 0.6} blending={THREE.AdditiveBlending} /></mesh></group>
+                )
+            })}
+             {path.map((p, i) => {
+                 if (p.y && p.y > 5) return null;
+                 return (
+                     <mesh key={`node_${i}`} position={[p.x, p.y ?? 1, p.z]}><sphereGeometry args={[i === 0 ? 0.1 : 0.4, 8, 8]} /><meshBasicMaterial color={glowColor} transparent opacity={opacity} blending={THREE.AdditiveBlending} /></mesh>
+                 );
+             })}
+        </group>
+    );
+};
+
+export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, activeBattle }) => {
+  const { mode, collectCo2Orb, takeDamage, playerStats, setBattleWon, activeStage, completePortal, completeStage, recordDamage, recordKill, openChest, gainXp, battleWon, isQuizOpen, isImpactOpen } = useGameStore();
+  const aiConfig = useAiDirectorStore(state => state.currentConfig);
+  
+  const enemiesRef = useRef<Enemy[]>([]);
+  const projectilesRef = useRef<Projectile[]>([]);
+  const xpOrbsRef = useRef<XpOrb[]>([]);
+  
+  const visualEffectsRef = useRef<{
+      id: string, 
+      x: number, 
+      z: number, 
+      ex?: number, 
+      ez?: number, 
+      life: number, 
+      initialLife?: number,
+      type: 'THUNDER' | 'DASH_TRAIL' | 'BOSS_DEATH' | 'CHAIN_LIGHTNING',
+      path?: {x: number, y?: number, z: number}[] 
+  }[]>([]);
+  
+  const [chest, setChest] = useState<Chest | null>(null);
+  const battleDifficultyRef = useRef(activeBattle.level);
+  
+  const [renderEnemies, setRenderEnemies] = useState<Enemy[]>([]);
+  const [renderProjectiles, setRenderProjectiles] = useState<Projectile[]>([]);
+  const [renderEffects, setRenderEffects] = useState<any[]>([]);
+  const [renderOrbs, setRenderOrbs] = useState<XpOrb[]>([]);
+  const [lastPlayerFacing, setLastPlayerFacing] = useState<{x:number, z:number}>({x:0, z:1});
+
+  const spawnTimer = useRef(0);
+  const enemiesDefeated = useRef(0);
+  const bossSpawned = useRef(false);
+  const bossPhaseTimer = useRef(0);
+  const bossDeathTimer = useRef(0);
+  const victoryTriggered = useRef(false);
+  const victoryTimer = useRef(0);
+  const completionHandled = useRef(false);
+  const lootCollected = useRef(false); 
+  
+  const enemiesToSpawn = 10 + (battleDifficultyRef.current * 3);
+  const weaponTimers = useRef({ magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 });
+  
+  const isPaused = (mode as any) === GameMode.REWARD || (mode as any) === GameMode.CHEST_REWARD || mode === GameMode.LOADING_LEVEL || mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || isQuizOpen || isImpactOpen;
+
+  const themeId = React.useMemo(() => {
+     const cycle = ((activeStage - 1) % 10) + 1;
+     return cycle; 
+  }, [activeStage]);
+
+  const getEnemyColor = (type: string, stage: number) => '#ffffff';
+
+  const getBossName = (stage: number) => {
+      if (aiConfig && aiConfig.boss) return aiConfig.boss.name;
+      const bosses = ["PLASTIC GOLIATH", "CIRCUIT LICH", "FROSTBYTE GOLEM", "SLAG COLOSSUS", "SILICON DUNE WORM", "TOXIC ALCHEMIST", "MAINFRAME OVERLORD", "DATA WRAITH", "SMOG DRAGON", "NUCLEAR CORE TITAN"];
+      if (stage > 10) return "ASCENDED " + bosses[(stage - 1) % 10];
+      return bosses[stage - 1] || "UNKNOWN ENTITY";
+  };
+
+  const spawnCo2Orb = (x: number, z: number, val: number) => {
+      const orb: XpOrb = { id: Math.random().toString(), x, z, value: val, type: 'CO2_ORB' };
+      xpOrbsRef.current.push(orb); setRenderOrbs([...xpOrbsRef.current]);
+  };
+
+  const damageEnemy = (e: Enemy, amount: number, knockbackBase: number, sourceX: number, sourceZ: number, currentTime: number) => {
+       if (e.hp <= 0) return;
+       // Invulnerable during fade out/in of teleport
+       if (e.type === 'BOSS' && e.teleportState && e.teleportState !== 'IDLE' && e.teleportState !== 'TELEGRAPH') return;
+
+       e.hp -= amount; 
+       e.lastHit = currentTime; 
+       recordDamage(amount);
+
+       // --- KNOCKBACK LOGIC ---
+       if (knockbackBase > 0) {
+           const dx = e.x - sourceX;
+           const dz = e.z - sourceZ;
+           const len = Math.sqrt(dx * dx + dz * dz) || 1;
+           
+           // Apply player modifiers to base knockback
+           const force = knockbackBase * (playerStats.modifiers.knockback || 1.0);
+           
+           // Bosses resist knockback significantly
+           const resistance = e.type === 'BOSS' ? 0.9 : (e.type === 'LANDFILL_GOLEM' || e.type === 'MUD_GOLEM' ? 0.5 : 0);
+           const effectiveForce = Math.max(0, force * (1 - resistance));
+
+           // Add impulsive force to current knockback velocity
+           e.knockbackX = (e.knockbackX || 0) + (dx / len) * effectiveForce * 5; 
+           e.knockbackZ = (e.knockbackZ || 0) + (dz / len) * effectiveForce * 5;
+       }
+
+       if (e.hp <= 0) { 
+           if (e.type === 'BOSS') {
+               visualEffectsRef.current.push({ id: `boss_death_${Math.random()}`, x: e.x, z: e.z, life: 3.5, type: 'BOSS_DEATH' });
+               visualEffectsRef.current = visualEffectsRef.current.filter(ef => ef.type !== 'THUNDER');
+               setRenderEffects([...visualEffectsRef.current]);
+               bossDeathTimer.current = 3.5; projectilesRef.current = []; setRenderProjectiles([]);
+               enemiesRef.current = enemiesRef.current.filter(en => en.id !== e.id); setRenderEnemies([...enemiesRef.current]);
+           }
+           
+           const stageXpMult = 1.0 + (activeStage * 0.5); 
+           let baseXp = e.type === 'BOSS' ? 1500 : 40; 
+           baseXp = Math.floor(baseXp * stageXpMult); 
+           gainXp(baseXp);
+           
+           const co2Value = e.type === 'BOSS' ? 100 : Math.floor(Math.random() * 3) + 1;
+           spawnCo2Orb(e.x, e.z, co2Value);
+           
+           recordKill(); enemiesDefeated.current++; e.hp = -1;
+       }
+  };
+
+  const winBattle = () => {
+      if (useGameStore.getState().mode === GameMode.REWARD) return;
+      if (victoryTriggered.current) return;
+      victoryTriggered.current = true;
+      projectilesRef.current = []; setRenderProjectiles([]);
+      visualEffectsRef.current = visualEffectsRef.current.filter(ef => ef.type !== 'THUNDER'); setRenderEffects([...visualEffectsRef.current]);
+  };
+
+  const spawnBoss = () => {
+     bossSpawned.current = true;
+     
+     // Difficulty Scaling Logic
+     let growth = 1.7; // Medium
+     if (playerStats.quizDifficulty === 'EASY') growth = 1.6;
+     if (playerStats.quizDifficulty === 'HARD') growth = 1.8;
+
+     let hp = Math.floor(6000 * Math.pow(growth, activeStage - 1));
+     
+     let damage = 25 + (activeStage * 5);
+     const variant = aiConfig?.boss?.visualVariant || (activeStage % 2 === 0 ? "CRYPT" : "FOREST");
+     const taunt = aiConfig?.boss?.introductionLine || "YOU SHALL PERISH!";
+
+     if (aiConfig) {
+         if (aiConfig.enemies.damageMultiplier) {
+             damage *= aiConfig.enemies.damageMultiplier;
+         }
+     }
+
+     enemiesRef.current.push({
+        id: 'BOSS', x: 0, z: -15, 
+        hp: hp, maxHp: hp,
+        type: 'BOSS', speed: 1.5 + (activeStage * 0.1), 
+        attackRange: 8, damage: damage, 
+        attackCooldown: 0, dashCooldown: 5.0, facing: 1,
+        name: getBossName(activeStage),
+        visualVariant: variant,
+        taunt: taunt,
+        knockbackX: 0, knockbackZ: 0,
+        opacity: 1.0, teleportState: 'IDLE', teleportTimer: 0
+     });
+     setRenderEnemies([...enemiesRef.current]);
+  };
+
+  const spawnEnemy = () => {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 24; 
+    let type: Enemy['type'] = 'TOXIC_SLIME';
+    
+    if (aiConfig && aiConfig.enemies.spawnPool && aiConfig.enemies.spawnPool.length > 0) {
+        const pool = aiConfig.enemies.spawnPool;
+        type = pool[Math.floor(Math.random() * pool.length)] as any;
+    } else {
+        const s = ((activeStage - 1) % 10) + 1;
+        if (s === 1) type = Math.random() < 0.5 ? 'TOXIC_SLIME' : 'MUTATED_BAT'; 
+        else if (s === 2) type = Math.random() < 0.3 ? 'GAS_CLOUD' : 'RUSTY_AUTOMATON'; 
+        else type = 'TOXIC_SLIME';
+    }
+
+    const hpMult = 1.0 + ((activeStage - 1) * 0.6);
+    const dmgMult = 1.0 + ((activeStage - 1) * 0.4);
+    const baseHp = (50 + (battleDifficultyRef.current * 20));
+    const baseDmg = (10 + battleDifficultyRef.current * 2);
+    
+    let hpMod = 1.0; let speed = 2.0; let damageMod = 1.0; let attackRange = 1;
+
+    if (aiConfig) {
+        hpMod *= aiConfig.enemies.hpMultiplier;
+        speed *= aiConfig.enemies.speedMultiplier;
+        if (aiConfig.enemies.damageMultiplier) {
+            damageMod *= aiConfig.enemies.damageMultiplier;
+        }
+    }
+
+    if (['MUTATED_BAT', 'DRONE', 'PLASTIC_VULTURE', 'SMOG_IMP', 'GAS_CLOUD'].includes(type)) { 
+        speed = 4.0; hpMod = 0.6; 
+    }
+    if (['PLASTIC_BAG', 'E_WASTE', 'PAPER_WASTE', 'PLASTIC_BOTTLE'].includes(type)) { 
+        speed = 3.0; hpMod = 0.8; 
+    }
+    if (['OIL_BARREL', 'TRASH_CAN', 'OLD_TIRE', 'TOXIC_TOAD'].includes(type)) { 
+        speed = 1.5; hpMod = 1.8; 
+    }
+    if (['LANDFILL_GOLEM', 'MUD_GOLEM', 'MECH', 'SCRAP_KNIGHT', 'SLUDGE_HORROR'].includes(type)) { 
+        speed = 1.2; hpMod = 2.5; damageMod = 1.5; 
+    }
+    
+    if (['RUSTY_AUTOMATON', 'MUTATED_RAT', 'SLUDGE_HORROR', 'SMOG_IMP', 'PLASTIC_VULTURE', 'DRONE', 'MECH', 'GAS_CLOUD', 'PLASTIC_BOTTLE', 'E_WASTE', 'RADIOACTIVE_SPIRIT'].includes(type)) { 
+        attackRange = 6; 
+    }
+
+    enemiesRef.current.push({
+        id: Math.random().toString(), x: Math.cos(angle) * r, z: Math.sin(angle) * r,
+        hp: baseHp * hpMult * hpMod, maxHp: baseHp * hpMult * hpMod, 
+        type: type, speed: speed, attackRange: attackRange, 
+        damage: baseDmg * dmgMult * damageMod, attackCooldown: 0, dashCooldown: 0, facing: 1,
+        knockbackX: 0, knockbackZ: 0
+    });
+  };
+
+  const findClosestEnemy = (pos: THREE.Vector3, excludeIds: string[] = []) => {
+    let closestDist = Infinity; let targetId = null;
+    enemiesRef.current.forEach(e => { 
+        if (excludeIds.includes(e.id)) return;
+        const d = Math.sqrt((e.x - pos.x)**2 + (e.z - pos.z)**2); 
+        if (d < 25 && d < closestDist) { closestDist = d; targetId = e.id; } 
+    });
+    return targetId ? enemiesRef.current.find(e => e.id === targetId) : null;
+  };
+
+  const spawnProjectile = (start: THREE.Vector3, target: Enemy, weaponType: string, angleOffset: number = 0, options: { turnsLeft?: number } = {}) => {
+      const dx = target.x - start.x; const dz = target.z - start.z; const distToTarget = Math.sqrt(dx*dx + dz*dz);
+      const angle = Math.atan2(dz, dx) + angleOffset;
+      let speed = 8, life = 3; let damage = playerStats.attackPower * playerStats.modifiers.damage; let color = '#ffff00';
+      let variant: Projectile['variant'] = 'MAGIC_MISSILE'; let type: Projectile['type'] = 'NORMAL';
+      const levels = playerStats.unlockedWeapons;
+      
+      // Get base knockback from constants
+      const wData = WEAPONS_DATA[weaponType];
+      let knockbackValue = wData ? wData.knockback : 1.0;
+
+      let bouncesLeft = 0;
+      let spawnX = start.x;
+      let spawnZ = start.z;
+      let spawnVX = Math.cos(angle) * speed;
+      let spawnVZ = Math.sin(angle) * speed;
+
+      if (weaponType === 'AXE') { speed = 6; damage *= (2.0 + (levels['AXE'] * 0.5)); color = '#ff0000'; variant = 'AXE'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; } 
+      else if (weaponType === 'MAGIC_MISSILE') { damage *= (1.0 + (levels['MAGIC_MISSILE'] * 0.2)); color = '#00ffff'; variant = 'MAGIC_MISSILE'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; } 
+      else if (weaponType === 'CROSS') { speed = 10; damage *= (1.5 + (levels['CROSS'] * 0.3)); color = '#3b82f6'; variant = 'CROSS'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; } 
+      else if (weaponType === 'DAGGER') { speed = 14; damage *= (0.8 + (levels['DAGGER'] * 0.2)); color = '#e5e5e5'; variant = 'DAGGER'; life = 1.5; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; } 
+      else if (weaponType === 'MAGIC_ARROW') { speed = 12; damage *= (3.5 + (levels['MAGIC_ARROW'] * 0.5)); color = '#d8b4fe'; variant = 'MAGIC_ARROW'; type = 'HOMING'; life = 4.0; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'FLAMETHROWER') { speed = 9; damage *= (1.2 + (levels['FLAMETHROWER'] * 0.3)); color = '#f97316'; variant = 'FLAMETHROWER'; life = 0.5; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'FIRE_MORTAR') { 
+          speed = 8; damage *= (4.0 + (levels['FIRE_MORTAR'] * 0.6)); color = '#ef4444'; variant = 'FIRE_MORTAR'; 
+          life = distToTarget / speed; 
+          spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; 
+      } 
+      else if (weaponType === 'TOXIC_FLASK') { 
+          speed = 8; damage *= (1.5 + (levels['TOXIC_FLASK'] * 0.4)); color = '#a3e635'; variant = 'TOXIC_FLASK'; 
+          life = distToTarget / speed; 
+          spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; 
+      }
+      else if (weaponType === 'JAVELIN') { speed = 20; damage *= (2.0 + (levels['JAVELIN'] * 0.5)); color = '#22d3ee'; variant = 'JAVELIN'; life = 2.0; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'SPEAR') { speed = 14; life = 0.35; damage *= (1.5 + (levels['SPEAR'] * 0.3)); color = '#94a3b8'; variant = 'SPEAR'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'SLIME_BALL') { speed = 7; life = 12; damage *= (1.2 + (levels['SLIME_BALL'] * 0.2)); color = '#bef264'; variant = 'SLIME_BALL'; bouncesLeft = 4 + Math.floor((levels['SLIME_BALL'] || 1)); spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'SHURIKEN') { speed = 14; life = 2; damage *= (0.8 + (levels['SHURIKEN'] * 0.2)); color = '#e2e8f0'; variant = 'SHURIKEN'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'KATANA') { speed = 8.0; life = 0.3; damage *= (1.8 + (levels['KATANA'] * 0.4)); color = '#e2e8f0'; variant = 'KATANA'; type = 'MELEE'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'TOXIN_GUN') { speed = 16; life = 1.0; damage *= (0.8 + (levels['TOXIN_GUN'] * 0.2)); color = '#4ade80'; variant = 'TOXIN_GUN'; spawnVX = Math.cos(angle)*speed; spawnVZ = Math.sin(angle)*speed; }
+      else if (weaponType === 'HOLY_BEAM') { spawnX = target.x; spawnZ = target.z; spawnVX = 0; spawnVZ = 0; life = 2.0; damage *= (3.0 + (levels['HOLY_BEAM'] * 0.8)); color = '#fef08a'; variant = 'HOLY_BEAM'; type = 'STATIONARY'; }
+      else if (weaponType === 'PLAGUE_SPREADER') { spawnX = target.x; spawnZ = target.z; spawnVX = 0; spawnVZ = 0; life = 4.0; damage *= (1.5 + (levels['PLAGUE_SPREADER'] * 0.4)); color = '#3f6212'; variant = 'PLAGUE_SPREADER'; type = 'STATIONARY'; }
+
+      projectilesRef.current.push({ 
+          id: Math.random().toString(), 
+          x: spawnX, z: spawnZ, 
+          vx: spawnVX, vz: spawnVZ, 
+          damage, fromPlayer: true, color, life, initialLife: life, type, variant, bouncesLeft,
+          turnsLeft: options.turnsLeft,
+          hitList: [],
+          knockbackValue
+      });
+  };
+
+  const isVariant = (p: Projectile, name: string): boolean => {
+      return (p.variant as string) === name;
+  };
+
+  useEffect(() => {
+    enemiesRef.current = []; projectilesRef.current = []; xpOrbsRef.current = []; visualEffectsRef.current = [];
+    enemiesDefeated.current = 0; spawnTimer.current = 0; bossSpawned.current = false;
+    victoryTriggered.current = false; victoryTimer.current = 0; bossPhaseTimer.current = 0; bossDeathTimer.current = 0;
+    completionHandled.current = false; setChest(null); lootCollected.current = false;
+    weaponTimers.current = { magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 };
+    battleDifficultyRef.current = activeBattle.level;
+    setRenderProjectiles([]); setRenderEffects([]); setRenderOrbs([]);
+    if (activeBattle.isBoss) spawnBoss(); else setRenderEnemies([]);
+  }, [activeBattle]);
+
+  useFrame((state, delta) => {
+    if (chest && !chest.isOpen && mode === GameMode.BATTLE) {
+        if (Math.sqrt((playerPosition.x - chest.x)**2 + (playerPosition.z - chest.z)**2) < 1.0) {
+            setChest(prev => prev ? { ...prev, isOpen: true } : null); openChest(); return; 
+        }
+    }
+
+    if (isPaused) return;
+    
+    const moveX = playerPosition.x - (playerStats.modifiers as any).lastX || 0;
+    const moveZ = playerPosition.z - (playerStats.modifiers as any).lastZ || 0;
+    (playerStats.modifiers as any).lastX = playerPosition.x;
+    (playerStats.modifiers as any).lastZ = playerPosition.z;
+    if (Math.abs(moveX) > 0.001 || Math.abs(moveZ) > 0.001) {
+        const len = Math.sqrt(moveX*moveX + moveZ*moveZ);
+        setLastPlayerFacing({x: moveX/len, z: moveZ/len});
+    }
+
+    const updateVisuals = (forceMagnet: boolean = false) => {
+        if (visualEffectsRef.current.length > 0) {
+            const prevLen = visualEffectsRef.current.length;
+            visualEffectsRef.current = visualEffectsRef.current.filter(ef => { ef.life -= delta; return ef.life > 0; });
+            if (visualEffectsRef.current.length !== prevLen || visualEffectsRef.current.length > 0) setRenderEffects([...visualEffectsRef.current]);
+        }
+        
+        const activeOrbs: XpOrb[] = [];
+        let orbsChanged = false;
+        
+        xpOrbsRef.current.forEach(orb => {
+            const dx = playerPosition.x - orb.x; const dz = playerPosition.z - orb.z; const dist = Math.sqrt(dx*dx + dz*dz);
+            const shouldPull = forceMagnet || dist < 5.0;
+            const magnetSpeed = forceMagnet ? 20 : 8;
+            const collectRadius = forceMagnet ? 1.5 : 1.0;
+
+            if (shouldPull) { 
+                orb.x += (dx/dist) * magnetSpeed * delta; 
+                orb.z += (dz/dist) * magnetSpeed * delta; 
+                orbsChanged = true; 
+            }
+            
+            if (dist < collectRadius) { 
+                collectCo2Orb(orb.value); 
+                orbsChanged = true; 
+            } else {
+                activeOrbs.push(orb);
+            }
+        });
+        
+        if (orbsChanged) { xpOrbsRef.current = activeOrbs; setRenderOrbs([...activeOrbs]); }
+    };
+
+    if (victoryTriggered.current) {
+        if (mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD) return;
+        updateVisuals(true);
+        if (xpOrbsRef.current.length === 0 && !lootCollected.current) {
+             lootCollected.current = true;
+             if (activeBattle.isBonus || activeBattle.isBoss) { 
+                setChest({ id: 'reward_chest', x: 0, z: 0, isOpen: false }); 
+             } else { 
+                setBattleWon(true); 
+             }
+        }
+        if (chest) { if (chest.isOpen && mode === GameMode.BATTLE && !battleWon) setBattleWon(true); if (!battleWon) return; }
+        if (lootCollected.current) { victoryTimer.current += delta; }
+        if (victoryTimer.current > 3.0 && !completionHandled.current) {
+             completionHandled.current = true;
+             if (activeBattle.isBoss) completeStage(); else completePortal(activeBattle.portalId);
+        }
+        return; 
+    }
+    
+    if (bossDeathTimer.current > 0) {
+        bossDeathTimer.current -= delta; updateVisuals(false); 
+        if (projectilesRef.current.length > 0) { projectilesRef.current = []; setRenderProjectiles([]); }
+        if (bossDeathTimer.current <= 0) winBattle();
+        return; 
+    }
+
+    const time = state.clock.elapsedTime;
+    bossPhaseTimer.current += delta;
+    let enemiesChanged = false; let projectilesChanged = false;
+
+    if (activeBattle.isBoss) {
+        if (bossSpawned.current && enemiesRef.current.length === 0) { if (bossDeathTimer.current <= 0) { winBattle(); return; } }
+    } else {
+        spawnTimer.current += delta;
+        let densityMod = 1.0;
+        if (aiConfig) densityMod = aiConfig.enemies.densityMultiplier;
+        const spawnDelay = Math.max(0.3, (1.5 - (activeStage * 0.1) - (battleDifficultyRef.current * 0.05)) / densityMod);
+        if (enemiesRef.current.length + enemiesDefeated.current < enemiesToSpawn && spawnTimer.current > spawnDelay) {
+          spawnTimer.current = 0; spawnEnemy(); enemiesChanged = true;
+        }
+        if (enemiesDefeated.current >= enemiesToSpawn && enemiesRef.current.length === 0) { winBattle(); return; }
+    }
+
+    const poisonClouds = projectilesRef.current.filter(p => isVariant(p, 'POISON_CLOUD') || isVariant(p, 'PLAGUE_SPREADER'));
+
+    const aliveEnemies: Enemy[] = [];
+    enemiesRef.current.forEach(enemy => {
+        // --- MOVEMENT & KNOCKBACK UPDATE ---
+        const dx = playerPosition.x - enemy.x; const dz = playerPosition.z - enemy.z; const dist = Math.sqrt(dx * dx + dz * dz);
+        let moveSpeed = enemy.speed;
+        
+        // Poison Slow
+        if (poisonClouds.length > 0) {
+            for (const cloud of poisonClouds) {
+                const d = (cloud.x - enemy.x)**2 + (cloud.z - enemy.z)**2;
+                const radius = isVariant(cloud, 'PLAGUE_SPREADER') ? 6.0 : 9.0;
+                if (d < radius) { moveSpeed *= 0.5; break; }
+            }
+        }
+
+        // Apply Friction to Knockback (Decay)
+        const kbFriction = 0.85; // How quickly knockback decays
+        enemy.knockbackX = (enemy.knockbackX || 0) * kbFriction;
+        enemy.knockbackZ = (enemy.knockbackZ || 0) * kbFriction;
+        
+        // Stop very small knockback values
+        if (Math.abs(enemy.knockbackX) < 0.01) enemy.knockbackX = 0;
+        if (Math.abs(enemy.knockbackZ) < 0.01) enemy.knockbackZ = 0;
+
+        let vx = 0; let vz = 0;
+
+        if (enemy.type === 'BOSS') {
+            // DETERMINE BOSS MOVEMENT PATTERN BASED ON STAGE
+            let pattern: 'DASH' | 'TELEPORT' | 'ORBIT' = 'DASH';
+            
+            if (activeStage >= 10) {
+                // Ascended: Cycle randomly
+                const cycle = Math.floor(time / 10) % 3;
+                if (cycle === 0) pattern = 'TELEPORT';
+                else if (cycle === 1) pattern = 'ORBIT';
+                else pattern = 'DASH';
+            } else if (activeStage >= 7) {
+                pattern = 'ORBIT';
+            } else if (activeStage >= 4) {
+                pattern = 'TELEPORT';
+            }
+
+            // --- TELEPORT PATTERN ---
+            if (pattern === 'TELEPORT') {
+                if (!enemy.teleportState) {
+                    enemy.teleportState = 'IDLE';
+                    enemy.teleportTimer = 5.0;
+                }
+                
+                if (enemy.teleportState === 'IDLE') {
+                    // Normal chasing while idle
+                    vx = (dx / dist) * moveSpeed; 
+                    vz = (dz / dist) * moveSpeed;
+                    enemy.teleportTimer = (enemy.teleportTimer || 5.0) - delta;
+                    if (enemy.teleportTimer <= 0) {
+                        enemy.teleportState = 'TELEGRAPH'; // Telegraph before fade
+                        enemy.teleportTimer = 1.5; // Warning time (flashing)
+                    }
+                } else if (enemy.teleportState === 'TELEGRAPH') {
+                    vx = 0; vz = 0; // Stop moving
+                    enemy.teleportTimer = (enemy.teleportTimer || 1.5) - delta;
+                    if (enemy.teleportTimer <= 0) {
+                        enemy.teleportState = 'FADEOUT';
+                        enemy.teleportTimer = 0.5; // Fade time
+                    }
+                } else if (enemy.teleportState === 'FADEOUT') {
+                    vx = 0; vz = 0;
+                    enemy.opacity = Math.max(0, (enemy.opacity || 1.0) - delta * 2);
+                    if (enemy.opacity <= 0) {
+                        // Teleport Move - RANDOMIZED NEAR PLAYER (NOT ON TOP)
+                        const angle = Math.random() * Math.PI * 2;
+                        // Minimum safe distance 6, max 14
+                        const r = 6 + Math.random() * 8; 
+                        
+                        enemy.x = playerPosition.x + Math.cos(angle) * r;
+                        enemy.z = playerPosition.z + Math.sin(angle) * r;
+                        
+                        // Bounds Check (Clamp to arena)
+                        const limit = 24.0;
+                        enemy.x = Math.max(-limit, Math.min(limit, enemy.x));
+                        enemy.z = Math.max(-limit, Math.min(limit, enemy.z));
+
+                        enemy.teleportState = 'FADEIN';
+                        enemy.opacity = 0;
+                    }
+                } else if (enemy.teleportState === 'FADEIN') {
+                    vx = 0; vz = 0;
+                    enemy.opacity = Math.min(1, (enemy.opacity || 0) + delta * 2);
+                    if (enemy.opacity >= 1) {
+                        enemy.teleportState = 'IDLE';
+                        enemy.teleportTimer = (activeStage >= 10) ? 2.5 : 5.0; 
+                    }
+                }
+            } 
+            // --- ORBIT PATTERN ---
+            else if (pattern === 'ORBIT') {
+                enemy.opacity = 1.0; // Ensure visible
+                const desiredDist = 8.0;
+                
+                // Spiral movement: Tangential + Radial correction
+                const angle = Math.atan2(dz, dx);
+                // Move perpendicular (Orbit)
+                const orbitSpeed = moveSpeed * 1.5;
+                vx += Math.cos(angle + Math.PI/2) * orbitSpeed;
+                vz += Math.sin(angle + Math.PI/2) * orbitSpeed;
+                
+                // Move towards/away to maintain distance
+                const distError = dist - desiredDist;
+                if (Math.abs(distError) > 0.5) {
+                    vx += (dx / dist) * Math.sign(distError) * moveSpeed;
+                    vz += (dz / dist) * Math.sign(distError) * moveSpeed;
+                }
+            }
+            // --- DASH PATTERN (DEFAULT) ---
+            else {
+                enemy.opacity = 1.0;
+                if (enemy.dashTime && enemy.dashTime > 0) {
+                     enemy.dashTime -= delta;
+                     if (enemy.dashTime > 0.3) { vx = 0; vz = 0; } 
+                     else {
+                         const dashSpeed = 25 + (activeStage * 1.5);
+                         vx = (enemy.dashVector?.x || 0) * dashSpeed; vz = (enemy.dashVector?.z || 0) * dashSpeed;
+                         if (Math.random() > 0.4) {
+                             visualEffectsRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, life: 0.5, type: 'DASH_TRAIL' });
+                             setRenderEffects([...visualEffectsRef.current]);
+                         }
+                     }
+                } else {
+                    vx = (dx / dist) * moveSpeed * 0.3; // Slower when preparing
+                    vz = (dz / dist) * moveSpeed * 0.3;
+                    enemy.dashCooldown = (enemy.dashCooldown || 5.0) - delta;
+                    if (enemy.dashCooldown <= 0) {
+                         const distToPlayer = Math.sqrt(dx*dx + dz*dx);
+                         if (distToPlayer > 6 && distToPlayer < 22) {
+                             enemy.dashTime = 0.8; enemy.dashCooldown = Math.max(4.0, 9.0 - (activeStage * 0.5)); 
+                             enemy.dashVector = { x: dx/distToPlayer, z: dz/distToPlayer };
+                         }
+                    }
+                }
+            }
+
+            enemy.attackCooldown = (enemy.attackCooldown || 0) + delta;
+            
+            // --- ADVANCED BOSS ATTACK PATTERNS (Existing Logic) ---
+            const s = activeStage;
+            // Escalating pattern pool based on stage
+            let patterns = [0, 1]; // Stage 1 defaults
+            if (s >= 2) patterns = [0, 1, 2, 8];
+            if (s >= 3) patterns = [1, 2, 3, 5, 8];
+            if (s >= 4) patterns = [0, 2, 3, 4, 6, 8];
+            if (s >= 5) patterns = [1, 3, 4, 5, 7, 9];
+            if (s >= 7) patterns = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; // Full rotation
+
+            const patternSwitchTime = Math.max(3, 7 - (s * 0.4));
+            const patternIdx = Math.floor(bossPhaseTimer.current / patternSwitchTime) % patterns.length;
+            const currentPattern = patterns[patternIdx];
+
+            const fireRateMult = Math.min(2.5, 1.0 + (s * 0.15));
+            
+            let fireRate = 1.0;
+            if (currentPattern === 0) fireRate = 1.2 / fireRateMult; // Nova
+            else if (currentPattern === 1) fireRate = 0.15 / fireRateMult; // Spiral
+            else if (currentPattern === 2) fireRate = 0.3 / fireRateMult; // Sniper
+            else if (currentPattern === 3) fireRate = 1.0 / fireRateMult; // Ring Pulse
+            else if (currentPattern === 4) fireRate = 0.2 / fireRateMult; // Vortex
+            else if (currentPattern === 5) fireRate = 1.0 / fireRateMult; // Sine Barrage
+            else if (currentPattern === 6) fireRate = 1.5 / fireRateMult; // Cross
+            else if (currentPattern === 7) fireRate = 2.0 / fireRateMult; // Homing Orbs
+            else if (currentPattern === 8) fireRate = 1.0 / fireRateMult; // Wall
+            else if (currentPattern === 9) fireRate = 0.8 / fireRateMult; // Screen Wave
+
+            // Prevent attack during fadeout/fadein, but allow during telegraph (optional difficulty choice)
+            if (enemy.attackCooldown > fireRate && (enemy.teleportState === 'IDLE' || enemy.teleportState === undefined)) { 
+                enemy.attackCooldown = 0;
+                const projVariant = 'BOSS_NORMAL'; 
+                const baseDmg = enemy.damage; // Use the boss's configured damage
+                const bX = enemy.x; const bZ = enemy.z;
+                const pAngle = Math.atan2(dz, dx);
+
+                if (currentPattern === 0) { 
+                    const count = 8 + (activeStage * 2);
+                    for(let i=0; i<count; i++) { 
+                        const a = (i / count) * Math.PI * 2 + (bossPhaseTimer.current * 0.5); 
+                        projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: baseDmg, fromPlayer: false, color: '#aa00ff', life: 4, type: 'NORMAL', variant: projVariant }); 
+                    } 
+                }
+                else if (currentPattern === 1) { 
+                    const a = bossPhaseTimer.current * 8 + (activeStage * 0.2); 
+                    projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*10, vz: Math.sin(a)*10, damage: baseDmg, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: projVariant }); 
+                }
+                else if (currentPattern === 2) { 
+                    const lead = 0.1;
+                    const a = pAngle + (Math.random() - 0.5) * lead;
+                    projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*16, vz: Math.sin(a)*16, damage: baseDmg * 1.5, fromPlayer: false, color: '#ef4444', life: 3, type: 'NORMAL', variant: projVariant }); 
+                }
+                else if (currentPattern === 3) { 
+                    for(let i=0; i<16; i++) {
+                        const a = (i/16) * Math.PI * 2;
+                        projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: baseDmg, fromPlayer: false, color: '#3b82f6', life: 6, type: 'NORMAL', variant: projVariant });
+                    }
+                }
+                else if (currentPattern === 4) { 
+                    const a1 = bossPhaseTimer.current * 6;
+                    const a2 = -bossPhaseTimer.current * 6;
+                    projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a1)*9, vz: Math.sin(a1)*9, damage: baseDmg, fromPlayer: false, color: '#10b981', life: 5, type: 'NORMAL', variant: projVariant });
+                    projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a2)*9, vz: Math.sin(a2)*9, damage: baseDmg, fromPlayer: false, color: '#34d399', life: 5, type: 'NORMAL', variant: projVariant });
+                }
+                else if (currentPattern === 5) { 
+                    for(let i=-1; i<=1; i++) {
+                        const a = pAngle + (i * 0.4);
+                        const speed = 11;
+                        projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*speed, vz: Math.sin(a)*speed, damage: baseDmg, fromPlayer: false, color: '#6366f1', life: 5, type: 'NORMAL', variant: projVariant });
+                    }
+                }
+                else if (currentPattern === 6) { 
+                    const isPlus = Math.floor(bossPhaseTimer.current * 2) % 2 === 0;
+                    const startA = isPlus ? 0 : Math.PI/4;
+                    for(let i=0; i<4; i++) {
+                        const a = startA + (i * Math.PI/2);
+                        projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*12, vz: Math.sin(a)*12, damage: baseDmg * 2, fromPlayer: false, color: '#f8fafc', life: 5, type: 'NORMAL', variant: projVariant });
+                    }
+                }
+                else if (currentPattern === 7) { 
+                    const a = Math.random() * Math.PI * 2;
+                    projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*4, vz: Math.sin(a)*4, damage: baseDmg * 0.8, fromPlayer: false, color: '#a855f7', life: 8, type: 'HOMING', variant: projVariant });
+                }
+                else if (currentPattern === 8) { 
+                    const a = pAngle; const perp = a + Math.PI/2;
+                    for(let i=-2; i<=2; i++) {
+                        projectilesRef.current.push({ id: Math.random().toString(), x: bX + Math.cos(perp)*i*2, z: bZ + Math.sin(perp)*i*2, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: baseDmg, fromPlayer: false, color: '#22c55e', life: 4, type: 'NORMAL', variant: projVariant });
+                    }
+                }
+                else if (currentPattern === 9) { 
+                    for(let i=0; i<3; i++) {
+                            const a = Math.random() * Math.PI * 2;
+                            projectilesRef.current.push({ id: Math.random().toString(), x: bX, z: bZ, vx: Math.cos(a)*14, vz: Math.sin(a)*14, damage: baseDmg, fromPlayer: false, color: '#fbbf24', life: 5, type: 'NORMAL', variant: projVariant });
+                    }
+                }
+                
+                projectilesChanged = true;
+            }
+        }
+        else {
+            // NORMAL ENEMY MOVEMENT
+            vx = (dx / dist) * moveSpeed; 
+            vz = (dz / dist) * moveSpeed;
+
+            if (enemy.attackRange > 1) { 
+                 enemy.attackCooldown = (enemy.attackCooldown || 0) + delta;
+                 if (dist < 8 && dist > 3) { 
+                     vx = 0; vz = 0; 
+                     if (enemy.attackCooldown > 2.0) { 
+                         // SCALED ENEMY PROJECTILE PATTERNS
+                         const a = Math.atan2(dz, dx);
+                         const dmg = (15 + activeStage * 2);
+                         const roll = Math.random();
+                         
+                         let didAttack = false;
+
+                         if (activeStage >= 8 && roll > 0.8) {
+                             // Nova (8-way)
+                             const count = 8;
+                             for(let i=0; i<count; i++) {
+                                 const na = (i / count) * Math.PI * 2;
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(na)*5, vz: Math.sin(na)*5, damage: dmg * 0.8, fromPlayer: false, color: '#f87171', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             }
+                             didAttack = true;
+                         } else if (activeStage >= 5 && roll > 0.6) {
+                             // Rapid Burst (3 fast shots)
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*4, vz: Math.sin(a)*4, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             didAttack = true;
+                         } else if (activeStage >= 3 && roll > 0.4) {
+                             // Triple Spread
+                             for(let i=-1; i<=1; i++) {
+                                 const spreadA = a + (i * 0.3);
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*6, vz: Math.sin(spreadA)*6, damage: dmg, fromPlayer: false, color: '#a3e635', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             }
+                             didAttack = true;
+                         } else {
+                             // Standard Single Shot
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg, fromPlayer: false, color: 'red', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             didAttack = true;
+                         }
+
+                         if (didAttack) {
+                            projectilesChanged = true;
+                            enemy.attackCooldown = 0;
+                         }
+                     }
+                 }
+            }
+        }
+
+        // Add Knockback Vector
+        vx += enemy.knockbackX;
+        vz += enemy.knockbackZ;
+
+        enemy.x += vx * delta; enemy.z += vz * delta;
+        if (vx > 0.05) enemy.facing = 1; if (vx < -0.05) enemy.facing = -1;
+        
+        // Fix: TypeScript narrowing issue causing 'BOSS' comparison error by casting to string once
+        const eType = enemy.type as string;
+        const collisionRadius = eType === 'BOSS' || eType === 'LANDFILL_GOLEM' ? 2.0 : 0.8;
+        if (dist < collisionRadius && (eType !== 'BOSS' || (enemy.teleportState === 'IDLE' || enemy.teleportState === undefined))) {
+             takeDamage(eType === 'BOSS' ? 1.0 : 0.5); 
+        }
+        
+        const limit = 24.5;
+        if (enemy.x > limit) enemy.x = limit; if (enemy.x < -limit) enemy.x = -limit;
+        if (enemy.z > limit) enemy.z = limit; if (enemy.z < -limit) enemy.z = -limit;
+        if (enemy.hp > 0) aliveEnemies.push(enemy);
+    });
+
+    if (aliveEnemies.length !== enemiesRef.current.length) enemiesChanged = true;
+    enemiesRef.current = aliveEnemies;
+
+    const { projectileCount, damage: dmgMod, area: areaMod, cooldown: cdMod } = playerStats.modifiers;
+    const weapons = playerStats.unlockedWeapons;
+
+    const spawnWeapon = (weaponId: string, timerKey: keyof typeof weaponTimers.current, cooldownBase: number, action: () => void) => {
+        const lvl = weapons[weaponId] || 0;
+        if (lvl > 0) {
+            const cd = Math.max(0.1, (cooldownBase - (lvl * 0.1)) * cdMod);
+            weaponTimers.current[timerKey] += delta;
+            if (weaponTimers.current[timerKey] > cd) { action(); weaponTimers.current[timerKey] = 0; }
+        }
+    };
+
+    spawnWeapon('MAGIC_MISSILE', 'magicMissile', 0.8, () => {
+        const target = findClosestEnemy(playerPosition);
+        if (target) {
+            const count = Math.min(10, Math.ceil(weapons['MAGIC_MISSILE'] / 1.5) + projectileCount);
+            for(let i=0; i<count; i++) spawnProjectile(playerPosition, target, 'MAGIC_MISSILE', (i - (count-1)/2) * 0.2);
+            projectilesChanged = true;
+        }
+    });
+
+    spawnWeapon('AXE', 'axe', 1.2, () => { if (enemiesRef.current.length > 0) { const count = 1 + projectileCount + Math.floor(weapons['AXE'] / 3); for (let i = 0; i < count; i++) spawnProjectile(playerPosition, enemiesRef.current[Math.floor(Math.random() * enemiesRef.current.length)], 'AXE', (i*0.5)); projectilesChanged = true; }});
+    spawnWeapon('DAGGER', 'dagger', 0.5, () => { const count = 1 + projectileCount + Math.floor(weapons['DAGGER'] / 2); const target = findClosestEnemy(playerPosition); if (target) { for(let i=0; i<count; i++) spawnProjectile(playerPosition, target, 'DAGGER', (i - (count-1)/2) * 0.15); projectilesChanged = true; }});
+    spawnWeapon('CROSS', 'cross', 1.5, () => { const target = findClosestEnemy(playerPosition) || enemiesRef.current[0]; if (target) { const count = 1 + projectileCount; for (let i=0; i<count; i++) spawnProjectile(playerPosition, target, 'CROSS', (i * 0.4)); projectilesChanged = true; }});
+    
+    spawnWeapon('MAGIC_ARROW', 'magicArrow', 1.0, () => { 
+        const count = 1 + projectileCount;
+        const targetIds: string[] = [];
+        for (let i = 0; i < count; i++) {
+            let t = findClosestEnemy(playerPosition, targetIds);
+            let offset = 0;
+            if (t) {
+                targetIds.push(t.id);
+            } else if (targetIds.length > 0) {
+                t = enemiesRef.current.find(en => en.id === targetIds[0]);
+                offset = (i - count / 2) * 0.8; 
+            } else {
+                t = { x: playerPosition.x + 10, z: playerPosition.z } as any;
+                offset = (i - count / 2) * 0.8;
+            }
+            if (t) spawnProjectile(playerPosition, t, 'MAGIC_ARROW', offset);
+        }
+        projectilesChanged = true; 
+    });
+
+    spawnWeapon('FLAMETHROWER', 'flamethrower', 0.2, () => {
+         const count = 2 + projectileCount;
+         const enemy = findClosestEnemy(playerPosition);
+         const target = enemy ? enemy : { x: playerPosition.x + lastPlayerFacing.x * 5, z: playerPosition.z + lastPlayerFacing.z * 5 } as any;
+         for(let i=0; i<count; i++) spawnProjectile(playerPosition, target, 'FLAMETHROWER', (Math.random()-0.5) * 0.5);
+         projectilesChanged = true;
+    });
+
+    spawnWeapon('FIRE_MORTAR', 'fireMortar', 2.0, () => { 
+        const lvl = weapons['FIRE_MORTAR'] || 1;
+        const count = 1 + projectileCount + Math.floor(lvl / 2);
+        const sortedEnemies = [...enemiesRef.current].sort((a,b) => {
+            const da = (a.x - playerPosition.x)**2 + (a.z - playerPosition.z)**2;
+            const db = (b.x - playerPosition.x)**2 + (b.z - playerPosition.z)**2;
+            return da - db;
+        });
+
+        for (let i=0; i<count; i++) { 
+            let t = sortedEnemies[i % sortedEnemies.length];
+            if (!t) {
+                t = { x: playerPosition.x + (Math.random()-0.5)*15, z: playerPosition.z + (Math.random()-0.5)*15 } as any; 
+            }
+            spawnProjectile(playerPosition, t, 'FIRE_MORTAR', (Math.random()-0.5)*0.2); 
+        } 
+        projectilesChanged = true; 
+    });
+
+    spawnWeapon('SPEAR', 'spear', 1.5, () => {
+        const count = 1 + Math.floor(projectileCount / 2);
+        const closest = findClosestEnemy(playerPosition);
+        const target = closest || { x: playerPosition.x + lastPlayerFacing.x * 5, z: playerPosition.z + lastPlayerFacing.z * 5 } as any;
+        for (let i=0; i<count; i++) {
+            const angleOffset = (i - (count-1)/2) * 0.3;
+            spawnProjectile(playerPosition, target, 'SPEAR', angleOffset);
+        }
+        projectilesChanged = true;
+    });
+
+    spawnWeapon('SLIME_BALL', 'slimeBall', 1.5, () => {
+        const count = 1 + projectileCount;
+        const targetIds: string[] = [];
+        for (let i = 0; i < count; i++) {
+            let t = findClosestEnemy(playerPosition, targetIds);
+            let offset = 0;
+            if (t) {
+                targetIds.push(t.id);
+            } else if (targetIds.length > 0) {
+                t = enemiesRef.current.find(en => en.id === targetIds[0]);
+                offset = (i - count / 2) * 1.2; 
+            } else {
+                const angle = Math.random() * Math.PI * 2;
+                t = { x: playerPosition.x + Math.cos(angle)*5, z: playerPosition.z + Math.sin(angle)*5 } as any;
+                offset = (i - count / 2) * 1.2;
+            }
+            if (t) spawnProjectile(playerPosition, t, 'SLIME_BALL', offset);
+        }
+        projectilesChanged = true;
+    });
+
+    spawnWeapon('SHURIKEN', 'shuriken', 1.2, () => {
+        const count = 2 + projectileCount;
+        for(let i=0; i<count; i++) {
+             const t = enemiesRef.current.length > 0
+                ? enemiesRef.current[Math.floor(Math.random() * enemiesRef.current.length)]
+                : { x: playerPosition.x + (Math.random()-0.5)*10, z: playerPosition.z + (Math.random()-0.5)*10 } as any;
+             spawnProjectile(playerPosition, t, 'SHURIKEN', (Math.random()-0.5)*0.2);
+        }
+        projectilesChanged = true;
+    });
+
+    spawnWeapon('KATANA', 'katana', 1.0, () => {
+        const count = 1 + projectileCount;
+        const closest = findClosestEnemy(playerPosition);
+        const target = closest || { x: playerPosition.x + lastPlayerFacing.x * 5, z: playerPosition.z + lastPlayerFacing.z * 5 };
+        for (let i=0; i<count; i++) {
+            const angleOffset = (i - (count-1)/2) * 0.5;
+            spawnProjectile(playerPosition, target as any, 'KATANA', angleOffset);
+        }
+        projectilesChanged = true;
+    });
+
+    spawnWeapon('TOXIN_GUN', 'toxinGun', 0.4, () => { const count = 1 + projectileCount; const target = findClosestEnemy(playerPosition); if (target) { for(let i=0; i<count; i++) spawnProjectile(playerPosition, target, 'TOXIN_GUN', (i - (count-1)/2) * 0.1); projectilesChanged = true; } });
+    spawnWeapon('TOXIC_FLASK', 'toxicFlask', 2.5, () => { 
+        const lvl = weapons['TOXIC_FLASK'] || 1;
+        const count = 1 + projectileCount + Math.floor(lvl / 2);
+        const sortedEnemies = [...enemiesRef.current].sort((a,b) => {
+            const da = (a.x - playerPosition.x)**2 + (a.z - playerPosition.z)**2;
+            const db = (b.x - playerPosition.x)**2 + (b.z - playerPosition.z)**2;
+            return da - db;
+        });
+
+        for(let i=0; i<count; i++) { 
+            let t = sortedEnemies[i % sortedEnemies.length];
+            if (!t) {
+                t = { x: playerPosition.x + (Math.random()-0.5)*15, z: playerPosition.z + (Math.random()-0.5)*15 } as any; 
+            }
+            spawnProjectile(playerPosition, t, 'TOXIC_FLASK', (Math.random()-0.5)*0.2); 
+        } 
+        projectilesChanged = true; 
+    });
+
+    spawnWeapon('JAVELIN', 'javelin', 1.8, () => { 
+        const level = weapons['JAVELIN'] || 1;
+        const count = 1 + projectileCount + (level - 1); 
+        const targetIds: string[] = [];
+        for (let i = 0; i < count; i++) {
+            let t = findClosestEnemy(playerPosition, targetIds);
+            let offset = 0;
+            if (t) {
+                targetIds.push(t.id);
+            } else if (targetIds.length > 0) {
+                t = enemiesRef.current.find(en => en.id === targetIds[0]);
+                offset = (i - count / 2) * 0.6;
+            } else {
+                t = { x: playerPosition.x + 10, z: playerPosition.z } as any;
+                offset = (i - count / 2) * 0.6;
+            }
+            if (t) spawnProjectile(playerPosition, t, 'JAVELIN', offset, { turnsLeft: level });
+        }
+        projectilesChanged = true; 
+    });
+
+    spawnWeapon('CHAIN_LIGHTNING', 'chainLightning', 2.0, () => {
+        if (enemiesRef.current.length === 0) return;
+        const count = 1 + projectileCount;
+        const maxChains = 3 + (weapons['CHAIN_LIGHTNING'] || 1);
+        const dmg = (15 + (weapons['CHAIN_LIGHTNING'] * 5)) * dmgMod;
+        const baseKB = WEAPONS_DATA['CHAIN_LIGHTNING'].knockback;
+        const hitIds = new Set<string>();
+        for (let i = 0; i < count; i++) {
+            let currentTarget = findClosestEnemy(playerPosition, Array.from(hitIds));
+            if (!currentTarget) {
+                 currentTarget = enemiesRef.current.length > 0 ? enemiesRef.current[Math.floor(Math.random() * enemiesRef.current.length)] : null;
+            }
+            if (!currentTarget) break;
+            const lightningPath = [{x: playerPosition.x, z: playerPosition.z}];
+            damageEnemy(currentTarget, dmg, baseKB, playerPosition.x, playerPosition.z, time);
+            hitIds.add(currentTarget.id);
+            lightningPath.push({x: currentTarget.x, z: currentTarget.z});
+            let prevEnemy = currentTarget;
+            for (let c = 0; c < maxChains; c++) {
+                const nextTarget = findClosestEnemy(new THREE.Vector3(prevEnemy.x, 0, prevEnemy.z), Array.from(hitIds));
+                if (nextTarget) {
+                    damageEnemy(nextTarget, dmg * 0.8, baseKB * 0.5, prevEnemy.x, prevEnemy.z, time);
+                    hitIds.add(nextTarget.id);
+                    lightningPath.push({x: nextTarget.x, z: nextTarget.z});
+                    prevEnemy = nextTarget;
+                } else {
+                    break;
+                }
+            }
+            visualEffectsRef.current.push({
+                id: Math.random().toString(),
+                x: 0, z: 0, 
+                life: 0.35, 
+                initialLife: 0.35,
+                type: 'CHAIN_LIGHTNING',
+                path: lightningPath
+            });
+        }
+        setRenderEffects([...visualEffectsRef.current]);
+    });
+
+    spawnWeapon('HOLY_BEAM', 'holyBeam', 5.0, () => { 
+        const maxBeams = 2 + Math.floor(projectileCount / 2); 
+        if (enemiesRef.current.length > 0) {
+            const targets = [...enemiesRef.current].sort(() => 0.5 - Math.random());
+            const count = Math.min(maxBeams, targets.length);
+            for(let i=0; i<count; i++) { 
+                spawnProjectile(playerPosition, targets[i], 'HOLY_BEAM', 0); 
+            }
+        } else {
+            for(let i=0; i<maxBeams; i++) { 
+                const t = { x: playerPosition.x + (Math.random()-0.5)*12, z: playerPosition.z + (Math.random()-0.5)*12 } as any; 
+                spawnProjectile(playerPosition, t, 'HOLY_BEAM', 0); 
+            }
+        }
+        projectilesChanged = true; 
+    });
+    spawnWeapon('PLAGUE_SPREADER', 'plagueSpreader', 0.5, () => { spawnProjectile(playerPosition, { x: playerPosition.x, z: playerPosition.z } as any, 'PLAGUE_SPREADER', 0); projectilesChanged = true; });
+
+    if ((weapons['FIRE_AURA'] || 0) > 0) { 
+        weaponTimers.current.aura += delta; 
+        if (weaponTimers.current.aura > 0.5 * cdMod) { 
+            const radius = (3.5 + (weapons['FIRE_AURA'] * 0.5)) * areaMod; 
+            const dmg = ((playerStats.attackPower * 0.6) + (weapons['FIRE_AURA'] * 2)) * dmgMod; 
+            const baseKB = WEAPONS_DATA['FIRE_AURA'].knockback;
+            enemiesRef.current.forEach(e => { 
+                if (Math.sqrt((e.x-playerPosition.x)**2+(e.z-playerPosition.z)**2) < radius) {
+                    damageEnemy(e, dmg, baseKB, playerPosition.x, playerPosition.z, time); 
+                }
+            }); 
+            weaponTimers.current.aura = 0; 
+        } 
+    }
+    
+    if ((weapons['TESLA_COIL'] || 0) > 0) { 
+        weaponTimers.current.teslaCoil += delta; 
+        if (weaponTimers.current.teslaCoil > 0.25 * cdMod) { 
+            const radius = (4.5 + (weapons['TESLA_COIL'] * 0.6)) * areaMod; 
+            const dmg = ((playerStats.attackPower * 0.4) + (weapons['TESLA_COIL'] * 1.5)) * dmgMod; 
+            const baseKB = WEAPONS_DATA['TESLA_COIL'].knockback;
+            let zapCount = 0;
+            const maxZaps = 8 + (weapons['TESLA_COIL'] * 2);
+            enemiesRef.current.forEach(e => { 
+                const dx = e.x - playerPosition.x;
+                const dz = e.z - playerPosition.z;
+                const distSq = dx*dx + dz*dz;
+                if (distSq < radius * radius) { 
+                    damageEnemy(e, dmg, baseKB, playerPosition.x, playerPosition.z, time); 
+                    if (zapCount < maxZaps) {
+                        visualEffectsRef.current.push({
+                            id: `tesla_${Math.random()}`,
+                            x: 0, z: 0,
+                            life: 0.15,
+                            initialLife: 0.15,
+                            type: 'CHAIN_LIGHTNING',
+                            path: [{x: playerPosition.x, z: playerPosition.z}, {x: e.x, z: e.z}]
+                        });
+                        zapCount++;
+                    }
+                } 
+            }); 
+            if (zapCount === 0 && Math.random() > 0.5) {
+                 const angle = Math.random() * Math.PI * 2;
+                 const r = radius * (0.5 + Math.random() * 0.5);
+                 visualEffectsRef.current.push({
+                    id: `tesla_idle_${Math.random()}`,
+                    x: 0, z: 0,
+                    life: 0.1,
+                    initialLife: 0.1,
+                    type: 'CHAIN_LIGHTNING',
+                    path: [{x: playerPosition.x, z: playerPosition.z}, {x: playerPosition.x + Math.cos(angle)*r, z: playerPosition.z + Math.sin(angle)*r}]
+                 });
+            }
+            setRenderEffects([...visualEffectsRef.current]);
+            weaponTimers.current.teslaCoil = 0; 
+        } 
+    }
+
+    if ((weapons['THUNDER'] || 0) > 0) { 
+        weaponTimers.current.thunder += delta; 
+        if (weaponTimers.current.thunder > Math.max(0.5, (3.5 - (weapons['THUNDER'] * 0.4)) * cdMod) && enemiesRef.current.length > 0) { 
+            const target = enemiesRef.current[Math.floor(Math.random() * enemiesRef.current.length)]; 
+            const dmg = ((playerStats.attackPower * 5) + (weapons['THUNDER'] * 10)) * dmgMod; 
+            damageEnemy(target, dmg, WEAPONS_DATA['THUNDER'].knockback, playerPosition.x, playerPosition.z, time); 
+            visualEffectsRef.current.push({ 
+                id: Math.random().toString(), 
+                x: target.x, 
+                z: target.z, 
+                life: 0.3, 
+                initialLife: 0.3, 
+                type: 'THUNDER', 
+                path: [{x: target.x, y: 12, z: target.z}, {x: target.x, y: 0, z: target.z}] 
+            }); 
+            setRenderEffects([...visualEffectsRef.current]); 
+            weaponTimers.current.thunder = 0; 
+        } 
+    }
+
+    const orbitalLevel = weapons['ORBITAL'] || 0;
+    const bibleLevel = weapons['BIBLE'] || 0;
+    const desiredOrbitals = orbitalLevel > 0 ? (2 + Math.floor(orbitalLevel/2) + projectileCount) : 0;
+    const currentOrbitals = projectilesRef.current.filter(p => p.type === 'ORBITAL' && p.variant !== 'BIBLE').length;
+    if (currentOrbitals < desiredOrbitals) { projectilesRef.current.push({ id: Math.random().toString(), x: playerPosition.x, z: playerPosition.z, vx: 0, vz: 0, damage: (10 + (orbitalLevel * 5)) * dmgMod, fromPlayer: true, color: '#00ffff', life: 9999, type: 'ORBITAL', orbitAngle: (currentOrbitals / desiredOrbitals) * Math.PI * 2, knockbackValue: WEAPONS_DATA['ORBITAL'].knockback }); projectilesChanged = true; }
+    const desiredBibles = bibleLevel > 0 ? (1 + Math.floor(bibleLevel/2) + projectileCount) : 0;
+    const currentBibles = projectilesRef.current.filter(p => isVariant(p, 'BIBLE')).length;
+    if (currentBibles < desiredBibles) { projectilesRef.current.push({ id: Math.random().toString(), x: playerPosition.x, z: playerPosition.z, vx: 0, vz: 0, damage: (15 + (bibleLevel * 6)) * dmgMod, fromPlayer: true, color: '#fcd34d', life: 9999, type: 'ORBITAL', variant: 'BIBLE', orbitAngle: (currentBibles / desiredBibles) * Math.PI * 2, knockbackValue: WEAPONS_DATA['BIBLE'].knockback }); projectilesChanged = true; }
+
+    const activeProjectiles: Projectile[] = [];
+    projectilesRef.current.forEach(p => {
+        let keep = true;
+        
+        if (p.type === 'ORBITAL') {
+            if (p.variant === 'BIBLE') {
+                if (!weapons['BIBLE']) keep = false;
+            } else {
+                if (!weapons['ORBITAL']) keep = false;
+            }
+        }
+
+        if (p.type === 'ORBITAL' && p.orbitAngle !== undefined) { const speed = isVariant(p, 'BIBLE') ? 3 : 2; p.orbitAngle += delta * (speed + (orbitalLevel * 0.5)); const radius = (isVariant(p, 'BIBLE') ? 3.5 : 2.5) * areaMod; p.x = playerPosition.x + Math.cos(p.orbitAngle) * radius; p.z = playerPosition.z + Math.sin(p.orbitAngle) * radius; } 
+        else if (isVariant(p, 'CROSS')) { const age = 3 - p.life; if (age > 0.6) { const dx = playerPosition.x - p.x; const dz = playerPosition.z - p.z; const dist = Math.sqrt(dx*dx + dz*dz); p.vx += (dx/dist) * 30 * delta; p.vz += (dz/dist) * 30 * delta; } p.x += p.vx * delta; p.z += p.vz * delta; p.life -= delta; } 
+        else if (isVariant(p, 'FIRE_MORTAR') || isVariant(p, 'TOXIC_FLASK')) { 
+            p.x += p.vx * delta; p.z += p.vz * delta; p.life -= delta; 
+            if (p.life <= 0) { 
+                const lvl = weapons[p.variant as string] || 1; 
+                const poolLife = 3.0 + (lvl * 0.5); 
+                const poolVariant = isVariant(p, 'TOXIC_FLASK') ? 'POISON_CLOUD' : 'LAVA_POOL'; 
+                const poolColor = isVariant(p, 'TOXIC_FLASK') ? '#84cc16' : '#ff4400'; 
+                const damageTick = isVariant(p, 'TOXIC_FLASK') ? p.damage * 0.2 : p.damage * 0.5; 
+                
+                // Explode and create pool
+                activeProjectiles.push({ id: Math.random().toString(), x: p.x, z: p.z, vx: 0, vz: 0, damage: damageTick, fromPlayer: true, color: poolColor, life: poolLife, type: 'STATIONARY', variant: poolVariant, knockbackValue: 0 }); 
+                
+                for(const e of enemiesRef.current) { 
+                    if ((e.x-p.x)**2 + (e.z-p.z)**2 < 4.0) { 
+                        // Use ?? to ensure 0 is respected if passed (which it should be from constants)
+                        damageEnemy(e, p.damage, p.knockbackValue ?? 3.0, p.x, p.z, time); 
+                    } 
+                } 
+                projectilesChanged = true; 
+            } 
+        } 
+        else if (isVariant(p, 'LAVA_POOL') || isVariant(p, 'POISON_CLOUD') || isVariant(p, 'HOLY_BEAM') || isVariant(p, 'PLAGUE_SPREADER')) { 
+            p.life -= delta; 
+            const radius = isVariant(p, 'HOLY_BEAM') ? 2.0 : 2.5 * areaMod; 
+            if (enemiesRef.current.length > 0) { 
+                enemiesRef.current.forEach(e => { 
+                    const d = (e.x-p.x)**2 + (e.z-p.z)**2; 
+                    if (d < radius * radius) { 
+                        if (time - (e.lastHit || 0) > 0.2) { 
+                            // Beam pushes away from center of beam
+                            damageEnemy(e, p.damage, p.knockbackValue || 0, p.x, p.z, time); 
+                        } 
+                    } 
+                }); 
+            } 
+        } 
+        else { if (p.type === 'HOMING' && enemiesRef.current.length > 0) { let closest = null; let minDist = 10000; for(const e of enemiesRef.current) { const d = (e.x-p.x)**2+(e.z-p.z)**2; if(d<minDist){ minDist=d; closest=e; } } if (closest) { const dx = closest.x - p.x; const dz = closest.z - p.z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist > 0.1) { const steer = 0.15; const sp = 18; p.vx = (p.vx * (1 - steer)) + ((dx/dist) * sp * steer); p.vz = (p.vz * (1 - steer)) + ((dz/dist) * sp * steer); } } } p.x += p.vx * delta; p.z += p.vz * delta; p.life -= delta; }
+        if (isVariant(p, 'SLIME_BALL')) {
+             const limit = 24.0; 
+             if (p.x > limit || p.x < -limit) { p.vx = -p.vx; p.x = Math.sign(p.x) * limit; }
+             if (p.z > limit || p.z < -limit) { p.vz = -p.vz; p.z = Math.sign(p.z) * limit; }
+        }
+        
+        if (p.life <= 0) keep = false;
+        
+        if (keep) {
+             let hit = false;
+             if (p.fromPlayer) {
+                 if (isVariant(p, 'LAVA_POOL') || isVariant(p, 'POISON_CLOUD') || isVariant(p, 'FIRE_MORTAR') || isVariant(p, 'TOXIC_FLASK') || isVariant(p, 'HOLY_BEAM') || isVariant(p, 'PLAGUE_SPREADER')) { hit = false; } 
+                 else if (isVariant(p, 'KATANA') || p.type === 'MELEE') {
+                     for(const e of enemiesRef.current) { 
+                         if ((e.x-p.x)**2 + (e.z-p.z)**2 < 5.0) { 
+                             if (time - (e.lastHit || 0) > 0.2) {
+                                // Melee knockback comes from player position
+                                damageEnemy(e, p.damage, p.knockbackValue || 4.0, playerPosition.x, playerPosition.z, time); 
+                             }
+                         } 
+                     }
+                     hit = false; 
+                 } else {
+                     for(const e of enemiesRef.current) {
+                         const targetType = e.type as string;
+                         // Check boss opacity/teleport state for hit validation
+                         if (targetType === 'BOSS' && e.opacity !== undefined && e.opacity < 0.5) continue;
+
+                         if ((e.x-p.x)**2 + (e.z-p.z)**2 < (targetType === 'BOSS' || targetType === 'LANDFILL_GOLEM' ? 2.5 : 1.2)) { 
+                             if (isVariant(p, 'SLIME_BALL')) {
+                                 if ((p.bouncesLeft || 0) > 0) {
+                                     // Projectile knockback comes from projectile position
+                                     damageEnemy(e, p.damage, p.knockbackValue || 1.5, p.x, p.z, time);
+                                     p.bouncesLeft!--;
+                                     const dx = p.x - e.x; const dz = p.z - e.z;
+                                     const len = Math.sqrt(dx*dx + dz*dz) || 1;
+                                     const nx = dx/len; const nz = dz/len;
+                                     const dot = p.vx * nx + p.vz * nz;
+                                     p.vx = p.vx - 2 * dot * nx;
+                                     p.vz = p.vz - 2 * dot * nz;
+                                     p.x += nx * 0.5; p.z += nz * 0.5;
+                                     hit = false; 
+                                 } else {
+                                     hit = true; damageEnemy(e, p.damage, p.knockbackValue || 1.5, p.x, p.z, time);
+                                 }
+                             }
+                             else if (isVariant(p, 'JAVELIN')) {
+                                 if (!p.hitList) p.hitList = [];
+                                 if (p.hitList.includes(e.id)) continue; 
+                                 damageEnemy(e, p.damage, p.knockbackValue || 1.0, p.x, p.z, time);
+                                 p.hitList.push(e.id);
+                                 if ((p.turnsLeft || 0) > 0) {
+                                     p.turnsLeft = (p.turnsLeft || 0) - 1;
+                                     const next = findClosestEnemy(new THREE.Vector3(p.x, 0, p.z), p.hitList);
+                                     if (next) {
+                                         const dx = next.x - p.x; const dz = next.z - p.z;
+                                         const dist = Math.sqrt(dx*dx + dz*dz);
+                                         if (dist > 0.1) {
+                                             const speed = Math.sqrt(p.vx*p.vx + p.vz*p.vz);
+                                             p.vx = (dx/dist) * speed; p.vz = (dz/dist) * speed;
+                                             p.life = Math.max(p.life, 1.5);
+                                         }
+                                     }
+                                     break; 
+                                 }
+                                 hit = true;
+                             }
+                             else {
+                                 const pVar = p.variant as string;
+                                 const piercing = p.type === 'ORBITAL' || pVar === 'CROSS' || pVar === 'JAVELIN' || pVar === 'SHURIKEN' || pVar === 'SPEAR' || pVar === 'BIBLE';
+                                 if (hit && !piercing) break; 
+                                 if (!piercing) hit = true; 
+                                 else if (Math.random() > 0.1) continue; 
+                                 
+                                 // Determine source for knockback:
+                                 // Orbitals/Bible push away from Player center
+                                 const isOrbital = p.type === 'ORBITAL' || pVar === 'BIBLE' || pVar === 'ORBITAL';
+                                 const kbSourceX = isOrbital ? playerPosition.x : p.x;
+                                 const kbSourceZ = isOrbital ? playerPosition.z : p.z;
+                                 
+                                 damageEnemy(e, p.damage, p.knockbackValue || 1.0, kbSourceX, kbSourceZ, time);
+                             }
+                         }
+                     }
+                 }
+             } else {
+                 if (((playerPosition.x - p.x)**2 + (playerPosition.z - p.z)**2) < 0.4) { hit = true; takeDamage(p.damage); }
+             }
+             const pVar = p.variant as string;
+             const piercing = p.type === 'ORBITAL' || pVar === 'CROSS' || pVar === 'JAVELIN' || pVar === 'SHURIKEN' || pVar === 'SPEAR' || pVar === 'BIBLE';
+             if (hit && !piercing) keep = false;
+        }
+        if (keep) activeProjectiles.push(p);
+    });
+
+    if (activeProjectiles.length !== projectilesRef.current.length) projectilesChanged = true;
+    projectilesRef.current = activeProjectiles;
+    updateVisuals(false);
+    if (enemiesChanged) { enemiesRef.current = enemiesRef.current.filter(e => e.hp > -0.5); setRenderEnemies([...enemiesRef.current]); }
+    if (projectilesChanged) setRenderProjectiles([...projectilesRef.current]);
+  });
+
+  return (
+    <group>
+      <PixelGround width={50} height={50} themeId={themeId} mode="BATTLE" aiConfig={aiConfig} />
+      <group position={[0, 0.1, 0]}><mesh position={[0, 0, 25]}><boxGeometry args={[50, 0.5, 0.5]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh><mesh position={[0, 0, -25]}><boxGeometry args={[50, 0.5, 0.5]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh><mesh position={[25, 0, 0]}><boxGeometry args={[0.5, 0.5, 50]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh><mesh position={[-25, 0, 0]}><boxGeometry args={[0.5, 0.5, 50]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh></group>
+      {renderEnemies.map(e => {
+          // Fix: TypeScript narrowing issue causing 'BOSS' comparison error by casting to string
+          const eType = e.type as string;
+          if (eType === 'BOSS') {
+              const stageNum = ((activeStage - 1) % 10) + 1;
+              const bossUrl = `https://storage.googleapis.com/eco-guardian/boss/boss_${stageNum}.png`;
+              return (
+                  <Suspense fallback={null} key={e.id}>
+                      <ExternalBossSprite position={[e.x, 0, e.z]} entity={e} scale={5.5} opacity={e.opacity} textureUrl={bossUrl} />
+                  </Suspense>
+              );
+          }
+          return <SpriteBillboard key={e.id} color={getEnemyColor(e.type, activeStage)} scale={eType === 'BOSS' ? 4.5 : 1.8} entity={e} type={e.type} variant={e.visualVariant || e.name} />;
+      })}
+      {renderProjectiles.map(p => <ProjectileRender key={p.id} projectile={p} />)}
+      {renderEffects.map(ef => {
+          if (ef.type === 'BOSS_DEATH') {
+             const progress = 1 - (ef.life / 3.5); const scale = 1 + (progress * 10); const alpha = Math.max(0, 1 - progress);
+             return (
+                <group key={ef.id} position={[ef.x, 0, ef.z]}><mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.1, 0]}><ringGeometry args={[scale - 0.5, scale, 32]} /><meshBasicMaterial color="#e879f9" transparent opacity={alpha} side={THREE.DoubleSide} /></mesh><mesh position={[0, 10, 0]}><cylinderGeometry args={[2 * (1-progress), 2 * (1-progress), 50, 16, 1, true]} /><meshBasicMaterial color="white" transparent opacity={alpha * 0.8} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} /></mesh><mesh position={[0, 2, 0]} scale={[1 + progress*2, 1 + progress*2, 1 + progress*2]}><sphereGeometry args={[1, 16, 16]} /><meshBasicMaterial color="#a855f7" wireframe transparent opacity={alpha} /></mesh><pointLight position={[0, 5, 0]} color="#d946ef" intensity={5 * alpha} distance={15} /></group>
+             );
+          } else if (ef.type === 'CHAIN_LIGHTNING') {
+              return (
+                  <LightningBolt key={ef.id} path={ef.path || []} life={ef.life} initialLife={ef.initialLife || 0.35} />
+              );
+          } else if (ef.type === 'THUNDER') {
+              return (
+                  <LightningBolt key={ef.id} path={ef.path || []} life={ef.life} initialLife={ef.initialLife || 0.3} color="#00ffff" glowColor="#ffffff" />
+              );
+          }
+          return <mesh key={ef.id} position={[ef.x, 1, ef.z]}><sphereGeometry args={[0.5, 8, 8]} /><meshBasicMaterial color="#ff00ff" transparent opacity={ef.life} /></mesh>;
+      })}
+      {renderOrbs.map(orb => <SpriteBillboard key={orb.id} entity={orb} color={orb.value > 20 ? '#a855f7' : (orb.value > 10 ? '#eab308' : '#22c55e')} scale={0.8} type={orb.type || 'XP_ORB'} />)}
+      {chest && !chest.isOpen && ( 
+        <group position={[chest.x, 0, chest.z]}>
+            <SpriteBillboard color="white" scale={1.5} type="CHEST" position={[0, 1, 0]} />
+            <pointLight color="#fbbf24" distance={8} intensity={2} decay={2} />
+            <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]}><ringGeometry args={[0.8, 1.2, 32]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.6} /></mesh>
+            <mesh position={[0, 50, 0]}><cylinderGeometry args={[0.3, 0.3, 100, 16, 1, true]} /><meshBasicMaterial color="white" transparent opacity={0.3} side={THREE.DoubleSide} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+        </group>
+      )}
+      
+      {chest && !chest.isOpen && (
+          <QuestArrow playerPosition={playerPosition} target={{ x: chest.x, z: chest.z }} />
+      )}
+      
+      {!!playerStats.unlockedWeapons['FIRE_AURA'] && <FireAura radius={(3.5 + (playerStats.unlockedWeapons['FIRE_AURA'] || 0)*0.5) * playerStats.modifiers.area} position={playerPosition} />}
+      {!!playerStats.unlockedWeapons['TESLA_COIL'] && <TeslaCoil radius={(4.5 + (playerStats.unlockedWeapons['TESLA_COIL'] || 0)*0.6) * playerStats.modifiers.area} position={playerPosition} />}
+    </group>
+  );
+};
