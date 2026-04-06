@@ -1066,10 +1066,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             type: 'BOSS',
             colorOverride: '#aa00ff'
            };
-           remainingPortals.push(bossPortal);
-
            return {
-               portals: remainingPortals,
+               portals: [bossPortal],
                mode: GameMode.OVERWORLD,
                lastGameplayMode: GameMode.OVERWORLD,
                worldPosition: state.savedOverworldPosition,

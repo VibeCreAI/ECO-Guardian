@@ -1,5 +1,7 @@
 
 import React, { useRef, useEffect, useState, Suspense, useMemo } from 'react';
+import { Sky, Stars } from '@react-three/drei';
+import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
@@ -17,6 +19,47 @@ interface SceneProps {
   inputVector: React.MutableRefObject<Vector2>;
   dashTrigger: React.MutableRefObject<boolean>;
 }
+
+type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
+
+const THEME_FOG_COLORS: Record<ThemeName, string> = {
+  FOREST: '#166534',
+  SKULL: '#1e293b',
+  ICE: '#e0f2fe',
+  VOLCANO: '#450a0a',
+  PYRAMID: '#92400e',
+  MUSHROOM: '#3f6212',
+  CYBER: '#020617',
+  VOID: '#2e1065',
+  SKY: '#bae6fd',
+  HELL: '#7f1d1d',
+};
+
+const THEME_BACKGROUND_COLORS: Record<ThemeName, string> = {
+  FOREST: '#166534',
+  SKULL: '#020617',
+  ICE: '#dbeafe',
+  VOLCANO: '#2b0808',
+  PYRAMID: '#b45309',
+  MUSHROOM: '#365314',
+  CYBER: '#020617',
+  VOID: '#0f0624',
+  SKY: '#bae6fd',
+  HELL: '#3f0a0a',
+};
+
+const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }> = {
+  FOREST: { sky: '#86efac', ground: '#451a03' },
+  SKULL: { sky: '#94a3b8', ground: '#111827' },
+  ICE: { sky: '#e0f2fe', ground: '#67e8f9' },
+  VOLCANO: { sky: '#ef4444', ground: '#292524' },
+  PYRAMID: { sky: '#fdba74', ground: '#78350f' },
+  MUSHROOM: { sky: '#84cc16', ground: '#1a2e05' },
+  CYBER: { sky: '#38bdf8', ground: '#020617' },
+  VOID: { sky: '#8b5cf6', ground: '#1e1b4b' },
+  SKY: { sky: '#e0f2fe', ground: '#7dd3fc' },
+  HELL: { sky: '#f87171', ground: '#450a0a' },
+};
 
 const PlayerTrailRenderer = ({ playerRef, dashTimer }: { playerRef: React.RefObject<THREE.Group>, dashTimer: React.MutableRefObject<number> }) => {
     const trails = useRef<{id: string, x: number, z: number, life: number}[]>([]);
@@ -51,7 +94,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
   const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, enterShop, lastGameplayMode, highlightedPortalId, showNarrative } = useGameStore();
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const [facing, setFacing] = useState(1);
   const [isMoving, setIsMoving] = useState(false);
   const [viewDirection, setViewDirection] = useState<'DOWN'|'UP'|'SIDE'>('DOWN');
@@ -65,6 +108,12 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
   const landmarkType = React.useMemo(() => getLandmarkType(activeStage, aiConfig), [activeStage, aiConfig]);
+  const sceneTheme = React.useMemo<ThemeName>(() => {
+    return Object.prototype.hasOwnProperty.call(THEME_FOG_COLORS, landmarkType) ? landmarkType as ThemeName : 'FOREST';
+  }, [landmarkType]);
+  const fogColor = React.useMemo(() => THEME_FOG_COLORS[sceneTheme], [sceneTheme]);
+  const backgroundColor = React.useMemo(() => THEME_BACKGROUND_COLORS[sceneTheme], [sceneTheme]);
+  const hemisphereColors = React.useMemo(() => THEME_HEMISPHERE_COLORS[sceneTheme], [sceneTheme]);
   const landmarkRadius = React.useMemo(() => {
     switch(landmarkType) { case 'VOLCANO': return 8.5; case 'PYRAMID': return 8.5; case 'HELL': return 7.0; case 'FOREST': case 'SKULL': return 5.5; default: return 4.5; }
   }, [landmarkType]);
@@ -164,12 +213,39 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const getPortalLabel = (portal: any): string | undefined => { if (!portal.quizOption) return undefined; if (portal.quizOption === 'A') return 'YES'; if (portal.quizOption === 'B') return 'NO'; return portal.quizOption; };
   const isPlayerHit = (Date.now() - playerStats.lastDamageTime) < 200;
   const arrowTarget = useMemo(() => { if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } const bossPortal = portals.find(p => p.type === 'BOSS'); if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [portals, highlightedPortalId]);
+  const showStars = sceneTheme === 'VOID' || sceneTheme === 'HELL' || sceneTheme === 'SKULL';
+  const showDefaultSky = !showStars && sceneTheme !== 'CYBER' && sceneTheme !== 'SKY';
+  const showOverworldScene = (mode === GameMode.OVERWORLD || ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD));
+  const showBattleScene = (mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE));
+
+  useEffect(() => {
+    gl.shadowMap.enabled = true;
+    gl.shadowMap.type = THREE.PCFSoftShadowMap;
+  }, [gl]);
 
   return (
     <>
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[10, 20, 10]} intensity={1.2} castShadow shadow-mapSize={[1024, 1024]} />
-      {(mode === GameMode.OVERWORLD || ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD)) && (
+      <color attach="background" args={[backgroundColor]} />
+      <fog attach="fog" args={[fogColor, 25, 65]} />
+      {showDefaultSky && <Sky sunPosition={[100, 20, 100]} />}
+      {sceneTheme === 'SKY' && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
+      {showStars && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
+      <hemisphereLight skyColor={hemisphereColors.sky} groundColor={hemisphereColors.ground} intensity={0.75} />
+      <directionalLight
+        position={[10, 20, 10]}
+        intensity={1.2}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-near={1}
+        shadow-camera-far={65}
+        shadow-camera-left={-40}
+        shadow-camera-right={40}
+        shadow-camera-top={40}
+        shadow-camera-bottom={-40}
+        shadow-bias={-0.0003}
+        shadow-normalBias={0.02}
+      />
+      {showOverworldScene && (
           <group>
             <PixelGround width={100} height={100} themeId={themeId} mode="OVERWORLD" aiConfig={aiConfig} />
             <VoxelLandmark type={landmarkType} position={[LANDMARK_POS.x, 0, LANDMARK_POS.z]} />
@@ -185,10 +261,14 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       <PlayerTrailRenderer playerRef={playerRef} dashTimer={dashTimer} />
       <group ref={playerRef}><Suspense fallback={null}><PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} /></Suspense><mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.5, 16]} /><meshBasicMaterial color="black" opacity={0.5} transparent /></mesh></group>
       <Suspense fallback={null}>
-        {(mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE)) && (
+        {showBattleScene && (
             <BattleManager playerPosition={playerRef.current ? playerRef.current.position : new THREE.Vector3(0,0,0)} activeBattle={activeBattle} />
         )}
       </Suspense>
+      <EffectComposer disableNormalPass>
+        <Bloom luminanceThreshold={0.3} intensity={1.5} />
+        <Vignette eskil={false} offset={0.1} darkness={0.5} />
+      </EffectComposer>
     </>
   );
 };

@@ -1,5 +1,6 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AiStageConfig } from '../../types';
 
@@ -11,7 +12,98 @@ interface PixelGroundProps {
     aiConfig?: AiStageConfig | null;
 }
 
+type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
+
+const PIXEL_GROUND_VERTEX_SHADER = `
+varying vec2 vUv;
+
+void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const VOLCANO_GROUND_FRAGMENT_SHADER = `
+uniform float uTime;
+uniform sampler2D uTexture;
+uniform vec2 uUvScale;
+
+varying vec2 vUv;
+
+void main() {
+    vec2 tiledUv = vUv * uUvScale;
+    vec2 flowUv = tiledUv;
+    flowUv.x += sin((tiledUv.y * 7.0) + uTime * 1.8) * 0.08;
+    flowUv.y += cos((tiledUv.x * 5.5) - uTime * 1.2) * 0.05;
+
+    vec4 base = texture2D(uTexture, flowUv);
+    float lavaMask = smoothstep(0.48, 0.82, base.r);
+    float pulse = 0.55 + 0.45 * abs(sin(uTime * 2.0 + tiledUv.x * 0.4));
+    vec3 lavaGlow = mix(base.rgb, vec3(1.0, 0.52, 0.08), lavaMask * pulse);
+    vec3 emberGlow = vec3(1.0, 0.86, 0.32) * lavaMask * pulse * 0.35;
+
+    gl_FragColor = vec4(lavaGlow + emberGlow, 1.0);
+}
+`;
+
+const VOID_GROUND_FRAGMENT_SHADER = `
+uniform float uTime;
+uniform sampler2D uTexture;
+uniform vec2 uUvScale;
+
+varying vec2 vUv;
+
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void main() {
+    vec2 tiledUv = vUv * uUvScale;
+    vec4 base = texture2D(uTexture, tiledUv);
+
+    vec2 starGrid = floor(tiledUv * 6.0);
+    float starId = hash(starGrid);
+    float twinkle = 0.35 + 0.65 * abs(sin(uTime * 2.0 + starId * 6.28318));
+    vec2 cellUv = fract(tiledUv * 6.0) - 0.5;
+    float starShape = 1.0 - smoothstep(0.0, 0.12, length(cellUv));
+    float starMask = step(0.985, starId);
+    float nebula = 0.5 + 0.5 * sin(tiledUv.x * 0.8 + tiledUv.y * 0.6 + uTime * 0.3);
+    vec3 starColor = mix(vec3(0.78, 0.58, 1.0), vec3(1.0, 1.0, 1.0), starId);
+
+    vec3 color = base.rgb;
+    color += vec3(0.18, 0.0, 0.35) * nebula * 0.35;
+    color += starColor * starMask * starShape * twinkle * 1.4;
+
+    gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const resolveThemeType = (themeId: number, aiConfig?: AiStageConfig | null): ThemeName => {
+    if (aiConfig?.theme?.landmarkType) {
+        return aiConfig.theme.landmarkType as ThemeName;
+    }
+
+    const cycle = ((themeId - 1) % 10) + 1;
+    switch(cycle) {
+        case 2: return 'SKULL';
+        case 3: return 'ICE';
+        case 4: return 'VOLCANO';
+        case 5: return 'PYRAMID';
+        case 6: return 'MUSHROOM';
+        case 7: return 'CYBER';
+        case 8: return 'VOID';
+        case 9: return 'SKY';
+        case 10: return 'HELL';
+        default: return 'FOREST';
+    }
+};
+
 export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId, mode = 'OVERWORLD', aiConfig }) => {
+    const animatedMaterialRef = useRef<THREE.ShaderMaterial>(null);
+    const themeType = useMemo(() => resolveThemeType(themeId, aiConfig), [themeId, aiConfig]);
+    const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
+    const uvScale = useMemo(() => new THREE.Vector2(width / tileWorldSize, height / tileWorldSize), [width, height, tileWorldSize]);
+
     const texture = useMemo(() => {
         // We generate a 64x64 texture, but we treat it as a 16x16 grid of 4x4 "big pixels"
         // This creates a chunky, retro, clean look.
@@ -45,26 +137,6 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
             };
 
             // --- THEME SELECTION ---
-            let themeType = 'FOREST';
-            const cycle = ((themeId - 1) % 10) + 1;
-            
-            if (aiConfig?.theme?.landmarkType) {
-                themeType = aiConfig.theme.landmarkType;
-            } else {
-                switch(cycle) {
-                    case 2: themeType = 'SKULL'; break; // Graveyard
-                    case 3: themeType = 'ICE'; break;
-                    case 4: themeType = 'VOLCANO'; break;
-                    case 5: themeType = 'PYRAMID'; break; // Desert
-                    case 6: themeType = 'MUSHROOM'; break; // Swamp
-                    case 7: themeType = 'CYBER'; break;
-                    case 8: themeType = 'VOID'; break;
-                    case 9: themeType = 'SKY'; break;
-                    case 10: themeType = 'HELL'; break;
-                    default: themeType = 'FOREST'; break;
-                }
-            }
-
             // --- CHUNKY PROCEDURAL GENERATION ---
             
             if (themeType === 'FOREST') {
@@ -193,23 +265,39 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
         tex.wrapT = THREE.RepeatWrapping;
         tex.colorSpace = THREE.SRGBColorSpace;
         
-        // REPEAT SCALE
-        // Since the tile is now bolder/simpler, we can repeat it a bit more often without it looking noisy.
-        // Or keep it large for a "Mario Kart" floor vibe.
-        // Current width is 100.
-        // If we want the tile (64 units visual) to appear roughly 4 units in world space:
-        // 100 / 4 = 25 repeats.
-        
-        const tileWorldSize = mode === 'BATTLE' ? 4 : 5; 
-        tex.repeat.set(width / tileWorldSize, height / tileWorldSize);
+        tex.repeat.set(uvScale.x, uvScale.y);
         
         return tex;
-    }, [themeId, width, height, mode, aiConfig]);
+    }, [themeType, width, height, mode, uvScale]);
+
+    const shaderUniforms = useMemo(() => ({
+        uTime: { value: 0 },
+        uTexture: { value: texture },
+        uUvScale: { value: uvScale.clone() },
+    }), [texture, uvScale]);
+
+    useFrame((state) => {
+        if (animatedMaterialRef.current) {
+            animatedMaterialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+        }
+    });
+
+    const usesAnimatedShader = themeType === 'VOLCANO' || themeType === 'VOID';
 
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
             <planeGeometry args={[width, height]} />
-            <meshStandardMaterial map={texture} roughness={0.9} metalness={0.1} />
+            {usesAnimatedShader ? (
+                <shaderMaterial
+                    key={themeType}
+                    ref={animatedMaterialRef}
+                    uniforms={shaderUniforms}
+                    vertexShader={PIXEL_GROUND_VERTEX_SHADER}
+                    fragmentShader={themeType === 'VOLCANO' ? VOLCANO_GROUND_FRAGMENT_SHADER : VOID_GROUND_FRAGMENT_SHADER}
+                />
+            ) : (
+                <meshStandardMaterial map={texture} roughness={0.9} metalness={0.1} />
+            )}
         </mesh>
     );
 };
