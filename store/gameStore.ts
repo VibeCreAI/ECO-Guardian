@@ -1033,6 +1033,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setBossStats: (stats) => set({ bossStats: stats }),
 
   completePortal: (portalId) => set((state) => {
+      const overworldSpawn = { x: 0, z: 0 };
       const remainingPortals = state.portals.filter(p => p.id !== portalId);
       // isRound1 = just completed a round-1 portal (p_A or p_B, no _r2 suffix)
       const isRound1 = !portalId.includes('_r2');
@@ -1050,7 +1051,8 @@ export const useGameStore = create<GameState>((set, get) => ({
               portals: freshPortals,
               mode: GameMode.OVERWORLD,
               lastGameplayMode: GameMode.OVERWORLD,
-              worldPosition: state.savedOverworldPosition,
+              worldPosition: overworldSpawn,
+              savedOverworldPosition: overworldSpawn,
               battleWon: false,
               bossStats: null,
               quizResult: null,
@@ -1061,7 +1063,7 @@ export const useGameStore = create<GameState>((set, get) => ({
            const bossPortal: Portal = {
             id: `stage_${state.activeStage}_boss`,
             x: 0,
-            z: 6, // South of the landmark (landmark at z:-10)
+            z: 10, // South of the landmark (landmark at z:-10)
             level: baseLevel + 5,
             type: 'BOSS',
             colorOverride: '#aa00ff'

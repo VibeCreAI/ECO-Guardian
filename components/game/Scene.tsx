@@ -20,10 +20,6 @@ interface SceneProps {
   dashTrigger: React.MutableRefObject<boolean>;
 }
 
-type ZoomControlDetail = {
-  delta?: number;
-};
-
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
 
 const THEME_FOG_COLORS: Record<ThemeName, string> = {
@@ -325,17 +321,6 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       window.removeEventListener('touchcancel', resetPinch);
     };
   }, [mode]);
-
-  useEffect(() => {
-    const onZoomControl = (event: Event) => {
-      const detail = (event as CustomEvent<ZoomControlDetail>).detail;
-      if (!detail || typeof detail.delta !== 'number') return;
-      zoomTarget.current = clampZoom(zoomTarget.current + detail.delta);
-    };
-
-    window.addEventListener('eco-guardian:zoom', onZoomControl as EventListener);
-    return () => window.removeEventListener('eco-guardian:zoom', onZoomControl as EventListener);
-  }, []);
 
   return (
     <>

@@ -233,8 +233,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const getBossName = (stage: number) => {
       if (aiConfig && aiConfig.boss) return aiConfig.boss.name;
       const bosses = ["PLASTIC GOLIATH", "CIRCUIT LICH", "FROSTBYTE GOLEM", "SLAG COLOSSUS", "SILICON DUNE WORM", "TOXIC ALCHEMIST", "MAINFRAME OVERLORD", "DATA WRAITH", "SMOG DRAGON", "NUCLEAR CORE TITAN"];
-      if (stage > 10) return "ASCENDED " + bosses[(stage - 1) % 10];
-      return bosses[stage - 1] || "UNKNOWN ENTITY";
+      const stageIndex = Math.min(Math.max(stage, 1), bosses.length) - 1;
+      return bosses[stageIndex] || "UNKNOWN ENTITY";
   };
 
   const spawnCo2Orb = (x: number, z: number, val: number) => {

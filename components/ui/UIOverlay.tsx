@@ -293,7 +293,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   };
 
   const handleAnswerSelect = (option: 'A' | 'B') => {
-      setHighlightedPortal(`p_${option}`);
+      const selectedPortal = portals.find((portal) => portal.quizOption === option);
+      setHighlightedPortal(selectedPortal?.id ?? `p_${option}`);
       setQuizOpen(false);
   };
 
@@ -371,8 +372,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     );
   };
 
-  const renderZoomControls = () => null;
-  
   // --- LOADING SCREEN ---
   if (mode === GameMode.LOADING_LEVEL) {
       return (
@@ -1390,7 +1389,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       </div>
 
       {renderMinimap()}
-      {renderZoomControls()}
       
       {/* Fix: cast mode to any to prevent narrowing error because PAUSED already returned */}
       {((mode as any) === GameMode.OVERWORLD || (mode as any) === GameMode.BATTLE || (mode as any) === GameMode.PAUSED) && (
@@ -1406,7 +1404,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                         className={`w-full border-r border-slate-700 ${isShortHeight ? 'py-2' : 'py-4'} px-2 flex flex-col items-center justify-center gap-1 group transition-colors ${isGenerating ? 'opacity-50 cursor-not-allowed bg-slate-900' : 'hover:bg-slate-800 active:bg-slate-700'}`}
                       >
                           <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} ${!isGenerating && 'group-hover:scale-110 transition-transform'}`}>📜</span>
-                          <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-blue-200`}>{isGenerating ? 'WAITING...' : 'Yes or No'}</span>
+                          <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-blue-200`}>{isGenerating ? 'WAITING...' : 'Yes/No'}</span>
                       </button>
                   ) : (
                       <div className="w-full border-r border-slate-700 bg-slate-950/50"></div>
