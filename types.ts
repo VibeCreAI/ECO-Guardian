@@ -106,7 +106,7 @@ export interface AiStageConfig {
     landmarkType: string; // NEW: Controls the large voxel structure
   };
   enemies: {
-    spawnPool: string[]; // Changed from primary/secondary to a pool
+    spawnPool: EnemyMobType[]; // Changed from primary/secondary to a pool
     speedMultiplier: number;
     hpMultiplier: number;
     densityMultiplier: number;
@@ -169,6 +169,20 @@ export interface XpOrb {
   type: 'CO2_ORB'; // Renamed from XP_ORB
 }
 
+export type EnemyMobType =
+  | 'BOTTLE_SPRITE' | 'WRAPPER_MOTH' | 'STRAW_CRAWLER' | 'SIXPACK_VINE' | 'STYROFOAM_TREANT' | 'COMPOST_HULK'
+  | 'CIRCUIT_WRAITH' | 'WIRE_PHANTOM' | 'BATTERY_ZOMBIE' | 'MONITOR_GHOUL' | 'MOTHERBOARD_GOLEM' | 'PRINTER_REVENANT'
+  | 'COOLANT_WISP' | 'FAN_BLADE_DJINN' | 'FROZEN_PHONE' | 'FROST_CABLE' | 'SERVER_RACK_YETI' | 'CRYO_DUMP_BEAST'
+  | 'EMBER_BAG' | 'ASH_FLIER' | 'SLAG_DRUM' | 'SMELT_RAT' | 'FURNACE_TITAN' | 'REFINERY_COLOSSUS'
+  | 'GLASS_SCARAB' | 'SILICON_WASP' | 'SAND_BATTERY' | 'DUST_FILTER' | 'PYRAMID_JUNK' | 'DUNE_COMPACTOR'
+  | 'SPORE_AEROSOL' | 'SWAMP_DIAPER' | 'ALGAE_BARREL' | 'FUNGAL_TIRE' | 'SLUDGE_TOAD' | 'BOG_HEAP'
+  | 'NEON_WRAPPER' | 'DRONE_LITTER' | 'VENDING_HUSK' | 'TRAFFIC_CONE_BOT' | 'DUMPSTER_MECH' | 'BILLBOARD_TANK'
+  | 'VOID_PARTICLE' | 'NULL_EMISSION' | 'ENTROPY_CAN' | 'STATIC_WASTE' | 'ABYSS_LANDFILL' | 'OBLIVION_SLUDGE'
+  | 'CLOUD_BAG' | 'CONTRAIL_SERPENT' | 'SATELLITE_JUNK' | 'DATA_SMOG' | 'STRATOSPHERE_HEAP' | 'OZONE_EATER'
+  | 'HELLFIRE_WRAPPER' | 'DAMNED_DRONE' | 'INFERNAL_BARREL' | 'BRIMSTONE_PHONE' | 'WASTE_DEMON' | 'LANDFILL_ARCHFIEND';
+
+export type EnemyType = EnemyMobType | 'BOSS' | 'MISINFORMATION';
+
 export interface Chest {
   id: string;
   x: number;
@@ -182,10 +196,7 @@ export interface Enemy {
   z: number;
   hp: number;
   maxHp: number;
-  type: 'TOXIC_SLIME' | 'MUTATED_BAT' | 'RUSTY_AUTOMATON' | 'GAS_CLOUD' | 'LANDFILL_GOLEM' | 'BOSS' | 
-        'MUTATED_RAT' | 'PAPER_WASTE' | 'TOXIC_TOAD' | 'MUD_GOLEM' | 'DRONE' | 'MECH' | 
-        'OIL_BLOB' | 'SLUDGE_HORROR' | 'PLASTIC_VULTURE' | 'RADIOACTIVE_SPIRIT' | 'SMOG_IMP' | 'SCRAP_KNIGHT' |
-        'PLASTIC_BAG' | 'E_WASTE' | 'OIL_BARREL' | 'TRASH_CAN' | 'OLD_TIRE' | 'PLASTIC_BOTTLE';
+  type: EnemyType;
   speed: number;
   attackRange: number;
   damage: number;

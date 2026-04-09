@@ -2,13 +2,15 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ASSET_PATHS } from '../../assets';
+import { ASSET_PATHS, getEnemySpriteSheetPath } from '../../assets';
+import { drawEnemySheet, ENEMY_RENDER_TYPES, ENEMY_SHEET_HEIGHT, ENEMY_SHEET_WIDTH, isEnemyRenderType, isGhostEnemyType, usesPixelEnemyStyle } from './enemyDrawing';
 
 interface SpriteBillboardProps {
   position?: [number, number, number];
   color: string;
   scale?: number;
   facing?: number; 
+  renderOrder?: number;
   isHit?: boolean;
   type?: string; 
   action?: 'IDLE' | 'RUN';
@@ -42,13 +44,8 @@ interface ExternalBossSpriteProps {
 }
 
 const textureCache: Record<string, THREE.Texture> = {};
-const MOBS = [
-    'TOXIC_SLIME', 'MUTATED_BAT', 'RUSTY_AUTOMATON', 'GAS_CLOUD', 'LANDFILL_GOLEM', 
-    'MUTATED_RAT', 'PAPER_WASTE', 'TOXIC_TOAD', 'DRONE', 'MECH', 
-    'OIL_BLOB', 'SLUDGE_HORROR', 'PLASTIC_VULTURE', 'RADIOACTIVE_SPIRIT', 'SMOG_IMP', 'SCRAP_KNIGHT', 
-    'MUD_GOLEM', 'PLASTIC_BOTTLE', 'TRASH_CAN', 'OIL_BARREL', 'CO2_CLOUD', 'PLASTIC_BAG', 'OLD_TIRE', 'E_WASTE',
-    'MISINFORMATION'
-];
+const MOBS = [...ENEMY_RENDER_TYPES];
+const textureLoader = new THREE.TextureLoader();
 
 const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize: number) => {
     const s = Math.floor(size / gridSize); 
@@ -58,17 +55,34 @@ const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize
 };
 
 const generateTexture = (type: string, color: string, variant: string = '') => {
-    const cacheKey = `${type}_${color}_${variant}`;
+    const externalSpriteUrl = getEnemySpriteSheetPath(type);
+    const cacheKey = externalSpriteUrl ? `external_${externalSpriteUrl}` : `${type}_${color}_${variant}`;
     if (textureCache[cacheKey]) return textureCache[cacheKey];
+
+    if (externalSpriteUrl) {
+        const tex = textureLoader.load(externalSpriteUrl);
+        tex.minFilter = THREE.NearestFilter;
+        tex.magFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        textureCache[cacheKey] = tex;
+        return tex;
+    }
+
     const canvas = document.createElement('canvas');
     if (type === 'BOSS') { canvas.width = 128; canvas.height = 64; }
-    else if (MOBS.includes(type)) { canvas.width = 128; canvas.height = 64; }
+    else if (isEnemyRenderType(type)) { canvas.width = ENEMY_SHEET_WIDTH; canvas.height = ENEMY_SHEET_HEIGHT; }
     else { canvas.width = 64; canvas.height = 64; }
     const ctx = canvas.getContext('2d');
     if (!ctx) return new THREE.Texture();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (type === 'BOSS') {
+    if (isEnemyRenderType(type)) {
+        drawEnemySheet(ctx, type);
+    }
+    else if (type === 'BOSS') {
         const { r } = createPixelDrawer(ctx, 128, 128);
         const drawBoss = (frame: number) => {
             const ox = frame * 64; const bounce = frame === 1 ? 2 : 0; const y = bounce + 8; const cx = ox + 32; const v = variant ? variant.toUpperCase() : '';
@@ -178,8 +192,56 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     }
     else if (type === 'CHEST') {
         const { r } = createPixelDrawer(ctx, 64, 64);
-        r(16, 54, 32, 4, 'rgba(0,0,0,0.3)'); r(18, 24, 28, 30, '#2563eb'); r(18, 24, 4, 30, '#1d4ed8'); r(16, 20, 32, 6, '#1e40af');
-        const cx = 32; const cy = 38; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(cx, cy-6); ctx.lineTo(cx+6, cy+4); ctx.lineTo(cx-6, cy+4); ctx.fill(); r(cx-2, cy-2, 4, 4, '#2563eb'); r(16, 14, 32, 6, '#1e3a8a'); r(28, 12, 8, 2, '#1e3a8a');
+        r(14, 56, 36, 4, 'rgba(0,0,0,0.28)');
+        r(18, 18, 28, 34, '#14532d');
+        r(20, 20, 24, 30, '#22c55e');
+        r(14, 14, 36, 8, '#166534');
+        r(16, 16, 32, 4, '#4ade80');
+        r(27, 11, 10, 3, '#3f3f46');
+        r(24, 24, 16, 18, '#dcfce7');
+        r(24, 43, 16, 3, '#86efac');
+        r(16, 24, 3, 18, '#15803d');
+        r(45, 24, 3, 18, '#15803d');
+        r(21, 50, 6, 4, '#1f2937');
+        r(37, 50, 6, 4, '#1f2937');
+        r(22, 51, 4, 2, '#94a3b8');
+        r(38, 51, 4, 2, '#94a3b8');
+        r(29, 33, 6, 6, '#facc15');
+        r(30, 34, 4, 4, '#fde68a');
+        ctx.fillStyle = '#16a34a';
+        ctx.beginPath();
+        ctx.moveTo(30, 28);
+        ctx.lineTo(34, 28);
+        ctx.lineTo(36, 31);
+        ctx.lineTo(34, 31);
+        ctx.lineTo(35, 34);
+        ctx.lineTo(31, 32);
+        ctx.lineTo(32, 30);
+        ctx.lineTo(29, 30);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(27, 35);
+        ctx.lineTo(30, 33);
+        ctx.lineTo(31, 35);
+        ctx.lineTo(33, 34);
+        ctx.lineTo(31, 38);
+        ctx.lineTo(27, 38);
+        ctx.lineTo(28, 36);
+        ctx.lineTo(26, 35);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(35, 39);
+        ctx.lineTo(33, 36);
+        ctx.lineTo(35, 35);
+        ctx.lineTo(34, 33);
+        ctx.lineTo(38, 34);
+        ctx.lineTo(40, 37);
+        ctx.lineTo(38, 37);
+        ctx.lineTo(39, 39);
+        ctx.closePath();
+        ctx.fill();
     }
     else if (type === 'XP_ORB' || type === 'CO2_ORB') {
         const { r } = createPixelDrawer(ctx, 64, 64);
@@ -220,7 +282,14 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
              if (type === 'CRYSTAL') { r(28, 32, 8, 32, '#06b6d4'); r(20, 44, 8, 20, '#67e8f9'); r(36, 44, 8, 20, '#67e8f9'); } else if (type === 'CACTUS') { r(28, 24, 10, 40, '#15803d'); r(18, 32, 10, 10, '#15803d'); r(18, 24, 6, 8, '#15803d'); r(38, 28, 10, 10, '#15803d'); r(42, 20, 6, 8, '#15803d'); } else if (type === 'NEON_SIGN') { r(12, 24, 40, 24, '#1e293b'); r(16, 28, 32, 16, '#f0abfc'); r(30, 48, 4, 16, '#475569'); } else if (type === 'MUSHROOM') { r(28, 44, 8, 20, '#fef3c7'); r(20, 28, 24, 16, '#dc2626'); r(24, 32, 4, 4, 'white'); r(36, 36, 4, 4, 'white'); } else { r(24, 40, 16, 24, '#eab308'); }
         } else { r(24, 40, 16, 24, '#888'); }
     }
-    const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false; textureCache[cacheKey] = tex; return tex;
+    const tex = new THREE.CanvasTexture(canvas);
+    const useNearest = usesPixelEnemyStyle(type);
+    tex.minFilter = isEnemyRenderType(type) ? (useNearest ? THREE.NearestFilter : THREE.LinearFilter) : THREE.NearestFilter;
+    tex.magFilter = isEnemyRenderType(type) ? (useNearest ? THREE.NearestFilter : THREE.LinearFilter) : THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    textureCache[cacheKey] = tex;
+    return tex;
 };
 
 const BossHealthBar = ({ entity }: { entity: any }) => {
@@ -259,16 +328,20 @@ const BossTauntBubble = ({ entity }: { entity: any }) => {
 
 export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position, scale = 4.5, entity, opacity, textureUrl }) => {
     const texture = useLoader(THREE.TextureLoader, textureUrl);
+    const frameCount = 16;
     
     useMemo(() => {
         if (!texture) return;
-        texture.minFilter = THREE.NearestFilter;
-        texture.magFilter = THREE.NearestFilter;
-        // Horizontal Strip Configuration: 16 frames in a single row
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(1/16, 1); // Display 1/16th horizontally, full height vertically
+        const imageWidth = (texture.image as { width?: number } | undefined)?.width ?? 1024;
+        const frameInset = 0.5 / imageWidth;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.repeat.set((1 / frameCount) - frameInset * 2, 1);
         texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
     }, [texture]);
 
     const meshRef = useRef<THREE.Mesh>(null);
@@ -292,10 +365,12 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
 
         const t = clock.elapsedTime;
         const fps = 12; 
-        const frame = Math.floor(t * fps) % 16;
+        const frame = Math.floor(t * fps) % frameCount;
+        const imageWidth = (texture.image as { width?: number } | undefined)?.width ?? 1024;
+        const frameInset = 0.5 / imageWidth;
         
         // Horizontal Offset
-        texture.offset.x = frame / 16;
+        texture.offset.x = (frame / frameCount) + frameInset;
         texture.offset.y = 0;
 
         if (materialRef.current) {
@@ -338,7 +413,7 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
     return (
         <mesh ref={meshRef} position={position} scale={[scale, scale, 1]}>
             <planeGeometry args={[1, 1]} />
-            <meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.1} side={THREE.DoubleSide} />
+            <meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />
             {entity && <BossHealthBar entity={entity} />}
             {entity && <BossTauntBubble entity={entity} />}
         </mesh>
@@ -375,7 +450,7 @@ export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, s
     return <mesh ref={meshRef} position={position} scale={[scale, scale, 1]}><planeGeometry args={[1, 1]} /><meshStandardMaterial ref={matRef} map={idleTex} transparent alphaTest={0.5} side={THREE.DoubleSide} /></mesh>;
 };
 
-export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, color, scale = 1, facing = 1, isHit = false, type, entity, action = 'IDLE', viewDirection = 'DOWN', variant }) => {
+export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, color, scale = 1, facing = 1, renderOrder = 0, isHit = false, type, entity, action = 'IDLE', viewDirection = 'DOWN', variant }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const texture = useMemo(() => generateTexture(type || 'UNKNOWN', color, variant), [type, color, variant]);
@@ -409,7 +484,7 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
             materialRef.current.transparent = true;
         } else {
             // Standard Mobs logic
-            if (type === 'GAS_CLOUD' || type === 'SLUDGE_HORROR' || type === 'CO2_CLOUD') { 
+            if (type && isGhostEnemyType(type)) { 
                 materialRef.current.transparent = true; 
                 materialRef.current.opacity = 0.7 + Math.sin(clock.elapsedTime * 3) * 0.1; 
             } else { 
@@ -435,7 +510,7 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
 
   const initPos = position || [0, 0, 0]; const isBoss = type === 'BOSS';
   return (
-    <mesh ref={meshRef} position={initPos as any} scale={[scale * Math.sign(facing), scale, 1]}><planeGeometry args={[1, 1]} /><meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />{isBoss && entity && <BossHealthBar entity={entity} />}{isBoss && entity && <BossTauntBubble entity={entity} />}</mesh>
+    <mesh ref={meshRef} position={initPos as any} scale={[scale * Math.sign(facing), scale, 1]} renderOrder={renderOrder}><planeGeometry args={[1, 1]} /><meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />{isBoss && entity && <BossHealthBar entity={entity} />}{isBoss && entity && <BossTauntBubble entity={entity} />}</mesh>
   );
 };
 

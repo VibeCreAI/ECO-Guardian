@@ -1,7 +1,8 @@
 
 import { create } from 'zustand';
-import { PlayerStats, AiStageConfig, UpgradeOption, AdviceResult, QuizDifficulty } from '../types';
+import { PlayerStats, AiStageConfig, UpgradeOption, AdviceResult, QuizDifficulty, EnemyMobType } from '../types';
 import { EVOLUTION_RECIPES } from '../constants';
+import { ALL_ENEMY_TYPES, STAGE_ENEMY_POOLS } from '../components/game/enemyDrawing';
 
 interface AiDirectorState {
     currentConfig: AiStageConfig | null;
@@ -18,12 +19,7 @@ interface AiDirectorState {
 
 // --- STATIC ASSETS ---
 
-const VALID_MOBS = [
-    'TOXIC_SLIME', 'MUTATED_BAT', 'RUSTY_AUTOMATON', 'GAS_CLOUD', 'LANDFILL_GOLEM',
-    'MUTATED_RAT', 'PAPER_WASTE', 'TOXIC_TOAD', 'DRONE', 'MECH',
-    'OIL_BLOB', 'SLUDGE_HORROR', 'PLASTIC_VULTURE', 'RADIOACTIVE_SPIRIT', 'SMOG_IMP', 'SCRAP_KNIGHT',
-    'MUD_GOLEM', 'PLASTIC_BOTTLE', 'TRASH_CAN', 'OIL_BARREL', 'PLASTIC_BAG', 'OLD_TIRE', 'E_WASTE'
-];
+const VALID_MOBS: EnemyMobType[] = [...ALL_ENEMY_TYPES];
 
 const VALID_LANDMARKS = [
     'FOREST', 'SKULL', 'ICE', 'VOLCANO', 'PYRAMID', 'MUSHROOM', 'CYBER', 'VOID', 'SKY', 'HELL'
@@ -322,7 +318,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "The Plastic Woods",
         narrativeIntro: "Plastic waste has choked these ancient roots. The forest cries out for cleansing.",
         theme: { groundColor: "#14532d", checkColor: "#166534", decoColor: "#22c55e", borderColor: "#052e16", propType: "TREE", landmarkType: "FOREST" },
-        enemies: { spawnPool: ["TOXIC_SLIME", "PLASTIC_BAG", "MUTATED_BAT", "PLASTIC_BOTTLE", "TOXIC_TOAD", "MUD_GOLEM"], speedMultiplier: 1.0, hpMultiplier: 1.0, densityMultiplier: 1.0 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[0]], speedMultiplier: 1.0, hpMultiplier: 1.0, densityMultiplier: 1.0 },
         boss: { name: "PLASTIC GOLIATH", introductionLine: "CONSUME... WASTE...", visualVariant: "FOREST", patternDifficulty: 1, narrative: "A massive amalgamation of toxic sludge and plastic waste rises from the depths." },
         quiz: {} as any
     },
@@ -330,7 +326,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "E-Waste Graveyard",
         narrativeIntro: "The spirits of the old world are restless, disturbed by mountains of discarded electronics.",
         theme: { groundColor: "#334155", checkColor: "#475569", decoColor: "#94a3b8", borderColor: "#1e293b", propType: "GRAVE", landmarkType: "SKULL" },
-        enemies: { spawnPool: ["RUSTY_AUTOMATON", "E_WASTE", "GAS_CLOUD", "MUTATED_BAT", "PAPER_WASTE", "TRASH_CAN"], speedMultiplier: 1.1, hpMultiplier: 1.2, densityMultiplier: 1.1 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[1]], speedMultiplier: 1.1, hpMultiplier: 1.2, densityMultiplier: 1.1 },
         boss: { name: "CIRCUIT LICH", introductionLine: "SILENCE... ETERNAL...", visualVariant: "CRYPT", patternDifficulty: 2, narrative: "An ancient guardian corrupted by heavy metals and leaking batteries." },
         quiz: {} as any
     },
@@ -338,7 +334,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Frozen Server Farm",
         narrativeIntro: "The cooling systems have failed. This frozen wasteland preserves data of a forgotten era.",
         theme: { groundColor: "#e0f2fe", checkColor: "#bae6fd", decoColor: "#7dd3fc", borderColor: "#0284c7", propType: "CRYSTAL", landmarkType: "ICE" },
-        enemies: { spawnPool: ["LANDFILL_GOLEM", "DRONE", "E_WASTE", "TOXIC_SLIME", "GAS_CLOUD", "MECH"], speedMultiplier: 0.9, hpMultiplier: 1.5, densityMultiplier: 0.9 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[2]], speedMultiplier: 0.9, hpMultiplier: 1.5, densityMultiplier: 0.9 },
         boss: { name: "FROSTBYTE GOLEM", introductionLine: "SYSTEM... FREEZE...", visualVariant: "ICE", patternDifficulty: 2, narrative: "A cooling unit gone rogue, encasing everything in eternal permafrost." },
         quiz: {} as any
     },
@@ -346,7 +342,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Magma Refinery",
         narrativeIntro: "The earth bleeds here. Industrial extraction has torn open the planet's crust.",
         theme: { groundColor: "#450a0a", checkColor: "#7f1d1d", decoColor: "#ef4444", borderColor: "#991b1b", propType: "MAGMA_ROCK", landmarkType: "VOLCANO" },
-        enemies: { spawnPool: ["SMOG_IMP", "OIL_BARREL", "SCRAP_KNIGHT", "MUTATED_BAT", "MUTATED_RAT", "OLD_TIRE"], speedMultiplier: 1.3, hpMultiplier: 1.4, densityMultiplier: 1.2 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[3]], speedMultiplier: 1.3, hpMultiplier: 1.4, densityMultiplier: 1.2 },
         boss: { name: "SLAG COLOSSUS", introductionLine: "BURN... IT... ALL...", visualVariant: "MAGMA", patternDifficulty: 3, narrative: "Born from the heat of unchecked industrial furnaces." },
         quiz: {} as any
     },
@@ -354,7 +350,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Silicon Dunes",
         narrativeIntro: "A desert of crushed glass and silicon. Nothing grows here but the machines.",
         theme: { groundColor: "#fcd34d", checkColor: "#fbbf24", decoColor: "#d97706", borderColor: "#78350f", propType: "CACTUS", landmarkType: "PYRAMID" },
-        enemies: { spawnPool: ["PAPER_WASTE", "MUTATED_RAT", "PLASTIC_BAG", "RUSTY_AUTOMATON", "TRASH_CAN", "PLASTIC_VULTURE"], speedMultiplier: 1.0, hpMultiplier: 1.4, densityMultiplier: 1.2 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[4]], speedMultiplier: 1.0, hpMultiplier: 1.4, densityMultiplier: 1.2 },
         boss: { name: "SILICON DUNE WORM", introductionLine: "RETURN... TO... DUST...", visualVariant: "CRYPT", patternDifficulty: 3, narrative: "A ruler of a barren kingdom, commanding the sands of time and waste." },
         quiz: {} as any
     },
@@ -362,7 +358,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Toxic Swamp",
         narrativeIntro: "Chemical runoff has mutated the flora. The air is thick with poison.",
         theme: { groundColor: "#3f6212", checkColor: "#4d7c0f", decoColor: "#84cc16", borderColor: "#1a2e05", propType: "MUSHROOM", landmarkType: "MUSHROOM" },
-        enemies: { spawnPool: ["TOXIC_TOAD", "MUD_GOLEM", "TOXIC_SLIME", "PLASTIC_BOTTLE", "SMOG_IMP", "OIL_BARREL"], speedMultiplier: 1.1, hpMultiplier: 1.6, densityMultiplier: 1.3 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[5]], speedMultiplier: 1.1, hpMultiplier: 1.6, densityMultiplier: 1.3 },
         boss: { name: "TOXIC ALCHEMIST", introductionLine: "DISSOLVE...", visualVariant: "FOREST", patternDifficulty: 4, narrative: "A living bog of chemical sludge that devours all life." },
         quiz: {} as any
     },
@@ -370,7 +366,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Cyber City Ruins",
         narrativeIntro: "The lights are on, but no one is home. Automation continues without purpose.",
         theme: { groundColor: "#020617", checkColor: "#0f172a", decoColor: "#3b82f6", borderColor: "#1e293b", propType: "NEON_SIGN", landmarkType: "CYBER" },
-        enemies: { spawnPool: ["MECH", "OLD_TIRE", "DRONE", "E_WASTE", "LANDFILL_GOLEM", "TRASH_CAN"], speedMultiplier: 1.4, hpMultiplier: 1.5, densityMultiplier: 1.4 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[6]], speedMultiplier: 1.4, hpMultiplier: 1.5, densityMultiplier: 1.4 },
         boss: { name: "MAINFRAME OVERLORD", introductionLine: "OPTIMIZING... DESTRUCTION...", visualVariant: "MECH", patternDifficulty: 5, narrative: "The central processor for a city that consumed itself." },
         quiz: {} as any
     },
@@ -378,7 +374,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "The Null Void",
         narrativeIntro: "Reality thins here. The consequences of ignoring the balance have torn the fabric of space.",
         theme: { groundColor: "#2e1065", checkColor: "#3b0764", decoColor: "#7c3aed", borderColor: "#000000", propType: "VOID_ROCK", landmarkType: "VOID" },
-        enemies: { spawnPool: ["OIL_BLOB", "SLUDGE_HORROR", "GAS_CLOUD", "TOXIC_SLIME", "MUTATED_BAT", "PAPER_WASTE"], speedMultiplier: 1.5, hpMultiplier: 1.2, densityMultiplier: 1.5 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[7]], speedMultiplier: 1.5, hpMultiplier: 1.2, densityMultiplier: 1.5 },
         boss: { name: "DATA WRAITH", introductionLine: "NOTHING... REMAINS...", visualVariant: "VOID", patternDifficulty: 5, narrative: "An entity from beyond, drawn to the emptiness left by consumption." },
         quiz: {} as any
     },
@@ -386,7 +382,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Cloud Data Center",
         narrativeIntro: "High above the smog, the servers hum. Information flows, but wisdom is lost.",
         theme: { groundColor: "#bae6fd", checkColor: "#7dd3fc", decoColor: "#ffffff", borderColor: "#0ea5e9", propType: "SERVER", landmarkType: "SKY" },
-        enemies: { spawnPool: ["PLASTIC_VULTURE", "RADIOACTIVE_SPIRIT", "DRONE", "PLASTIC_BAG", "GAS_CLOUD", "MECH"], speedMultiplier: 1.6, hpMultiplier: 1.1, densityMultiplier: 1.3 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[8]], speedMultiplier: 1.6, hpMultiplier: 1.1, densityMultiplier: 1.3 },
         boss: { name: "SMOG DRAGON", introductionLine: "ACCESS... DENIED...", visualVariant: "MECH", patternDifficulty: 6, narrative: "The automated defense system of the atmospheric processors." },
         quiz: {} as any
     },
@@ -394,7 +390,7 @@ const FIXED_STAGES: AiStageConfig[] = [
         stageName: "Digital Hell",
         narrativeIntro: "The final layer. Where corrupted data and corrupted souls burn together.",
         theme: { groundColor: "#450a0a", checkColor: "#7f1d1d", decoColor: "#ef4444", borderColor: "#000000", propType: "LAVA_PILLAR", landmarkType: "HELL" },
-        enemies: { spawnPool: ["SCRAP_KNIGHT", "TRASH_CAN", "SMOG_IMP", "OIL_BARREL", "RUSTY_AUTOMATON", "SLUDGE_HORROR"], speedMultiplier: 1.5, hpMultiplier: 2.0, densityMultiplier: 1.5 },
+        enemies: { spawnPool: [...STAGE_ENEMY_POOLS[9]], speedMultiplier: 1.5, hpMultiplier: 2.0, densityMultiplier: 1.5 },
         boss: { name: "NUCLEAR CORE TITAN", introductionLine: "ASHES... TO... ASHES...", visualVariant: "MAGMA", patternDifficulty: 7, narrative: "The ultimate manifestation of entropy and destruction." },
         quiz: {} as any
     }

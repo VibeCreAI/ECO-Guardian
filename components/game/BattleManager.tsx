@@ -11,6 +11,7 @@ import { WEAPONS_DATA } from '../../constants';
 import { ASSET_PATHS } from '../../assets';
 import * as THREE from 'three';
 import { QuestArrow } from './QuestArrow';
+import { getEnemyCombatProfile, isKnockbackResistantEnemyType, isLargeEnemyType, STAGE_ENEMY_POOLS } from './enemyDrawing';
 
 interface BattleManagerProps {
   playerPosition: THREE.Vector3;
@@ -261,7 +262,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
            const force = knockbackBase * (playerStats.modifiers.knockback || 1.0);
            
            // Bosses resist knockback significantly
-           const resistance = e.type === 'BOSS' ? 0.9 : (e.type === 'LANDFILL_GOLEM' || e.type === 'MUD_GOLEM' ? 0.5 : 0);
+           const resistance = e.type === 'BOSS' ? 0.9 : (isKnockbackResistantEnemyType(e.type) ? 0.5 : 0);
            const effectiveForce = Math.max(0, force * (1 - resistance));
 
            // Add impulsive force to current knockback velocity
@@ -336,16 +337,14 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const spawnEnemy = () => {
     const angle = Math.random() * Math.PI * 2;
     const r = 24; 
-    let type: Enemy['type'] = 'TOXIC_SLIME';
+    let type: Enemy['type'] = STAGE_ENEMY_POOLS[0][0];
     
     if (aiConfig && aiConfig.enemies.spawnPool && aiConfig.enemies.spawnPool.length > 0) {
         const pool = aiConfig.enemies.spawnPool;
         type = pool[Math.floor(Math.random() * pool.length)] as any;
     } else {
-        const s = ((activeStage - 1) % 10) + 1;
-        if (s === 1) type = Math.random() < 0.5 ? 'TOXIC_SLIME' : 'MUTATED_BAT'; 
-        else if (s === 2) type = Math.random() < 0.3 ? 'GAS_CLOUD' : 'RUSTY_AUTOMATON'; 
-        else type = 'TOXIC_SLIME';
+        const fallbackPool = STAGE_ENEMY_POOLS[0];
+        type = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
     }
 
     const hpMult = 1.0 + ((activeStage - 1) * 0.6);
@@ -363,21 +362,12 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         }
     }
 
-    if (['MUTATED_BAT', 'DRONE', 'PLASTIC_VULTURE', 'SMOG_IMP', 'GAS_CLOUD'].includes(type)) { 
-        speed = 4.0; hpMod = 0.6; 
-    }
-    if (['PLASTIC_BAG', 'E_WASTE', 'PAPER_WASTE', 'PLASTIC_BOTTLE'].includes(type)) { 
-        speed = 3.0; hpMod = 0.8; 
-    }
-    if (['OIL_BARREL', 'TRASH_CAN', 'OLD_TIRE', 'TOXIC_TOAD'].includes(type)) { 
-        speed = 1.5; hpMod = 1.8; 
-    }
-    if (['LANDFILL_GOLEM', 'MUD_GOLEM', 'MECH', 'SCRAP_KNIGHT', 'SLUDGE_HORROR'].includes(type)) { 
-        speed = 1.2; hpMod = 2.5; damageMod = 1.5; 
-    }
-    
-    if (['RUSTY_AUTOMATON', 'MUTATED_RAT', 'SLUDGE_HORROR', 'SMOG_IMP', 'PLASTIC_VULTURE', 'DRONE', 'MECH', 'GAS_CLOUD', 'PLASTIC_BOTTLE', 'E_WASTE', 'RADIOACTIVE_SPIRIT'].includes(type)) { 
-        attackRange = 6; 
+    if (type !== 'BOSS' && type !== 'MISINFORMATION') {
+        const profile = getEnemyCombatProfile(type);
+        speed = profile.speed;
+        hpMod = profile.hpMod;
+        damageMod = profile.damageMod;
+        attackRange = profile.attackRange;
     }
 
     enemiesRef.current.push({
@@ -934,7 +924,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         
         // Fix: TypeScript narrowing issue causing 'BOSS' comparison error by casting to string once
         const eType = enemy.type as string;
-        const collisionRadius = eType === 'BOSS' || eType === 'LANDFILL_GOLEM' ? 2.0 : 0.8;
+        const collisionRadius = eType === 'BOSS' || isLargeEnemyType(eType) ? 2.0 : 0.8;
         if (dist < collisionRadius && (eType !== 'BOSS' || (enemy.teleportState === 'IDLE' || enemy.teleportState === undefined))) {
              takeDamage(eType === 'BOSS' ? 1.0 : 0.5); 
         }
@@ -1341,7 +1331,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                          // Check boss opacity/teleport state for hit validation
                          if (targetType === 'BOSS' && e.opacity !== undefined && e.opacity < 0.5) continue;
 
-                         if ((e.x-p.x)**2 + (e.z-p.z)**2 < (targetType === 'BOSS' || targetType === 'LANDFILL_GOLEM' ? 2.5 : 1.2)) { 
+                         if ((e.x-p.x)**2 + (e.z-p.z)**2 < (targetType === 'BOSS' || isLargeEnemyType(targetType) ? 2.5 : 1.2)) { 
                              if (isVariant(p, 'SLIME_BALL')) {
                                  if ((p.bouncesLeft || 0) > 0) {
                                      // Projectile knockback comes from projectile position
@@ -1454,10 +1444,10 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
       {renderOrbs.map(orb => <SpriteBillboard key={orb.id} entity={orb} color={orb.value > 20 ? '#a855f7' : (orb.value > 10 ? '#eab308' : '#22c55e')} scale={0.8} type={orb.type || 'XP_ORB'} />)}
       {chest && !chest.isOpen && ( 
         <group position={[chest.x, 0, chest.z]}>
-            <SpriteBillboard color="white" scale={1.5} type="CHEST" position={[0, 1, 0]} />
+            <SpriteBillboard color="white" scale={3} type="CHEST" position={[0, 1.75, 0]} renderOrder={3} />
             <pointLight color="#fbbf24" distance={8} intensity={2} decay={2} />
-            <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]}><ringGeometry args={[0.8, 1.2, 32]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.6} /></mesh>
-            <mesh position={[0, 50, 0]}><cylinderGeometry args={[0.3, 0.3, 100, 16, 1, true]} /><meshBasicMaterial color="white" transparent opacity={0.3} side={THREE.DoubleSide} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+            <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]} renderOrder={1}><ringGeometry args={[0.8, 1.2, 32]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.6} /></mesh>
+            <mesh position={[0, 50, -0.1]} renderOrder={0}><cylinderGeometry args={[0.3, 0.3, 100, 16, 1, true]} /><meshBasicMaterial color="white" transparent opacity={0.3} side={THREE.DoubleSide} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
         </group>
       )}
       

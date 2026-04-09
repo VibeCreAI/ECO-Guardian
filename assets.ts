@@ -3,6 +3,16 @@ const assetRoot = `${import.meta.env.BASE_URL}assets`;
 const assetPath = (relativePath: string) =>
   `${assetRoot}/${relativePath.replace(/^\/+/, '')}`;
 
+const ENEMY_SPRITE_SHEET_PATHS = {
+  BOTTLE_SPRITE: assetPath('images/enemies/stage_1_plastic_woods/water_bottle.png'),
+  WRAPPER_MOTH: assetPath('images/enemies/stage_1_plastic_woods/plastic_bag.png'),
+  STRAW_CRAWLER: assetPath('images/enemies/stage_1_plastic_woods/plastic_folk.png'),
+  SIXPACK_VINE: assetPath('images/enemies/stage_1_plastic_woods/wasted_tire.png'),
+  STYROFOAM_TREANT: assetPath('images/enemies/stage_1_plastic_woods/plastic_cup.png'),
+  COMPOST_HULK: assetPath('images/enemies/stage_1_plastic_woods/food_wast.png'),
+  MISINFORMATION: assetPath('images/enemies/misinformation.png'),
+} as const satisfies Record<string, string>;
+
 export const ASSET_PATHS = {
   audio: {
     music: {
@@ -23,6 +33,9 @@ export const ASSET_PATHS = {
       walkEast: assetPath('images/player/walk-east.png'),
       walkWest: assetPath('images/player/walk-west.png'),
     },
+    enemies: {
+      byType: (enemyType: string) => ENEMY_SPRITE_SHEET_PATHS[enemyType as keyof typeof ENEMY_SPRITE_SHEET_PATHS],
+    },
     start: {
       background: assetPath('images/start/background.png'),
       favicon: assetPath('images/start/favicon.png'),
@@ -40,10 +53,14 @@ export const STARTUP_PRELOAD_ASSETS = [
   ASSET_PATHS.images.player.walkNorth,
   ASSET_PATHS.images.player.walkEast,
   ASSET_PATHS.images.player.walkWest,
+  ...Object.values(ENEMY_SPRITE_SHEET_PATHS),
   ASSET_PATHS.audio.music.menu,
   ASSET_PATHS.audio.music.stage(1),
   ASSET_PATHS.audio.music.battle,
 ] as const;
+
+export const getEnemySpriteSheetPath = (enemyType: string) =>
+  ENEMY_SPRITE_SHEET_PATHS[enemyType as keyof typeof ENEMY_SPRITE_SHEET_PATHS];
 
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);
 
