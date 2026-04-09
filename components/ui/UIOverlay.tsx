@@ -1132,7 +1132,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                   
                   {/* Scrollable Body */}
                   <div ref={resultScrollRef} className="overflow-y-auto p-6 pt-0 flex-1 text-center">
-                    {quizResult.bonus && (
+                    {!!quizResult.bonus && (
                         <div className="text-yellow-300 font-bold animate-pulse mb-4 text-lg">
                             ★ BONUS CHEST UNLOCKED ★
                         </div>
@@ -1293,7 +1293,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const gameplayOverlayMarginBottom = `calc(${safeAreaBottom} + ${isShortHeight ? 64 : 96}px)`;
 
   return (
-    <>
+    <div className="contents" style={{ fontSize: 0 }}>
       {showNarrative && currentConfig && (
            <div className="absolute top-32 left-1/2 -translate-x-1/2 w-[90%] md:w-[600px] z-[60] animate-in fade-in slide-in-from-top-4 duration-1000 pointer-events-auto">
                <div className="bg-black/90 border-2 border-green-500 p-6 retro-border backdrop-blur-sm shadow-[0_0_20px_rgba(34,197,94,0.3)] flex flex-col items-center">
@@ -1506,6 +1506,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           {(mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) ? 'SPACE or Click Dash to Burst' : ''}
         </div>
       )}
-    </>
+    </div>
   );
 };

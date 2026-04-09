@@ -91,10 +91,10 @@ const App: React.FC = () => {
         </Suspense>
       </Canvas>
       
-      <UIOverlay 
-        inputVector={inputVector} 
-        onDash={handleDash} 
-        isMobile={isMobile} 
+      <UIOverlay
+        inputVector={inputVector}
+        onDash={handleDash}
+        isMobile={isMobile}
       />
     </div>
   );
