@@ -79,6 +79,7 @@ export interface PlayerStats {
   // Sustainability Metrics
   quizDifficulty: QuizDifficulty; // New field
   correctAnswers: number;
+  quizStreak: number; // Consecutive correct answers for combo system
   carbonSaved: number; // Currency (spendable)
   lifetimeCarbon: number; // Score (Total accumulated)
   impactHistory: ImpactLogEntry[]; // Unified history log
@@ -249,4 +250,5 @@ export interface ActiveBattleState {
   level: number;
   isBoss: boolean;
   isBonus: boolean; // New field for correct answer reward
+  lostStreak: number; // Streak count lost on wrong answer (spawns Misinformation enemy)
 }

@@ -46,7 +46,8 @@ const MOBS = [
     'TOXIC_SLIME', 'MUTATED_BAT', 'RUSTY_AUTOMATON', 'GAS_CLOUD', 'LANDFILL_GOLEM', 
     'MUTATED_RAT', 'PAPER_WASTE', 'TOXIC_TOAD', 'DRONE', 'MECH', 
     'OIL_BLOB', 'SLUDGE_HORROR', 'PLASTIC_VULTURE', 'RADIOACTIVE_SPIRIT', 'SMOG_IMP', 'SCRAP_KNIGHT', 
-    'MUD_GOLEM', 'PLASTIC_BOTTLE', 'TRASH_CAN', 'OIL_BARREL', 'CO2_CLOUD', 'PLASTIC_BAG', 'OLD_TIRE', 'E_WASTE'
+    'MUD_GOLEM', 'PLASTIC_BOTTLE', 'TRASH_CAN', 'OIL_BARREL', 'CO2_CLOUD', 'PLASTIC_BAG', 'OLD_TIRE', 'E_WASTE',
+    'MISINFORMATION'
 ];
 
 const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize: number) => {
@@ -144,8 +145,25 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
                 r(cx-6, y+30, 12, 4, 'black');
                 if (frame===1) { r(cx-10, y+36, 4, 8, c); r(cx+6, y+36, 4, 8, c); }
             }
-            else { 
-                if (type === 'TRASH_CAN' || type === 'LANDFILL_GOLEM') { 
+            else if (type === 'MISINFORMATION') {
+                // Fake news / misinformation enemy - newspaper/scroll themed in red/purple
+                const paper = '#fef3c7'; const ink = '#7c2d12';
+                r(cx-12, y+6, 24, 32, paper); // Body (newspaper)
+                r(cx-12, y+6, 24, 4, ink); // Header bar
+                r(cx-10, y+12, 20, 2, '#dc2626'); // Red "FAKE" line
+                r(cx-10, y+16, 16, 2, '#a1a1aa'); // Text line
+                r(cx-10, y+20, 18, 2, '#a1a1aa'); // Text line
+                r(cx-10, y+24, 14, 2, '#a1a1aa'); // Text line
+                r(cx-8, y+28, 6, 6, '#dc2626'); // Left angry eye
+                r(cx+2, y+28, 6, 6, '#dc2626'); // Right angry eye
+                r(cx-6, y+30, 2, 2, 'black'); // Pupil
+                r(cx+4, y+30, 2, 2, 'black'); // Pupil
+                r(cx-4, y+34, 8, 2, '#7c2d12'); // Angry mouth
+                if (frame === 1) { r(cx-16, y+14, 4, 16, paper); r(cx+12, y+10, 4, 16, paper); } // Flapping pages
+                r(cx-6, y+8, 12, 2, '#dc2626'); // "FAKE" text
+            }
+            else {
+                if (type === 'TRASH_CAN' || type === 'LANDFILL_GOLEM') {
                     r(cx-12, y+8, 24, 26, '#94a3b8'); r(cx-12, y+14, 24, 2, '#64748b'); 
                     const lidY = y + (frame === 1 ? -4 : 0); r(cx-14, lidY, 28, 6, '#64748b'); r(cx-4, lidY-2, 8, 2, '#475569'); 
                     r(cx-8, y+12, 6, 6, 'black'); r(cx+2, y+12, 6, 6, 'black'); r(cx-6, y+13, 2, 2, 'red'); r(cx+4, y+13, 2, 2, 'red'); 

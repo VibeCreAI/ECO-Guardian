@@ -19,13 +19,14 @@ interface GameState {
   activeBattle: ActiveBattleState;
   battleWon: boolean;
   
-  quizResult: { correct: boolean; explanation: string; answerLabel: string; bonus: boolean; carbonValue: number } | null;
+  quizResult: { correct: boolean; explanation: string; answerLabel: string; bonus: boolean; carbonValue: number; streak: number; lostStreak: number } | null;
   
   bossStats: { currentHp: number; maxHp: number; name: string } | null;
   bossNarrativeOpen: boolean; 
 
   dashCooldownCurrent: number;
   levelUpOptions: UpgradeOption[];
+  queuedLevelUp: boolean;
   shopOptions: UpgradeOption[]; 
   chestReward: UpgradeOption | null;
   highScores: HighScore[];
@@ -72,6 +73,7 @@ interface GameState {
   checkDbStatus: () => Promise<void>;
 
   selectUpgrade: (option: UpgradeOption) => void;
+  showQueuedLevelUp: () => void;
   askForUpgradeAdvice: () => void;
   rerollLevelUpOptions: () => void;
   
@@ -140,6 +142,7 @@ const getInitialStats = (useSaved = true): PlayerStats => {
       totalDamage: 0,
       lastDamageTime: 0,
       correctAnswers: 0,
+      quizStreak: 0,
       carbonSaved: 0,
       lifetimeCarbon: 0,
       impactHistory: [],
@@ -456,7 +459,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeStage: 1,
   portals: generatePortals(1),
   
-  activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false },
+  activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
   battleWon: false,
   bossStats: null,
   bossNarrativeOpen: false, 
@@ -464,6 +467,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   dashCooldownCurrent: 0,
   levelUpOptions: [],
+  queuedLevelUp: false,
   shopOptions: [],
   chestReward: null,
   highScores: [], 
@@ -525,6 +529,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           bossNarrativeOpen: false,
           dashCooldownCurrent: 0,
           levelUpOptions: [],
+          queuedLevelUp: false,
           shopOptions: generateShopOptions(freshStats), 
           chestReward: null,
           quizResult: null,
@@ -568,6 +573,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       let isBonus = false;
       let quizResult = null;
       let nextMode = GameMode.BATTLE;
+      let lostStreakForBattle = 0;
       
       if (portal.type !== 'BOSS' && aiConfig?.quiz) {
          const isEncouragement = !aiConfig.quiz.options || Object.keys(aiConfig.quiz.options).length === 0;
@@ -578,24 +584,40 @@ export const useGameStore = create<GameState>((set, get) => ({
          } else {
              const isCorrect = portal.quizOption === aiConfig.quiz.correctOption;
              isBonus = isCorrect;
-             const impact = aiConfig.quiz.impactValue || 50;
              const answerLabel = (portal.quizOption && aiConfig.quiz.options) ? aiConfig.quiz.options[portal.quizOption] : "Destiny";
              const correctAnswerLabel = aiConfig.quiz.options[aiConfig.quiz.correctOption];
+
+             // Combo streak system: calculate reward based on streak
+             const currentStreak = state.playerStats.quizStreak;
+             let newStreak: number;
+             let comboLostStreak = 0;
+             let impact: number;
+
+             if (isCorrect) {
+                 newStreak = currentStreak + 1;
+                 impact = 100 + Math.max(0, newStreak - 1) * 20;
+             } else {
+                 comboLostStreak = Math.max(1, currentStreak); // Always at least 1 to spawn Misinformation enemy
+                 newStreak = 0;
+                 impact = 0;
+             }
 
              quizResult = {
                  correct: isCorrect,
                  explanation: aiConfig.quiz.explanation || "Go forth!",
                  answerLabel: answerLabel,
                  bonus: isBonus,
-                 carbonValue: impact
+                 carbonValue: isCorrect ? impact : 0,
+                 streak: newStreak,
+                 lostStreak: comboLostStreak
              };
-             nextMode = GameMode.QUIZ_RESULT; 
+             nextMode = GameMode.QUIZ_RESULT;
 
              set(currentState => {
                  const newStats = { ...currentState.playerStats };
                  const lastEntry = newStats.impactHistory[0];
                  const isDuplicate = lastEntry && lastEntry.type === 'QUIZ' && lastEntry.stage === currentState.activeStage && lastEntry.question === aiConfig.quiz.question;
-                 
+
                  if (!isDuplicate) {
                      const historyEntry: ImpactLogEntry = {
                          id: Math.random().toString(),
@@ -608,18 +630,23 @@ export const useGameStore = create<GameState>((set, get) => ({
                          carbonValue: isCorrect ? impact : 0,
                          timestamp: Date.now()
                      };
-                     newStats.impactHistory = [historyEntry, ...newStats.impactHistory]; 
+                     newStats.impactHistory = [historyEntry, ...newStats.impactHistory];
+
+                     newStats.quizStreak = newStreak;
 
                      if (isCorrect) {
                          newStats.correctAnswers += 1;
                          newStats.carbonSaved += impact;
                          newStats.lifetimeCarbon = (newStats.lifetimeCarbon || 0) + impact;
-                         saveMetaStats(newStats); 
+                         saveMetaStats(newStats);
                      }
                  }
-                 
+
                  return { playerStats: newStats };
              });
+
+             // Store lost streak for Misinformation enemy spawning
+             lostStreakForBattle = comboLostStreak;
          }
       } else {
          isBonus = true;
@@ -631,15 +658,17 @@ export const useGameStore = create<GameState>((set, get) => ({
         lastGameplayMode: GameMode.BATTLE,
         savedOverworldPosition: { x: state.worldPosition.x, z: state.worldPosition.z },
         worldPosition: { x: 0, z: 0 }, 
-        activeBattle: { 
-            portalId: portal.id, 
-            level: portal.level, 
+        activeBattle: {
+            portalId: portal.id,
+            level: portal.level,
             isBoss: portal.type === 'BOSS',
-            isBonus: isBonus
+            isBonus: isBonus,
+            lostStreak: lostStreakForBattle
         },
         battleWon: false,
         bossStats: null,
         quizResult: quizResult,
+        queuedLevelUp: false,
         isQuizOpen: false,
         isImpactOpen: false,
         highlightedPortalId: null 
@@ -775,10 +804,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     const newXp = state.playerStats.xp + amount;
     
     if (newXp >= state.playerStats.xpToNextLevel) {
+      const levelUpOptions = state.mode === GameMode.REWARD ? state.levelUpOptions : generateOptions(state.playerStats);
+
+      if (state.activeBattle.isBoss && state.mode === GameMode.BATTLE) {
+        set({
+          levelUpOptions,
+          queuedLevelUp: true,
+          playerStats: { ...state.playerStats, xp: newXp },
+          adviceResult: null
+        });
+        return;
+      }
+
       set({
         mode: GameMode.REWARD,
         previousMode: state.mode === GameMode.REWARD ? state.previousMode : state.mode, 
-        levelUpOptions: state.mode === GameMode.REWARD ? state.levelUpOptions : generateOptions(state.playerStats),
+        levelUpOptions,
+        queuedLevelUp: false,
         playerStats: { ...state.playerStats, xp: newXp },
         adviceResult: null 
       });
@@ -933,6 +975,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       playerStats: stats, 
       mode: state.previousMode, 
       levelUpOptions: [],
+      queuedLevelUp: false,
+      adviceResult: null
+    };
+  }),
+
+  showQueuedLevelUp: () => set((state) => {
+    if (!state.queuedLevelUp || state.mode === GameMode.REWARD) return {};
+
+    return {
+      mode: GameMode.REWARD,
+      previousMode: state.mode,
+      queuedLevelUp: false,
       adviceResult: null
     };
   }),
@@ -1056,6 +1110,7 @@ export const useGameStore = create<GameState>((set, get) => ({
               battleWon: false,
               bossStats: null,
               quizResult: null,
+              queuedLevelUp: false,
               highlightedPortalId: null
           };
       } else {
@@ -1077,6 +1132,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                bossStats: null,
                quizResult: null,
                bossNarrativeOpen: true,
+               queuedLevelUp: false,
                highlightedPortalId: null
            };
       }
@@ -1117,6 +1173,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             battleWon: false,
             bossStats: null,
             bossNarrativeOpen: false,
+            queuedLevelUp: false,
             playerStats: {
                 ...prevState.playerStats,
                 hp: prevState.playerStats.maxHp 
@@ -1144,12 +1201,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       savedOverworldPosition: { x: 0, z: 0 },
       activeStage: 1,
       portals: generatePortals(1),
-      activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false },
+      activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
       battleWon: false,
       bossStats: null,
       bossNarrativeOpen: false,
       dashCooldownCurrent: 0,
       levelUpOptions: [],
+      queuedLevelUp: false,
       shopOptions: generateShopOptions(freshStats), 
       chestReward: null,
       quizResult: null,

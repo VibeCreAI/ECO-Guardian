@@ -1141,13 +1141,35 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                     <p className="text-white text-base mb-2">You answered: <span className="font-bold text-xl">{quizResult.answerLabel}</span></p>
 
                     {quizResult.correct ? (
-                        <div className="text-green-400 font-bold text-sm mb-4">
-                            +{quizResult.carbonValue}kg CO2 Saved!
-                        </div>
+                        <>
+                            {quizResult.streak > 1 && (
+                                <div className="text-orange-300 font-bold text-lg mb-1 animate-pulse">
+                                    COMBO x{quizResult.streak}!
+                                </div>
+                            )}
+                            <div className="text-green-400 font-bold text-sm mb-4">
+                                +{quizResult.carbonValue}kg CO2 Saved!
+                                {quizResult.streak > 1 && (
+                                    <span className="text-orange-300 ml-1">(+{(quizResult.streak - 1) * 20} bonus)</span>
+                                )}
+                            </div>
+                        </>
                     ) : (
-                        <div className="text-red-400 font-bold text-sm mb-4">
-                            The oceans felt that one.
-                        </div>
+                        <>
+                            <div className="text-red-400 font-bold text-sm mb-2">
+                                The oceans felt that one.
+                            </div>
+                            <div className="bg-red-950/60 border border-red-500 rounded p-3 mb-4">
+                                {quizResult.lostStreak > 1 && (
+                                    <div className="text-red-300 font-bold text-lg mb-1">
+                                        STREAK LOST! x{quizResult.lostStreak}
+                                    </div>
+                                )}
+                                <div className="text-yellow-300 text-xs animate-pulse">
+                                    A Misinformation enemy approaches...
+                                </div>
+                            </div>
+                        </>
                     )}
 
                     <div className="bg-black/40 p-4 rounded mb-2 text-sm md:text-base text-gray-200 italic border border-white/20 leading-relaxed">
@@ -1315,6 +1337,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         <div className="flex items-center gap-2">
           <div className="bg-slate-800 p-1 retro-border text-white text-xs px-2">LVL {playerStats.level}</div>
           <div className="bg-green-900 p-1 retro-border text-white text-xs px-2 border-green-500 border">STAGE {activeStage}</div>
+          {playerStats.quizStreak > 0 && (
+            <div className="bg-orange-900 p-1 retro-border text-orange-300 text-xs px-2 border-orange-500 border animate-pulse">
+              x{playerStats.quizStreak}
+            </div>
+          )}
         </div>
         
         <div className="w-36 md:w-64 h-6 bg-slate-900 border-2 border-white relative">

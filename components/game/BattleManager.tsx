@@ -180,7 +180,7 @@ const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, 
 };
 
 export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, activeBattle }) => {
-  const { mode, collectCo2Orb, takeDamage, playerStats, setBattleWon, activeStage, completePortal, completeStage, recordDamage, recordKill, openChest, gainXp, battleWon, isQuizOpen, isImpactOpen } = useGameStore();
+  const { mode, collectCo2Orb, takeDamage, playerStats, setBattleWon, activeStage, completePortal, completeStage, recordDamage, recordKill, openChest, gainXp, showQueuedLevelUp, battleWon, isQuizOpen, isImpactOpen } = useGameStore();
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   
   const enemiesRef = useRef<Enemy[]>([]);
@@ -464,7 +464,28 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     weaponTimers.current = { magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 };
     battleDifficultyRef.current = activeBattle.level;
     setRenderProjectiles([]); setRenderEffects([]); setRenderOrbs([]);
-    if (activeBattle.isBoss) spawnBoss(); else setRenderEnemies([]);
+    if (activeBattle.isBoss) {
+        spawnBoss();
+    } else {
+        // Spawn Misinformation enemy if player just lost a streak
+        if (activeBattle.lostStreak > 0) {
+            const hpMult = 1.0 + ((activeStage - 1) * 0.6);
+            const dmgMult = 1.0 + ((activeStage - 1) * 0.4);
+            const angle = Math.random() * Math.PI * 2;
+            const r = 16;
+            enemiesRef.current.push({
+                id: 'misinformation_' + Math.random().toString(),
+                x: Math.cos(angle) * r, z: Math.sin(angle) * r,
+                hp: (400 + activeBattle.lostStreak * 200) * hpMult,
+                maxHp: (400 + activeBattle.lostStreak * 200) * hpMult,
+                type: 'MISINFORMATION' as any,
+                speed: 3.0, attackRange: 6, damage: (15 + battleDifficultyRef.current * 3) * dmgMult * 1.5,
+                attackCooldown: 0, dashCooldown: 3.0, facing: 1,
+                knockbackX: 0, knockbackZ: 0
+            });
+        }
+        setRenderEnemies([...enemiesRef.current]);
+    }
   }, [activeBattle]);
 
   useFrame((state, delta) => {
@@ -541,7 +562,10 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     if (bossDeathTimer.current > 0) {
         bossDeathTimer.current -= delta; updateVisuals(false); 
         if (projectilesRef.current.length > 0) { projectilesRef.current = []; setRenderProjectiles([]); }
-        if (bossDeathTimer.current <= 0) winBattle();
+        if (bossDeathTimer.current <= 0) {
+            winBattle();
+            showQueuedLevelUp();
+        }
         return; 
     }
 
@@ -806,12 +830,54 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                 projectilesChanged = true;
             }
         }
+        else if ((enemy.type as string) === 'MISINFORMATION') {
+            // MISINFORMATION ENEMY - dash + ranged attacks
+            if (enemy.dashTime && enemy.dashTime > 0) {
+                enemy.dashTime -= delta;
+                if (enemy.dashTime > 0.3) { vx = 0; vz = 0; }
+                else {
+                    const dashSpeed = 20;
+                    vx = (enemy.dashVector?.x || 0) * dashSpeed;
+                    vz = (enemy.dashVector?.z || 0) * dashSpeed;
+                    if (Math.random() > 0.4) {
+                        visualEffectsRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, life: 0.5, type: 'DASH_TRAIL' });
+                        setRenderEffects([...visualEffectsRef.current]);
+                    }
+                }
+            } else {
+                vx = (dx / dist) * moveSpeed * 0.4;
+                vz = (dz / dist) * moveSpeed * 0.4;
+                enemy.dashCooldown = (enemy.dashCooldown || 3.0) - delta;
+                if (enemy.dashCooldown <= 0) {
+                    const distToPlayer = Math.sqrt(dx*dx + dz*dz);
+                    if (distToPlayer > 5 && distToPlayer < 20) {
+                        enemy.dashTime = 0.7;
+                        enemy.dashCooldown = 3.5;
+                        enemy.dashVector = { x: dx/distToPlayer, z: dz/distToPlayer };
+                    }
+                }
+            }
+
+            // Ranged attack
+            enemy.attackCooldown = (enemy.attackCooldown || 0) + delta;
+            if (dist < 12 && dist > 2 && enemy.attackCooldown > 1.5) {
+                const a = Math.atan2(dz, dx);
+                const dmg = enemy.damage;
+                // Triple spread of "fake news" projectiles
+                for (let i = -1; i <= 1; i++) {
+                    const spreadA = a + (i * 0.25);
+                    projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*7, vz: Math.sin(spreadA)*7, damage: dmg, fromPlayer: false, color: '#dc2626', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                }
+                projectilesChanged = true;
+                enemy.attackCooldown = 0;
+            }
+        }
         else {
             // NORMAL ENEMY MOVEMENT
-            vx = (dx / dist) * moveSpeed; 
+            vx = (dx / dist) * moveSpeed;
             vz = (dz / dist) * moveSpeed;
 
-            if (enemy.attackRange > 1) { 
+            if (enemy.attackRange > 1) {
                  enemy.attackCooldown = (enemy.attackCooldown || 0) + delta;
                  if (dist < 8 && dist > 3) { 
                      vx = 0; vz = 0; 
@@ -1365,7 +1431,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                   </Suspense>
               );
           }
-          return <SpriteBillboard key={e.id} color={getEnemyColor(e.type, activeStage)} scale={eType === 'BOSS' ? 4.5 : 1.8} entity={e} type={e.type} variant={e.visualVariant || e.name} />;
+          return <SpriteBillboard key={e.id} color={getEnemyColor(e.type, activeStage)} scale={eType === 'BOSS' ? 4.5 : eType === 'MISINFORMATION' ? 4.0 : 1.8} entity={e} type={e.type} variant={e.visualVariant || e.name} />;
       })}
       {renderProjectiles.map(p => <ProjectileRender key={p.id} projectile={p} />)}
       {renderEffects.map(ef => {
