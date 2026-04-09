@@ -14,6 +14,19 @@ interface PixelGroundProps {
 
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
 
+const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
+    FOREST:   { side: '#8B6B3E', bottom: '#5C4425' },
+    SKULL:    { side: '#2D3748', bottom: '#1A202C' },
+    ICE:      { side: '#93C5FD', bottom: '#6BA0D6' },
+    VOLCANO:  { side: '#3D1010', bottom: '#2A0808' },
+    PYRAMID:  { side: '#B8860B', bottom: '#8B6508' },
+    MUSHROOM: { side: '#4A3728', bottom: '#2E2218' },
+    CYBER:    { side: '#0C1222', bottom: '#060A14' },
+    VOID:     { side: '#1A0B3E', bottom: '#0E0628' },
+    SKY:      { side: '#93C5FD', bottom: '#60A5FA' },
+    HELL:     { side: '#4A1515', bottom: '#2D0A0A' },
+};
+
 const PIXEL_GROUND_VERTEX_SHADER = `
 varying vec2 vUv;
 
@@ -283,21 +296,70 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
     });
 
     const usesAnimatedShader = themeType === 'VOLCANO' || themeType === 'VOID';
+    const boxDepth = mode === 'BATTLE' ? 2.0 : 3.0;
+    const sideColors = THEME_SIDE_COLORS[themeType] || THEME_SIDE_COLORS.FOREST;
+
+    const sideMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: sideColors.side, roughness: 0.95, metalness: 0.05 }), [sideColors.side]);
+    const bottomMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: sideColors.bottom, roughness: 1.0, metalness: 0.0 }), [sideColors.bottom]);
+
+    // Box material order: +X, -X, +Y (top), -Y (bottom), +Z, -Z
+    const topMaterial = useMemo(() => {
+        if (usesAnimatedShader) return null; // handled separately
+        return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0.1 });
+    }, [texture, usesAnimatedShader]);
+
+    const boxMaterials = useMemo(() => {
+        const top = topMaterial || sideMaterial; // fallback for animated shader
+        return [sideMaterial, sideMaterial, top, bottomMaterial, sideMaterial, sideMaterial];
+    }, [sideMaterial, bottomMaterial, topMaterial]);
 
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-            <planeGeometry args={[width, height]} />
+        <group position={[0, -boxDepth / 2, 0]}>
             {usesAnimatedShader ? (
-                <shaderMaterial
-                    key={themeType}
-                    ref={animatedMaterialRef}
-                    uniforms={shaderUniforms}
-                    vertexShader={PIXEL_GROUND_VERTEX_SHADER}
-                    fragmentShader={themeType === 'VOLCANO' ? VOLCANO_GROUND_FRAGMENT_SHADER : VOID_GROUND_FRAGMENT_SHADER}
-                />
+                <>
+                    {/* Top face with animated shader */}
+                    <mesh position={[0, boxDepth / 2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+                        <planeGeometry args={[width, height]} />
+                        <shaderMaterial
+                            key={themeType}
+                            ref={animatedMaterialRef}
+                            uniforms={shaderUniforms}
+                            vertexShader={PIXEL_GROUND_VERTEX_SHADER}
+                            fragmentShader={themeType === 'VOLCANO' ? VOLCANO_GROUND_FRAGMENT_SHADER : VOID_GROUND_FRAGMENT_SHADER}
+                        />
+                    </mesh>
+                    {/* Side walls */}
+                    {/* Front face (+Z) */}
+                    <mesh position={[0, 0, height / 2]}>
+                        <planeGeometry args={[width, boxDepth]} />
+                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
+                    </mesh>
+                    {/* Back face (-Z) */}
+                    <mesh position={[0, 0, -height / 2]} rotation={[0, Math.PI, 0]}>
+                        <planeGeometry args={[width, boxDepth]} />
+                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
+                    </mesh>
+                    {/* Right face (+X) */}
+                    <mesh position={[width / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+                        <planeGeometry args={[height, boxDepth]} />
+                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
+                    </mesh>
+                    {/* Left face (-X) */}
+                    <mesh position={[-width / 2, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+                        <planeGeometry args={[height, boxDepth]} />
+                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
+                    </mesh>
+                    {/* Bottom face */}
+                    <mesh position={[0, -boxDepth / 2, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                        <planeGeometry args={[width, height]} />
+                        <meshStandardMaterial color={sideColors.bottom} roughness={1.0} />
+                    </mesh>
+                </>
             ) : (
-                <meshStandardMaterial map={texture} roughness={0.9} metalness={0.1} />
+                <mesh receiveShadow material={boxMaterials}>
+                    <boxGeometry args={[width, boxDepth, height]} />
+                </mesh>
             )}
-        </mesh>
+        </group>
     );
 };

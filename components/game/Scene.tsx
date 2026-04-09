@@ -23,7 +23,7 @@ interface SceneProps {
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
 
 const THEME_FOG_COLORS: Record<ThemeName, string> = {
-  FOREST: '#166534',
+  FOREST: '#87CEEB',
   SKULL: '#1e293b',
   ICE: '#e0f2fe',
   VOLCANO: '#450a0a',
@@ -36,7 +36,7 @@ const THEME_FOG_COLORS: Record<ThemeName, string> = {
 };
 
 const THEME_BACKGROUND_COLORS: Record<ThemeName, string> = {
-  FOREST: '#166534',
+  FOREST: '#87CEEB',
   SKULL: '#020617',
   ICE: '#dbeafe',
   VOLCANO: '#2b0808',
@@ -325,7 +325,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   return (
     <>
       <color attach="background" args={[backgroundColor]} />
-      {showDefaultSky && <Sky sunPosition={[100, 20, 100]} />}
+      {showDefaultSky && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
       {sceneTheme === 'SKY' && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
       {showStars && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
       {!showStars && <AnimatedClouds />}

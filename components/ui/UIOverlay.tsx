@@ -1428,7 +1428,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                       <button 
                         onClick={() => setQuizOpen(true)}
                         disabled={isGenerating}
-                        className={`w-full border-r border-slate-700 ${isShortHeight ? 'py-2' : 'py-4'} px-2 flex flex-col items-center justify-center gap-1 group transition-colors ${isGenerating ? 'opacity-50 cursor-not-allowed bg-slate-900' : 'hover:bg-slate-800 active:bg-slate-700'}`}
+                        className={`w-full border-r border-slate-700 ${isShortHeight ? 'py-1' : 'py-2'} px-2 flex flex-col items-center justify-center gap-0.5 group transition-colors ${isGenerating ? 'opacity-50 cursor-not-allowed bg-slate-900' : 'hover:bg-slate-800 active:bg-slate-700'}`}
                       >
                           <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} ${!isGenerating && 'group-hover:scale-110 transition-transform'}`}>📜</span>
                           <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-blue-200`}>{isGenerating ? 'WAITING...' : 'Yes/No'}</span>
@@ -1440,7 +1440,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
               <button 
                 onClick={() => setImpactOpen(true)}
-                className={`flex-[1.5] ${isShortHeight ? 'py-2' : 'py-4'} px-2 hover:bg-slate-800 active:bg-slate-700 flex flex-col items-center justify-center gap-1 group bg-slate-900 border-x border-slate-700 transition-colors`}
+                className={`flex-[1.5] ${isShortHeight ? 'py-1' : 'py-2'} px-2 hover:bg-slate-800 active:bg-slate-700 flex flex-col items-center justify-center gap-0.5 group bg-slate-900 border-x border-slate-700 transition-colors`}
               >
                   <div className="flex flex-col items-center leading-none">
                       <span className={`${isShortHeight ? 'text-sm' : 'text-lg'} group-hover:scale-110 transition-transform text-green-400 font-bold`}>
@@ -1457,7 +1457,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
               
               <button 
                 onClick={togglePause}
-                className={`flex-1 border-l border-slate-700 ${isShortHeight ? 'py-2' : 'py-4'} px-2 hover:bg-slate-800 active:bg-slate-700 flex flex-col items-center justify-center gap-1 group transition-colors`}
+                className={`flex-1 border-l border-slate-700 ${isShortHeight ? 'py-1' : 'py-2'} px-2 hover:bg-slate-800 active:bg-slate-700 flex flex-col items-center justify-center gap-0.5 group transition-colors`}
               >
                   {/* Fix: cast mode to any to bypass narrowing as GameMode.PAUSED already returned earlier */}
                   <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} group-hover:scale-110 transition-transform`}>{(mode as any) === GameMode.PAUSED ? '▶️' : '⏸️'}</span>
