@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, Suspense, useMemo } from 'react';
-import { Sky, Stars } from '@react-three/drei';
+import { Cloud, Clouds, Sky, Stars } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -63,63 +63,98 @@ const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }
 };
 
 const CLOUD_CONFIGS = [
-  { x: -20, y: 7,  z: -28, speed: 1.0, scale: 1.0 },
-  { x:   5, y: 9,  z: -35, speed: 0.6, scale: 1.3 },
-  { x:  30, y: 6,  z: -24, speed: 1.3, scale: 0.8 },
-  { x: -40, y: 8,  z: -20, speed: 0.8, scale: 1.1 },
-  { x:  18, y: 10, z: -40, speed: 0.5, scale: 1.5 },
-  { x:  -8, y: 7,  z: -18, speed: 1.1, scale: 0.9 },
+  { x: -28, y: 9.8, z: -36, drift: 0.55, scale: 1.2, seed: 101, segments: 22, bounds: [7.2, 1.9, 1.5] as [number, number, number], volume: 1.95, opacity: 0.52 },
+  { x:   8, y: 10.2, z: -32, drift: 0.45, scale: 1.35, seed: 203, segments: 24, bounds: [7.8, 2.0, 1.6] as [number, number, number], volume: 2.05, opacity: 0.5 },
+  { x:  34, y: 9.2, z: -24, drift: 0.95, scale: 0.95, seed: 307, segments: 16, bounds: [5.8, 1.6, 1.25] as [number, number, number], volume: 1.55, opacity: 0.56 },
+  { x: -42, y: 8.8, z: -15, drift: 0.7, scale: 1.1, seed: 409, segments: 18, bounds: [6.2, 1.7, 1.3] as [number, number, number], volume: 1.7, opacity: 0.54 },
+  { x: -12, y: 6.0, z: -10, drift: 0.9, scale: 1.0, seed: 503, segments: 18, bounds: [6.0, 1.6, 1.25] as [number, number, number], volume: 1.6, opacity: 0.5 },
+  { x:  24, y: 5.0, z: -7,  drift: 1.1, scale: 0.92, seed: 601, segments: 16, bounds: [5.6, 1.45, 1.15] as [number, number, number], volume: 1.45, opacity: 0.5 },
+  { x: -36, y: 4.0, z: -5,  drift: 0.75, scale: 0.95, seed: 701, segments: 16, bounds: [5.8, 1.5, 1.2] as [number, number, number], volume: 1.5, opacity: 0.48 },
+  { x:  12, y: 3.4, z: -3,  drift: 0.65, scale: 1.0, seed: 809, segments: 18, bounds: [6.2, 1.55, 1.2] as [number, number, number], volume: 1.55, opacity: 0.46 },
+  { x:  38, y: 4.4, z: -4,  drift: 0.85, scale: 0.92, seed: 907, segments: 14, bounds: [5.4, 1.35, 1.05] as [number, number, number], volume: 1.35, opacity: 0.48 },
 ];
 
-const CLOUD_CHUNK_COLOR = '#edf3f8';
-const CLOUD_EDGE_COLOR = '#d4dde5';
+const CLOUD_SEGMENT_LIMIT = CLOUD_CONFIGS.reduce((total, cloud) => total + cloud.segments, 0);
 
-const CLOUD_BODY_GEOMETRY = new THREE.BoxGeometry(5, 1.5, 2.5);
-const CLOUD_TOP_GEOMETRY = new THREE.BoxGeometry(3, 1.2, 2);
-const CLOUD_SIDE_GEOMETRY = new THREE.BoxGeometry(2.5, 1, 2);
-const CLOUD_CENTER_GEOMETRY = new THREE.BoxGeometry(2.5, 1.2, 2);
+const createCloudTextureDataUrl = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
 
-const CLOUD_BODY_EDGES = new THREE.EdgesGeometry(CLOUD_BODY_GEOMETRY);
-const CLOUD_TOP_EDGES = new THREE.EdgesGeometry(CLOUD_TOP_GEOMETRY);
-const CLOUD_SIDE_EDGES = new THREE.EdgesGeometry(CLOUD_SIDE_GEOMETRY);
-const CLOUD_CENTER_EDGES = new THREE.EdgesGeometry(CLOUD_CENTER_GEOMETRY);
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-const CloudChunk = ({ position, geometry, edges }: { position: [number, number, number]; geometry: THREE.BoxGeometry; edges: THREE.EdgesGeometry }) => (
-  <group position={position}>
-    <mesh geometry={geometry}>
-      <meshBasicMaterial color={CLOUD_CHUNK_COLOR} fog={false} />
-    </mesh>
-    <lineSegments geometry={edges}>
-      <lineBasicMaterial color={CLOUD_EDGE_COLOR} transparent opacity={0.9} fog={false} />
-    </lineSegments>
-  </group>
-);
+    const puffs = [
+      { x: 40, y: 72, r: 24 },
+      { x: 66, y: 56, r: 32 },
+      { x: 92, y: 72, r: 22 },
+      { x: 66, y: 82, r: 28 },
+    ];
+
+    puffs.forEach(({ x, y, r }) => {
+      const gradient = ctx.createRadialGradient(x, y, r * 0.22, x, y, r);
+      gradient.addColorStop(0, 'rgba(255,255,255,0.98)');
+      gradient.addColorStop(0.55, 'rgba(248,251,255,0.92)');
+      gradient.addColorStop(0.82, 'rgba(236,243,248,0.55)');
+      gradient.addColorStop(1, 'rgba(236,243,248,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    const bottomShade = ctx.createLinearGradient(0, 70, 0, 124);
+    bottomShade.addColorStop(0, 'rgba(210,220,232,0)');
+    bottomShade.addColorStop(1, 'rgba(210,220,232,0.18)');
+    ctx.fillStyle = bottomShade;
+    ctx.fillRect(18, 54, 92, 56);
+  }
+
+  return canvas.toDataURL('image/png');
+};
 
 const AnimatedClouds = () => {
   const cloudRefs = useRef<(THREE.Group | null)[]>([]);
-  const positions = useRef(CLOUD_CONFIGS.map(c => c.x));
+  const positions = useRef(CLOUD_CONFIGS.map(cloud => cloud.x));
+  const cloudTexture = useMemo(() => createCloudTextureDataUrl(), []);
 
   useFrame((_, delta) => {
     CLOUD_CONFIGS.forEach((cfg, i) => {
-      const mesh = cloudRefs.current[i];
-      if (!mesh) return;
-      positions.current[i] += cfg.speed * delta;
+      const cloud = cloudRefs.current[i];
+      if (!cloud) return;
+      positions.current[i] += cfg.drift * delta;
       if (positions.current[i] > 58) positions.current[i] = -58;
-      mesh.position.x = positions.current[i];
+      cloud.position.x = positions.current[i];
     });
   });
 
   return (
-    <group>
+    <Clouds
+      texture={cloudTexture}
+      material={THREE.MeshBasicMaterial}
+      limit={CLOUD_SEGMENT_LIMIT}
+      range={CLOUD_SEGMENT_LIMIT}
+      frustumCulled={false}
+    >
       {CLOUD_CONFIGS.map((cfg, i) => (
-        <group key={i} ref={el => { cloudRefs.current[i] = el; }} position={[cfg.x, cfg.y, cfg.z]} scale={cfg.scale}>
-          <CloudChunk position={[0, 0, 0]} geometry={CLOUD_BODY_GEOMETRY} edges={CLOUD_BODY_EDGES} />
-          <CloudChunk position={[2.5, 0.8, 0]} geometry={CLOUD_TOP_GEOMETRY} edges={CLOUD_TOP_EDGES} />
-          <CloudChunk position={[-2.5, 0.6, 0]} geometry={CLOUD_SIDE_GEOMETRY} edges={CLOUD_SIDE_EDGES} />
-          <CloudChunk position={[0.5, 1.5, 0]} geometry={CLOUD_CENTER_GEOMETRY} edges={CLOUD_CENTER_EDGES} />
-        </group>
+        <Cloud
+          key={cfg.seed}
+          ref={el => { cloudRefs.current[i] = el; }}
+          position={[cfg.x, cfg.y, cfg.z]}
+          scale={cfg.scale}
+          seed={cfg.seed}
+          segments={cfg.segments}
+          bounds={cfg.bounds}
+          volume={cfg.volume}
+          smallestVolume={0.28}
+          fade={0}
+          opacity={cfg.opacity}
+          color="#f8fbff"
+          speed={0}
+        />
       ))}
-    </group>
+    </Clouds>
   );
 };
 
