@@ -35,6 +35,7 @@ interface GameState {
   isQuizOpen: boolean;
   isImpactOpen: boolean; 
   isStageReady: boolean;
+  isOverworldSceneReady: boolean;
   
   // Narrative State
   showNarrative: boolean;
@@ -52,6 +53,7 @@ interface GameState {
   toggleMute: () => void; // New action
   setQuizOpen: (isOpen: boolean) => void;
   setImpactOpen: (isOpen: boolean) => void; 
+  setOverworldSceneReady: (ready: boolean) => void;
   setShowNarrative: (show: boolean) => void;
   setNarrativeDismissed: (dismissed: boolean) => void;
   dismissBossNarrative: () => void;
@@ -476,6 +478,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   isQuizOpen: false,
   isImpactOpen: false,
   isStageReady: false,
+  isOverworldSceneReady: false,
   highlightedPortalId: null,
 
   showNarrative: false,
@@ -506,6 +509,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setQuizOpen: (isOpen) => set({ isQuizOpen: isOpen }),
   setImpactOpen: (isOpen) => set({ isImpactOpen: isOpen }),
+  setOverworldSceneReady: (ready) => set({ isOverworldSceneReady: ready }),
   setShowNarrative: (show) => set({ showNarrative: show }),
   setNarrativeDismissed: (dismissed) => set({ narrativeDismissed: dismissed }),
   dismissBossNarrative: () => set({ bossNarrativeOpen: false }),
@@ -519,6 +523,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ 
           mode: GameMode.INSTRUCTIONS,
           isStageReady: false,
+          isOverworldSceneReady: false,
           playerStats: freshStats,
           activeStage: 1,
           portals: [], 
@@ -545,6 +550,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           set((state) => {
               const baseUpdate = {
                   isStageReady: true,
+                  isOverworldSceneReady: false,
                   portals: generatePortals(1),
                   activeStage: 1,
               };
@@ -1158,7 +1164,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const lastResult = state.activeBattle.isBonus ? "Ecosystem purged." : "Ecosystem partially restored.";
 
       saveMetaStats(state.playerStats);
-      set({ mode: GameMode.LOADING_LEVEL, isStageReady: false });
+      set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
       
       useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult).then(() => {
           set((prevState) => ({
@@ -1170,6 +1176,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             mode: GameMode.OVERWORLD,
             lastGameplayMode: GameMode.OVERWORLD,
             isStageReady: true,
+            isOverworldSceneReady: false,
             battleWon: false,
             bossStats: null,
             bossNarrativeOpen: false,
@@ -1216,6 +1223,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       showNarrative: false,
       narrativeDismissed: false,
       isStageReady: false,
+      isOverworldSceneReady: false,
       highlightedPortalId: null,
       adviceLoading: false,
       adviceResult: null,

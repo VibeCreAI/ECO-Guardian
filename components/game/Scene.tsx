@@ -14,6 +14,7 @@ import { VoxelPortal } from './VoxelPortal';
 import { VoxelLandmark } from './VoxelLandmark';
 import { VoxelShop } from './VoxelShop';
 import { QuestArrow } from './QuestArrow';
+import { InWorldText } from './InWorldText';
 
 interface SceneProps {
   inputVector: React.MutableRefObject<Vector2>;
@@ -70,6 +71,30 @@ const CLOUD_CONFIGS = [
   { x:  -8, y: 7,  z: -18, speed: 1.1, scale: 0.9 },
 ];
 
+const CLOUD_CHUNK_COLOR = '#edf3f8';
+const CLOUD_EDGE_COLOR = '#d4dde5';
+
+const CLOUD_BODY_GEOMETRY = new THREE.BoxGeometry(5, 1.5, 2.5);
+const CLOUD_TOP_GEOMETRY = new THREE.BoxGeometry(3, 1.2, 2);
+const CLOUD_SIDE_GEOMETRY = new THREE.BoxGeometry(2.5, 1, 2);
+const CLOUD_CENTER_GEOMETRY = new THREE.BoxGeometry(2.5, 1.2, 2);
+
+const CLOUD_BODY_EDGES = new THREE.EdgesGeometry(CLOUD_BODY_GEOMETRY);
+const CLOUD_TOP_EDGES = new THREE.EdgesGeometry(CLOUD_TOP_GEOMETRY);
+const CLOUD_SIDE_EDGES = new THREE.EdgesGeometry(CLOUD_SIDE_GEOMETRY);
+const CLOUD_CENTER_EDGES = new THREE.EdgesGeometry(CLOUD_CENTER_GEOMETRY);
+
+const CloudChunk = ({ position, geometry, edges }: { position: [number, number, number]; geometry: THREE.BoxGeometry; edges: THREE.EdgesGeometry }) => (
+  <group position={position}>
+    <mesh geometry={geometry}>
+      <meshBasicMaterial color={CLOUD_CHUNK_COLOR} fog={false} />
+    </mesh>
+    <lineSegments geometry={edges}>
+      <lineBasicMaterial color={CLOUD_EDGE_COLOR} transparent opacity={0.9} fog={false} />
+    </lineSegments>
+  </group>
+);
+
 const AnimatedClouds = () => {
   const cloudRefs = useRef<(THREE.Group | null)[]>([]);
   const positions = useRef(CLOUD_CONFIGS.map(c => c.x));
@@ -88,10 +113,10 @@ const AnimatedClouds = () => {
     <group>
       {CLOUD_CONFIGS.map((cfg, i) => (
         <group key={i} ref={el => { cloudRefs.current[i] = el; }} position={[cfg.x, cfg.y, cfg.z]} scale={cfg.scale}>
-          <mesh position={[0, 0, 0]}><boxGeometry args={[5, 1.5, 2.5]} /><meshStandardMaterial color="#ffffff" roughness={1} fog={false} /></mesh>
-          <mesh position={[2.5, 0.8, 0]}><boxGeometry args={[3, 1.2, 2]} /><meshStandardMaterial color="#f0f0f0" roughness={1} fog={false} /></mesh>
-          <mesh position={[-2.5, 0.6, 0]}><boxGeometry args={[2.5, 1, 2]} /><meshStandardMaterial color="#f5f5f5" roughness={1} fog={false} /></mesh>
-          <mesh position={[0.5, 1.5, 0]}><boxGeometry args={[2.5, 1.2, 2]} /><meshStandardMaterial color="#ffffff" roughness={1} fog={false} /></mesh>
+          <CloudChunk position={[0, 0, 0]} geometry={CLOUD_BODY_GEOMETRY} edges={CLOUD_BODY_EDGES} />
+          <CloudChunk position={[2.5, 0.8, 0]} geometry={CLOUD_TOP_GEOMETRY} edges={CLOUD_TOP_EDGES} />
+          <CloudChunk position={[-2.5, 0.6, 0]} geometry={CLOUD_SIDE_GEOMETRY} edges={CLOUD_SIDE_EDGES} />
+          <CloudChunk position={[0.5, 1.5, 0]} geometry={CLOUD_CENTER_GEOMETRY} edges={CLOUD_CENTER_EDGES} />
         </group>
       ))}
     </group>
@@ -129,7 +154,7 @@ const getPropScale = (type: string) => {
 
 export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
-  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, enterShop, lastGameplayMode, highlightedPortalId, showNarrative } = useGameStore();
+  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed } = useGameStore();
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   const { camera, gl } = useThree();
   const [facing, setFacing] = useState(1);
@@ -143,6 +168,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const shakeIntensity = useRef(0);
   const lastProcessedDamageTime = useRef(0);
   const prevModeRef = useRef<GameMode>(mode);
+  const overworldWarmupFrames = useRef(0);
   const zoomTarget = useRef(1.0);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
@@ -169,7 +195,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     let possibleTypes: string[] = ['TREE', 'STONE', 'MUSHROOM']; 
     if (aiConfig) { possibleTypes = [aiConfig.theme.propType, 'STONE']; if (aiConfig.theme.propType === 'TREE') possibleTypes.push('MUSHROOM'); } 
     else { if (themeId === 2) possibleTypes = ['GRAVE', 'RUIN', 'STONE']; else if (themeId === 3) possibleTypes = ['SNOW_TREE', 'CRYSTAL', 'STONE']; else if (themeId === 4) possibleTypes = ['MAGMA_ROCK', 'LAVA_PILLAR']; else if (themeId === 5) possibleTypes = ['CACTUS', 'PALM', 'STONE']; else if (themeId === 6) possibleTypes = ['SWAMP_TREE', 'VINE', 'MUSHROOM']; else if (themeId === 7) possibleTypes = ['SERVER', 'NEON_SIGN']; else if (themeId === 8) possibleTypes = ['VOID_ROCK', 'STAR_PILLAR']; else if (themeId === 9) possibleTypes = ['CLOUD_PILLAR', 'GOLD_GATE']; else if (themeId === 10) possibleTypes = ['SPIKE_ROCK', 'LAVA_PILLAR']; }
-    const items = []; for(let i=0; i<150; i++) { const type = possibleTypes[Math.floor(Math.random() * possibleTypes.length)]; const x = (Math.random() - 0.5) * 54; const z = (Math.random() - 0.5) * 54; const dist = Math.sqrt(x*x + z*z); if (z > -16 && z < 1 && x > -8 && x < 8) continue;
+    const items = []; for(let i=0; i<150; i++) { const type = possibleTypes[Math.floor(Math.random() * possibleTypes.length)]; const x = (Math.random() - 0.5) * 54; const z = (Math.random() - 0.5) * 54; const dist = Math.sqrt(x*x + z*z); if (z > -16 && z < 1 && x > -8 && x < 8) continue; if (z > 1 && z < 18 && x > -12 && x < 12) continue;
     const distToShop = Math.sqrt((x - SHOP_POS.x)**2 + (z - SHOP_POS.z)**2); if (distToShop < 8) continue;
     if (dist < 6) continue; items.push({ id: i, type, x, z }); }
     return items;
@@ -184,8 +210,17 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   }, [mode]);
 
   useFrame((state, delta) => {
+    if (showOverworldScene && !isOverworldSceneReady) {
+      overworldWarmupFrames.current += 1;
+      if (overworldWarmupFrames.current >= 2) {
+        setOverworldSceneReady(true);
+      }
+    } else if (!showOverworldScene) {
+      overworldWarmupFrames.current = 0;
+    }
+
     if (!playerRef.current) return;
-    if (mode === GameMode.PAUSED || isQuizOpen || isImpactOpen || showNarrative || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) return;
+    if (mode === GameMode.PAUSED || isQuizOpen || isImpactOpen || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) return;
     if (battleCooldown.current > 0) battleCooldown.current -= delta;
     if (dashCooldownCurrent > 0) { const next = dashCooldownCurrent - delta; setDashCooldown(next > 0 ? next : 0); }
     if (dashTimer.current > 0) dashTimer.current -= delta;
@@ -266,8 +301,24 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const arrowTarget = useMemo(() => { if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } const bossPortal = portals.find(p => p.type === 'BOSS'); if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [portals, highlightedPortalId]);
   const showStars = sceneTheme === 'VOID' || sceneTheme === 'HELL' || sceneTheme === 'SKULL';
   const showDefaultSky = !showStars && sceneTheme !== 'CYBER' && sceneTheme !== 'SKY';
-  const showOverworldScene = (mode === GameMode.OVERWORLD || ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD));
+  const showOverworldScene = (
+    mode === GameMode.OVERWORLD ||
+    (mode === GameMode.INSTRUCTIONS && isStageReady) ||
+    ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD)
+  );
   const showBattleScene = (mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE));
+  const useMutedGameplayBackdrop = showOverworldScene || showBattleScene;
+  const bloomThreshold = useMutedGameplayBackdrop ? 0.9 : 0.6;
+  const bloomIntensity = useMutedGameplayBackdrop ? 0.35 : 0.6;
+
+  useEffect(() => {
+    if (!showOverworldScene || isOverworldSceneReady) {
+      overworldWarmupFrames.current = 0;
+      return;
+    }
+
+    overworldWarmupFrames.current = 0;
+  }, [showOverworldScene, isOverworldSceneReady, activeStage, landmarkType, portals.length]);
 
   useEffect(() => {
     gl.shadowMap.enabled = true;
@@ -325,9 +376,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   return (
     <>
       <color attach="background" args={[backgroundColor]} />
-      {showDefaultSky && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
-      {sceneTheme === 'SKY' && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
-      {showStars && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
+      {showDefaultSky && !useMutedGameplayBackdrop && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
+      {sceneTheme === 'SKY' && !useMutedGameplayBackdrop && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
+      {showStars && !useMutedGameplayBackdrop && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
       {!showStars && <AnimatedClouds />}
       <hemisphereLight args={[hemisphereColors.sky, hemisphereColors.ground, 0.75]} />
       <directionalLight
@@ -354,6 +405,20 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
                 return <PropSprite key={p.id} position={[p.x, s * 0.5, p.z]} type={p.type as any} scale={s} />;
             })}
             {portals.map((portal) => ( <VoxelPortal key={portal.id} position={[portal.x, 0, portal.z]} color={getPortalColor(portal)} isBoss={portal.type === 'BOSS'} label={getPortalLabel(portal)} /> ))}
+            <InWorldText
+              landmarkPos={[LANDMARK_POS.x, 0, LANDMARK_POS.z]}
+              portalCenterPos={[0, 0, 6]}
+              shopPos={[SHOP_POS.x, 0, SHOP_POS.z]}
+              showNarrative={showNarrative}
+              narrativeDismissed={narrativeDismissed}
+              stageConfig={aiConfig}
+              onNarrativeDone={() => {
+                setShowNarrative(false);
+                setNarrativeDismissed(true);
+              }}
+              hasBossPortal={portals.some(p => p.type === 'BOSS')}
+              bossPortalPos={(() => { const bp = portals.find(p => p.type === 'BOSS'); return bp ? [bp.x, 0, bp.z] as [number, number, number] : null; })()}
+            />
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}
           </group>
       )}
@@ -365,7 +430,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         )}
       </Suspense>
       <EffectComposer>
-        <Bloom luminanceThreshold={0.6} intensity={0.6} />
+        <Bloom luminanceThreshold={bloomThreshold} intensity={bloomIntensity} />
         <Vignette eskil={false} offset={0.1} darkness={0.5} />
       </EffectComposer>
     </>

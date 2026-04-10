@@ -23,7 +23,7 @@ const MenuHero = () => {
     useEffect(() => {
         const interval = setInterval(() => {
             setFrame(f => (f + 1) % 16);
-        }, 166); // 6 FPS
+        }, 125); // 8 FPS
         return () => clearInterval(interval);
     }, []);
 
@@ -49,7 +49,7 @@ const MenuHero = () => {
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, isQuizOpen, setQuizOpen, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, setHighlightedPortal, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -112,7 +112,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   
 
   const lastNarrativeStage = useRef(0);
-  const lastQuizSignature = useRef<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
   const startupSequenceRef = useRef(0);
@@ -124,7 +123,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   useEffect(() => {
       if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS) {
           lastNarrativeStage.current = 0;
-          lastQuizSignature.current = "";
       }
   }, [mode]);
 
@@ -140,42 +138,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           lastNarrativeStage.current = activeStage;
       }
   }, [mode, activeStage, currentConfig, setShowNarrative, setNarrativeDismissed]);
-
-  useEffect(() => {
-      if (mode === GameMode.OVERWORLD && currentConfig?.quiz && narrativeDismissed) {
-          const optionSignature = Object.entries(currentConfig.quiz.options || {})
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([key, value]) => `${key}:${value}`)
-              .join('|');
-          const quizSignature = [
-              activeStage,
-              currentConfig.quiz.question,
-              currentConfig.quiz.correctOption,
-              optionSignature,
-          ].join('::');
-
-          if (quizSignature !== lastQuizSignature.current) {
-              setQuizOpen(true);
-              lastQuizSignature.current = quizSignature;
-          }
-      }
-  }, [mode, currentConfig, setQuizOpen, narrativeDismissed, activeStage]);
-
-  const handleDismissNarrative = () => {
-      setShowNarrative(false);
-      setNarrativeDismissed(true);
-  };
-
-  useEffect(() => {
-    if (!isQuizOpen && ! bossNarrativeOpen) return;
-    const handleScrollKey = (e: KeyboardEvent) => {
-        if (!scrollRef.current) return;
-        if (e.key === 'ArrowDown') scrollRef.current.scrollBy({ top: 50, behavior: 'smooth' });
-        if (e.key === 'ArrowUp') scrollRef.current.scrollBy({ top: -50, behavior: 'smooth' });
-    };
-    window.addEventListener('keydown', handleScrollKey);
-    return () => window.removeEventListener('keydown', handleScrollKey);
-  }, [isQuizOpen, bossNarrativeOpen]);
 
   useEffect(() => {
     if (mode !== GameMode.QUIZ_RESULT) return;
@@ -204,7 +166,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       setStartupAssetsReady(false);
       setStartupMinElapsed(false);
       startupShownAtRef.current = Date.now();
-      window.setTimeout(() => setStartupMinElapsed(true), 2000);
+      setStartupMinElapsed(true);
 
       let active = true;
 
@@ -223,7 +185,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   }, [mode]);
 
   const startupTargetProgress = mode === GameMode.INSTRUCTIONS
-      ? Math.min(100, Math.round((startupAssetProgress * 0.7 + (isStageReady ? 0.25 : 0) + 0.05) * 100))
+      ? Math.min(100, Math.round((startupAssetProgress * 0.65 + (isStageReady ? 0.2 : 0) + (isOverworldSceneReady ? 0.1 : 0) + 0.05) * 100))
       : 0;
 
   useEffect(() => {
@@ -250,6 +212,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       if (
           mode !== GameMode.INSTRUCTIONS ||
           !isStageReady ||
+          !isOverworldSceneReady ||
           !startupAssetsReady ||
           startupDisplayedProgress < 100 ||
           !startupMinElapsed
@@ -268,7 +231,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
               startupLaunchTimeoutRef.current = null;
           }
       };
-  }, [mode, isStageReady, startupAssetsReady, startupDisplayedProgress, startupMinElapsed, startGame]);
+  }, [mode, isStageReady, isOverworldSceneReady, startupAssetsReady, startupDisplayedProgress, startupMinElapsed, startGame]);
 
   const handleJoystick = (vec: { x: number, y: number }) => {
     inputVector.current = vec;
@@ -290,12 +253,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       setScoreSubmitted(false);
       setPlayerNameInput('');
       resetGame();
-  };
-
-  const handleAnswerSelect = (option: 'A' | 'B') => {
-      const selectedPortal = portals.find((portal) => portal.quizOption === option);
-      setHighlightedPortal(selectedPortal?.id ?? `p_${option}`);
-      setQuizOpen(false);
   };
 
 
@@ -378,6 +335,16 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-5">
               <div className="w-14 h-14 border-4 border-green-500 border-t-transparent rounded-full animate-spin"/>
               <p className="text-green-400 font-bold animate-pulse tracking-widest text-sm">LOADING...</p>
+          </div>
+      );
+  }
+
+  if (mode === GameMode.OVERWORLD && !isOverworldSceneReady) {
+      return (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-5">
+              <div className="w-14 h-14 border-4 border-green-500 border-t-transparent rounded-full animate-spin"/>
+              <p className="text-green-400 font-bold animate-pulse tracking-widest text-sm">FINALIZING BIOME...</p>
+              <p className="text-slate-400 text-[10px] uppercase tracking-[0.3em]">{currentConfig?.stageName ?? 'Preparing biome'}</p>
           </div>
       );
   }
@@ -1099,7 +1066,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-6 p-6">
               <div className="w-14 h-14 border-4 border-green-500 border-t-transparent rounded-full animate-spin"/>
               <p className="text-green-400 font-bold tracking-widest text-sm animate-pulse">
-                  {!isStageReady ? 'CONSULTING GAIA...' : 'DEPLOYING GUARDIAN...'}
+                  {!isStageReady ? 'CONSULTING GAIA...' : !isOverworldSceneReady ? 'ASSEMBLING BIOME...' : 'DEPLOYING GUARDIAN...'}
               </p>
               <div className="w-full max-w-xs">
                   <div className="flex justify-between text-[10px] text-slate-400 mb-1">
@@ -1223,45 +1190,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       );
   }
 
-  // --- GAIA YES/NO MODAL ---
-  if (isQuizOpen && currentConfig?.quiz && !showNarrative) {
-      return (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/75 z-[100] p-4 animate-in fade-in duration-200">
-              <div className="bg-slate-900 border-4 border-green-500 retro-border w-full max-w-md relative shadow-[0_0_50px_rgba(34,197,94,0.3)] flex flex-col max-h-[90vh]">
-
-                  <div className="p-6 pb-3 shrink-0 text-center">
-                      <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-2">Gaia Asks...</p>
-                      <h2 className="text-yellow-300 text-lg md:text-xl font-bold leading-snug">
-                          {currentConfig.quiz.question}
-                      </h2>
-                  </div>
-
-                  <div className="flex gap-4 px-6 pb-6 shrink-0">
-                      <button
-                          onClick={() => handleAnswerSelect('A')}
-                          className="flex-1 py-5 bg-green-700 hover:bg-green-600 border-4 border-green-400 retro-border retro-btn text-white font-black text-3xl tracking-widest shadow-[0_0_20px_rgba(34,197,94,0.5)] transition-colors"
-                      >
-                          YES
-                      </button>
-                      <button
-                          onClick={() => handleAnswerSelect('B')}
-                          className="flex-1 py-5 bg-red-700 hover:bg-red-600 border-4 border-red-400 retro-border retro-btn text-white font-black text-3xl tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.5)] transition-colors"
-                      >
-                          NO
-                      </button>
-                  </div>
-
-                  <div className="px-6 pb-5 shrink-0 text-center">
-                      <p className="text-slate-400 text-xs">Walk into the portal matching your answer</p>
-                      <button onClick={() => setQuizOpen(false)} className="mt-3 text-slate-500 hover:text-white text-xs underline">
-                          Dismiss
-                      </button>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
   // --- SLOT LOGIC FOR HUD ---
   const MAX_DISPLAY_WEAPONS = 5;
   const weaponSlotsUI = [];
@@ -1294,22 +1222,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
   return (
     <div className="contents" style={{ fontSize: 0 }}>
-      {showNarrative && currentConfig && (
-           <div className="absolute top-32 left-1/2 -translate-x-1/2 w-[90%] md:w-[600px] z-[60] animate-in fade-in slide-in-from-top-4 duration-1000 pointer-events-auto">
-               <div className="bg-black/90 border-2 border-green-500 p-6 retro-border backdrop-blur-sm shadow-[0_0_20px_rgba(34,197,94,0.3)] flex flex-col items-center">
-                   <h3 className="text-green-400 text-center text-xl mb-4 font-bold tracking-widest">{currentConfig.stageName.toUpperCase()}</h3>
-                   <p className="text-white text-center italic text-sm mb-6 leading-relaxed">"{currentConfig.narrativeIntro}"</p>
-                   
-                   <button 
-                       onClick={handleDismissNarrative}
-                       className="px-8 py-3 bg-green-700 hover:bg-green-600 text-white font-bold retro-btn retro-border text-sm tracking-wider animate-pulse transition-transform active:scale-95"
-                   >
-                       TAP TO CONTINUE
-                   </button>
-               </div>
-           </div>
-      )}
-      
       {isGenerating && mode === GameMode.OVERWORLD && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] animate-pulse">
               <div className="bg-black/90 border-2 border-blue-400 p-4 retro-border text-blue-200 text-xs font-bold tracking-widest flex items-center gap-3">
@@ -1368,7 +1280,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         <div className="flex flex-col gap-1 mt-1 w-auto max-w-[250px] md:max-w-none">
           <div className="flex gap-1 flex-wrap">
             {weaponSlotsUI.map((slot, idx) => (
-               <div key={`w_slot_${idx}`} className={`w-8 h-8 bg-slate-800 retro-border flex items-center justify-center text-white relative ${slot.status === 'LOCKED' ? 'border-2 border-red-900 bg-black/50 opacity-60' : (slot.data && EVO_KEYS.includes(slot.data[0]) ? 'border-2 border-yellow-400 bg-yellow-900' : 'border border-gray-600')}`}>
+               <div key={`w_slot_${idx}`} className={`w-8 h-8 bg-slate-800 retro-border flex items-center justify-center text-sm leading-none text-white relative ${slot.status === 'LOCKED' ? 'border-2 border-red-900 bg-black/50 opacity-60' : (slot.data && EVO_KEYS.includes(slot.data[0]) ? 'border-2 border-yellow-400 bg-yellow-900' : 'border border-gray-600')}`}>
                   {slot.status === 'FILLED' && slot.data && (
                       <>
                           {slot.data[0] === 'MAGIC_MISSILE' && '✨'}
@@ -1424,18 +1336,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
             style={{ paddingBottom: bottomHudPaddingBottom }}
           >
               <div className="flex-1 flex justify-center">
-                  {mode === GameMode.OVERWORLD ? (
-                      <button 
-                        onClick={() => setQuizOpen(true)}
-                        disabled={isGenerating}
-                        className={`w-full border-r border-slate-700 ${isShortHeight ? 'py-1' : 'py-2'} px-2 flex flex-col items-center justify-center gap-0.5 group transition-colors ${isGenerating ? 'opacity-50 cursor-not-allowed bg-slate-900' : 'hover:bg-slate-800 active:bg-slate-700'}`}
-                      >
-                          <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} ${!isGenerating && 'group-hover:scale-110 transition-transform'}`}>📜</span>
-                          <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-blue-200`}>{isGenerating ? 'WAITING...' : 'Yes/No'}</span>
-                      </button>
-                  ) : (
-                      <div className="w-full border-r border-slate-700 bg-slate-950/50"></div>
-                  )}
+                  <div className="w-full border-r border-slate-700 bg-slate-950/50"></div>
               </div>
 
               <button 
