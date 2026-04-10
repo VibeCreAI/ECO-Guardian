@@ -1014,7 +1014,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                   <div className="space-y-4">
                       <button onClick={togglePause} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 font-bold retro-btn retro-border text-xl">RESUME</button>
                       
-                      <div className="flex gap-4">
+                      <div className="hidden">
                           <button 
                             onClick={() => setMode(GameMode.STATUS)} 
                             className="flex-1 bg-green-700 hover:bg-green-600 text-white py-3 font-bold retro-btn retro-border text-sm flex flex-col items-center justify-center"
@@ -1030,6 +1030,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                               GRIMOIRE
                           </button>
                       </div>
+
+                      <button
+                        onClick={() => setMode(GameMode.LIBRARY)}
+                        className="w-full bg-purple-700 hover:bg-purple-600 text-white py-3 font-bold retro-btn retro-border text-sm flex flex-col items-center justify-center"
+                      >
+                          GRIMOIRE
+                      </button>
 
                       <div className="flex gap-2">
                         <button 
@@ -1335,9 +1342,29 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
             className={`absolute bottom-0 left-0 w-full bg-slate-900 border-t-2 border-slate-600 z-[60] pointer-events-auto flex items-stretch ${isShortHeight ? 'py-1' : ''}`}
             style={{ paddingBottom: bottomHudPaddingBottom }}
           >
-              <div className="flex-1 flex justify-center">
-                  <div className="w-full border-r border-slate-700 bg-slate-950/50"></div>
-              </div>
+              <button
+                onClick={() => setMode(GameMode.STATUS)}
+                className={`flex-1 border-r border-slate-700 ${isShortHeight ? 'py-1' : 'py-2'} px-2 hover:bg-slate-800 active:bg-slate-700 flex flex-col items-center justify-center gap-0.5 group bg-slate-950/50 transition-colors`}
+              >
+                  <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} text-green-300 group-hover:scale-110 transition-transform leading-none`}>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="w-[1em] h-[1em]"
+                      >
+                        <path d="M20 21a8 8 0 0 0-16 0" />
+                        <circle cx="12" cy="8" r="4" />
+                      </svg>
+                  </span>
+                  <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-gray-200`}>
+                      STATUS
+                  </span>
+              </button>
 
               <button 
                 onClick={() => setImpactOpen(true)}
@@ -1410,3 +1437,4 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     </div>
   );
 };
+

@@ -67,14 +67,12 @@ const CLOUD_CONFIGS = [
   { x:   8, y: 10.2, z: -32, drift: 0.45, scale: 1.35, seed: 203, segments: 24, bounds: [7.8, 2.0, 1.6] as [number, number, number], volume: 2.05, opacity: 0.5 },
   { x:  34, y: 9.2, z: -24, drift: 0.95, scale: 0.95, seed: 307, segments: 16, bounds: [5.8, 1.6, 1.25] as [number, number, number], volume: 1.55, opacity: 0.56 },
   { x: -42, y: 8.8, z: -15, drift: 0.7, scale: 1.1, seed: 409, segments: 18, bounds: [6.2, 1.7, 1.3] as [number, number, number], volume: 1.7, opacity: 0.54 },
-  { x: -12, y: 6.0, z: -10, drift: 0.9, scale: 1.0, seed: 503, segments: 18, bounds: [6.0, 1.6, 1.25] as [number, number, number], volume: 1.6, opacity: 0.5 },
-  { x:  24, y: 5.0, z: -7,  drift: 1.1, scale: 0.92, seed: 601, segments: 16, bounds: [5.6, 1.45, 1.15] as [number, number, number], volume: 1.45, opacity: 0.5 },
-  { x: -36, y: 4.0, z: -5,  drift: 0.75, scale: 0.95, seed: 701, segments: 16, bounds: [5.8, 1.5, 1.2] as [number, number, number], volume: 1.5, opacity: 0.48 },
-  { x:  12, y: 3.4, z: -3,  drift: 0.65, scale: 1.0, seed: 809, segments: 18, bounds: [6.2, 1.55, 1.2] as [number, number, number], volume: 1.55, opacity: 0.46 },
-  { x:  38, y: 4.4, z: -4,  drift: 0.85, scale: 0.92, seed: 907, segments: 14, bounds: [5.4, 1.35, 1.05] as [number, number, number], volume: 1.35, opacity: 0.48 },
+  { x: -12, y: 6.0, z: -10, drift: 0.9, scale: 1.0, seed: 503, segments: 18, bounds: [6.0, 1.6, 1.25] as [number, number, number], volume: 1.6, opacity: 0.5, hideInBattle: true },
+  { x:  24, y: 5.0, z: -7,  drift: 1.1, scale: 0.92, seed: 601, segments: 16, bounds: [5.6, 1.45, 1.15] as [number, number, number], volume: 1.45, opacity: 0.5, hideInBattle: true },
+  { x: -36, y: 4.0, z: -5,  drift: 0.75, scale: 0.95, seed: 701, segments: 16, bounds: [5.8, 1.5, 1.2] as [number, number, number], volume: 1.5, opacity: 0.48, hideInBattle: true },
+  { x:  12, y: 3.4, z: -3,  drift: 0.65, scale: 1.0, seed: 809, segments: 18, bounds: [6.2, 1.55, 1.2] as [number, number, number], volume: 1.55, opacity: 0.46, hideInBattle: true },
+  { x:  38, y: 4.4, z: -4,  drift: 0.85, scale: 0.92, seed: 907, segments: 14, bounds: [5.4, 1.35, 1.05] as [number, number, number], volume: 1.35, opacity: 0.48, hideInBattle: true },
 ];
-
-const CLOUD_SEGMENT_LIMIT = CLOUD_CONFIGS.reduce((total, cloud) => total + cloud.segments, 0);
 
 const createCloudTextureDataUrl = () => {
   const canvas = document.createElement('canvas');
@@ -114,18 +112,28 @@ const createCloudTextureDataUrl = () => {
   return canvas.toDataURL('image/png');
 };
 
-const AnimatedClouds = () => {
-  const cloudRefs = useRef<(THREE.Group | null)[]>([]);
-  const positions = useRef(CLOUD_CONFIGS.map(cloud => cloud.x));
+const AnimatedClouds = ({ hideLowerClouds = false }: { hideLowerClouds?: boolean }) => {
+  const cloudRefs = useRef<Record<number, THREE.Group | null>>({});
+  const positions = useRef<Record<number, number>>(
+    Object.fromEntries(CLOUD_CONFIGS.map(cloud => [cloud.seed, cloud.x]))
+  );
   const cloudTexture = useMemo(() => createCloudTextureDataUrl(), []);
+  const visibleClouds = useMemo(
+    () => CLOUD_CONFIGS.filter(cloud => !hideLowerClouds || !cloud.hideInBattle),
+    [hideLowerClouds]
+  );
+  const visibleSegmentLimit = useMemo(
+    () => visibleClouds.reduce((total, cloud) => total + cloud.segments, 0),
+    [visibleClouds]
+  );
 
   useFrame((_, delta) => {
-    CLOUD_CONFIGS.forEach((cfg, i) => {
-      const cloud = cloudRefs.current[i];
+    visibleClouds.forEach((cfg) => {
+      const cloud = cloudRefs.current[cfg.seed];
       if (!cloud) return;
-      positions.current[i] += cfg.drift * delta;
-      if (positions.current[i] > 58) positions.current[i] = -58;
-      cloud.position.x = positions.current[i];
+      positions.current[cfg.seed] += cfg.drift * delta;
+      if (positions.current[cfg.seed] > 58) positions.current[cfg.seed] = -58;
+      cloud.position.x = positions.current[cfg.seed];
     });
   });
 
@@ -133,14 +141,14 @@ const AnimatedClouds = () => {
     <Clouds
       texture={cloudTexture}
       material={THREE.MeshBasicMaterial}
-      limit={CLOUD_SEGMENT_LIMIT}
-      range={CLOUD_SEGMENT_LIMIT}
+      limit={visibleSegmentLimit}
+      range={visibleSegmentLimit}
       frustumCulled={false}
     >
-      {CLOUD_CONFIGS.map((cfg, i) => (
+      {visibleClouds.map((cfg) => (
         <Cloud
           key={cfg.seed}
-          ref={el => { cloudRefs.current[i] = el; }}
+          ref={el => { cloudRefs.current[cfg.seed] = el; }}
           position={[cfg.x, cfg.y, cfg.z]}
           scale={cfg.scale}
           seed={cfg.seed}
@@ -414,7 +422,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       {showDefaultSky && !useMutedGameplayBackdrop && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
       {sceneTheme === 'SKY' && !useMutedGameplayBackdrop && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
       {showStars && !useMutedGameplayBackdrop && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
-      {!showStars && <AnimatedClouds />}
+      {!showStars && <AnimatedClouds hideLowerClouds={showBattleScene} />}
       <hemisphereLight args={[hemisphereColors.sky, hemisphereColors.ground, 0.75]} />
       <directionalLight
         position={[10, 20, 10]}

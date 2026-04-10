@@ -58,10 +58,10 @@ export const StatusModal: React.FC = () => {
                     <button onClick={togglePause} className="text-white font-bold text-xl px-2 hover:text-green-400">✕</button>
                 </div>
 
-                <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+                <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
                     
                     {/* LEFT COL: STATS */}
-                    <div className="w-full md:w-1/3 bg-black/30 p-6 border-r border-gray-700 flex flex-col gap-6 overflow-y-auto">
+                    <div className="w-full md:w-1/3 bg-black/30 p-6 border-b md:border-b-0 md:border-r border-gray-700 flex flex-col gap-6 md:overflow-y-auto md:min-h-0">
                         <div className="text-center">
                             <PlayerIdleSprite />
                             <div className="text-yellow-400 font-bold text-xl">LVL {playerStats.level}</div>
@@ -104,7 +104,7 @@ export const StatusModal: React.FC = () => {
                     </div>
 
                     {/* RIGHT COL: INVENTORY */}
-                    <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+                    <div className="flex-1 p-6 md:overflow-y-auto flex flex-col gap-6 md:min-h-0">
                         
                         {/* WEAPONS */}
                         <div>
