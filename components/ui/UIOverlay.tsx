@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useGameStore } from '../../store/gameStore';
+import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, UpgradeOption } from '../../types';
 import { VirtualJoystick } from './VirtualJoystick';
@@ -49,7 +49,7 @@ const MenuHero = () => {
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -117,6 +117,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const startupSequenceRef = useRef(0);
   const startupLaunchTimeoutRef = useRef<number | null>(null);
   const startupShownAtRef = useRef<number>(0);
+  const zoomTrackRef = useRef<HTMLDivElement>(null);
   const [startupMinElapsed, setStartupMinElapsed] = useState(false);
 
   // Fix: Reset tracking refs when returning to Menu/Setup so narrative triggers again on restart
@@ -1226,6 +1227,42 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
   const bottomHudPaddingBottom = `calc(${safeAreaBottom} + ${isShortHeight ? 4 : 8}px)`;
   const gameplayOverlayMarginBottom = `calc(${safeAreaBottom} + ${isShortHeight ? 64 : 96}px)`;
+  const zoomRatio = Math.max(0, Math.min(1, (cameraZoom - CAMERA_ZOOM_MIN) / (CAMERA_ZOOM_MAX - CAMERA_ZOOM_MIN)));
+  const zoomThumbTop = `${15 + zoomRatio * 70}%`;
+  const zoomFillHeight = `${zoomRatio * 100}%`;
+  const zoomDisplay = `${(1 / cameraZoom).toFixed(1)}x`;
+
+  const updateZoomFromClientY = (clientY: number) => {
+      const track = zoomTrackRef.current;
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      if (rect.height <= 0) return;
+
+      const trackTop = rect.top + rect.height * 0.15;
+      const trackHeight = rect.height * 0.7;
+      const ratio = Math.max(0, Math.min(1, (clientY - trackTop) / trackHeight));
+      setCameraZoom(CAMERA_ZOOM_MIN + ratio * (CAMERA_ZOOM_MAX - CAMERA_ZOOM_MIN));
+  };
+
+  const handleZoomPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      updateZoomFromClientY(e.clientY);
+  };
+
+  const handleZoomPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+      if ((e.buttons & 1) === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      updateZoomFromClientY(e.clientY);
+  };
+
+  const handleZoomWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCameraZoom((current) => current + e.deltaY * 0.001);
+  };
 
   return (
     <div className="contents" style={{ fontSize: 0 }}>
@@ -1335,6 +1372,37 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       </div>
 
       {renderMinimap()}
+
+      {((mode as any) === GameMode.OVERWORLD || (mode as any) === GameMode.BATTLE) && !battleWon && (
+          <div
+            className={`absolute right-3 z-[65] pointer-events-auto select-none ${isShortHeight ? 'top-[43%]' : 'top-1/2'} -translate-y-1/2`}
+            onPointerDown={handleZoomPointerDown}
+            onPointerMove={handleZoomPointerMove}
+            onWheel={handleZoomWheel}
+            ref={zoomTrackRef}
+            role="slider"
+            aria-label="Camera zoom"
+            aria-orientation="vertical"
+            aria-valuemin={CAMERA_ZOOM_MIN}
+            aria-valuemax={CAMERA_ZOOM_MAX}
+            aria-valuenow={cameraZoom}
+            style={{ touchAction: 'none' }}
+          >
+              <div className={`${isShortHeight ? 'h-28' : 'h-40'} w-8 rounded-full bg-slate-950/70 border-2 border-slate-600 shadow-[0_0_12px_rgba(0,0,0,0.45)] flex items-center justify-center relative`}>
+                  <div className="absolute top-2 text-[8px] leading-none font-bold text-cyan-200/70">IN</div>
+                  <div className="absolute bottom-2 text-[8px] leading-none font-bold text-cyan-200/70">OUT</div>
+                  <div className="h-[70%] w-1 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="w-full bg-cyan-300/70 rounded-full" style={{ height: zoomFillHeight }} />
+                  </div>
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 min-w-12 px-2 py-1 rounded-full bg-cyan-500 text-slate-950 text-[10px] font-black text-center border-2 border-slate-950 shadow-[0_2px_0_rgba(0,0,0,0.45)]"
+                    style={{ top: zoomThumbTop }}
+                  >
+                      {zoomDisplay}
+                  </div>
+              </div>
+          </div>
+      )}
       
       {/* Fix: cast mode to any to prevent narrowing error because PAUSED already returned */}
       {((mode as any) === GameMode.OVERWORLD || (mode as any) === GameMode.BATTLE || (mode as any) === GameMode.PAUSED) && (

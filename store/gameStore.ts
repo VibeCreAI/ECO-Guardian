@@ -4,7 +4,12 @@ import { useAiDirectorStore } from './aiDirectorStore';
 import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint, PassiveDef } from '../constants';
 
 export const SHOP_REFRESH_COST = 50;
+export const CAMERA_ZOOM_MIN = 0.5;
+export const CAMERA_ZOOM_MAX = 2.0;
 const SAVE_KEY = 'pixel_realm_save_v1';
+
+const clampCameraZoom = (value: number) =>
+  Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, value));
 
 interface GameState {
   mode: GameMode;
@@ -47,10 +52,12 @@ interface GameState {
   adviceResult: AdviceResult | null;
   
   isMuted: boolean; // New state for audio control
+  cameraZoom: number;
 
   setMode: (mode: GameMode) => void;
   togglePause: () => void; 
   toggleMute: () => void; // New action
+  setCameraZoom: (zoom: number | ((current: number) => number)) => void;
   setQuizOpen: (isOpen: boolean) => void;
   setImpactOpen: (isOpen: boolean) => void; 
   setOverworldSceneReady: (ready: boolean) => void;
@@ -488,6 +495,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   adviceResult: null,
   
   isMuted: false,
+  cameraZoom: 1.0,
 
   setMode: (mode) => set((state) => ({ mode, previousMode: state.mode })),
   
@@ -506,6 +514,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   }),
   
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
+  setCameraZoom: (zoom) => set((state) => ({
+    cameraZoom: clampCameraZoom(typeof zoom === 'function' ? zoom(state.cameraZoom) : zoom),
+  })),
 
   setQuizOpen: (isOpen) => set({ isQuizOpen: isOpen }),
   setImpactOpen: (isOpen) => set({ isImpactOpen: isOpen }),
@@ -543,7 +554,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           showNarrative: false,
           narrativeDismissed: false,
           lastGameplayMode: GameMode.OVERWORLD,
-          highlightedPortalId: null
+          highlightedPortalId: null,
+          cameraZoom: 1.0
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
@@ -1228,6 +1240,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       adviceLoading: false,
       adviceResult: null,
       isMuted: false, 
+      cameraZoom: 1.0,
     });
   },
 

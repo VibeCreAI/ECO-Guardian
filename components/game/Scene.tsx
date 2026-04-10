@@ -197,7 +197,7 @@ const getPropScale = (type: string) => {
 
 export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
-  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed } = useGameStore();
+  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed, cameraZoom, setCameraZoom } = useGameStore();
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   const { camera, gl } = useThree();
   const [facing, setFacing] = useState(1);
@@ -212,12 +212,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const lastProcessedDamageTime = useRef(0);
   const prevModeRef = useRef<GameMode>(mode);
   const overworldWarmupFrames = useRef(0);
-  const zoomTarget = useRef(1.0);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
   const _camTarget = useRef(new THREE.Vector3());
   const _portalVec = useRef(new THREE.Vector3());
-  const clampZoom = (value: number) => THREE.MathUtils.clamp(value, 0.5, 2.0);
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
   const landmarkType = React.useMemo(() => getLandmarkType(activeStage, aiConfig), [activeStage, aiConfig]);
@@ -312,7 +310,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     // --- DYNAMIC CAMERA ZOOM LOGIC ---
     const aspect = state.size.width / state.size.height;
 
-    zoomCurrent.current = THREE.MathUtils.lerp(zoomCurrent.current, zoomTarget.current, delta * 6);
+    zoomCurrent.current = THREE.MathUtils.lerp(zoomCurrent.current, cameraZoom, delta * 6);
 
     // Scale fog with zoom so it doesn't eat the scene when zoomed out
     if (fogRef.current) {
@@ -371,11 +369,11 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      zoomTarget.current = clampZoom(zoomTarget.current + e.deltaY * 0.001);
+      setCameraZoom((current) => current + e.deltaY * 0.001);
     };
     gl.domElement.addEventListener('wheel', onWheel, { passive: false });
     return () => gl.domElement.removeEventListener('wheel', onWheel);
-  }, [gl, mode]);
+  }, [gl, mode, setCameraZoom]);
 
   useEffect(() => {
     let lastPinchDist = 0;
@@ -396,7 +394,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       e.preventDefault();
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       if (lastPinchDist > 0) {
-        zoomTarget.current = clampZoom(zoomTarget.current - (dist - lastPinchDist) * 0.005);
+        setCameraZoom((current) => current - (dist - lastPinchDist) * 0.005);
       }
       lastPinchDist = dist;
     };
@@ -414,7 +412,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       window.removeEventListener('touchend', resetPinch);
       window.removeEventListener('touchcancel', resetPinch);
     };
-  }, [mode]);
+  }, [mode, setCameraZoom]);
 
   return (
     <>
