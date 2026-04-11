@@ -89,7 +89,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
         <>
             {/* Joystick Base */}
             <div 
-                className="absolute w-32 h-32 ui-card opacity-90"
+                className="absolute w-32 h-32 ui-card ui-joystick-base"
                 style={{
                     left: origin.x,
                     top: origin.y,
@@ -98,7 +98,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
             />
             {/* Joystick Knob */}
             <div 
-                className="absolute w-12 h-12 ui-button ui-button-primary"
+                className="absolute w-12 h-12 ui-button ui-button-primary ui-joystick-knob"
                 style={{
                     left: origin.x,
                     top: origin.y,

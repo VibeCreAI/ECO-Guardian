@@ -1465,13 +1465,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         {/* Fix: cast mode to any to prevent narrowing error due to early returns */}
         {((mode as any) === GameMode.BATTLE || (mode as any) === GameMode.OVERWORLD) && !battleWon && (
           <button 
-            className={`absolute ui-button ui-button-danger flex items-center justify-center transition-transform pointer-events-auto ${isShortHeight ? 'w-24 h-24 bottom-2 right-4' : 'w-24 h-24 md:w-28 md:h-28 bottom-8 right-8'}`}
+            className={`absolute ui-button ui-button-danger ui-dash-button flex items-center justify-center transition-transform pointer-events-auto ${isShortHeight ? 'w-24 h-24 bottom-2 right-4' : 'w-24 h-24 md:w-28 md:h-28 bottom-8 right-8'}`}
             onTouchStart={handleDashAction}
             onMouseDown={handleDashAction}
             disabled={dashCooldownCurrent > 0}
             style={{ touchAction: 'none' }} 
           >
-             <div className="absolute inset-3 bg-black/40 border-2 border-black pointer-events-none overflow-hidden">
+             <div className="absolute inset-3 ui-dash-meter pointer-events-none overflow-hidden">
                 <div
                     className="absolute bottom-0 left-0 right-0 ui-progress-fill-dash transition-[height] duration-75 ease-linear"
                     style={{ height: `${dashProgress * 100}%` }}

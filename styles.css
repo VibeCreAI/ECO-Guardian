@@ -338,6 +338,49 @@ input {
     18px 18px 0 0 var(--eco-leaf);
 }
 
+.ui-joystick-base {
+  background: rgba(22, 58, 31, 0.56);
+  border-color: rgba(5, 8, 5, 0.72);
+  box-shadow: 3px 3px 0 0 rgba(5, 8, 5, 0.58);
+}
+
+.ui-joystick-base:hover {
+  background: rgba(22, 58, 31, 0.56);
+}
+
+.ui-joystick-knob {
+  background: rgba(121, 210, 14, 0.82);
+  border-color: rgba(5, 8, 5, 0.82);
+  box-shadow: 4px 4px 0 0 rgba(5, 8, 5, 0.68);
+}
+
+.ui-dash-button {
+  background: rgba(121, 210, 14, 0.78);
+  border-color: rgba(163, 255, 18, 0.86);
+  box-shadow: 5px 5px 0 0 rgba(5, 8, 5, 0.72);
+}
+
+.ui-dash-button:hover:not(:disabled) {
+  background: rgba(163, 255, 18, 0.86);
+  color: var(--eco-white);
+}
+
+.ui-dash-button:disabled {
+  background: rgba(29, 36, 29, 0.78);
+  color: var(--eco-white);
+  border-color: rgba(5, 8, 5, 0.82);
+  box-shadow: 3px 3px 0 0 rgba(5, 8, 5, 0.66);
+}
+
+.ui-dash-meter {
+  background: rgba(5, 8, 5, 0.38);
+  border: 2px solid rgba(5, 8, 5, 0.82);
+}
+
+.ui-dash-meter .ui-progress-fill-dash {
+  background: rgba(21, 128, 61, 0.9);
+}
+
 @keyframes eco-square-spin {
   to {
     transform: rotate(360deg);
