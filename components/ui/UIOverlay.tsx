@@ -725,7 +725,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       return (
           <div className="absolute inset-0 flex items-center justify-center ui-backdrop z-[100] p-4">
               <div className="ui-panel ui-card-danger w-full max-w-lg p-8 text-center flex flex-col gap-6 animate-in zoom-in duration-300">
-                  <h2 className="text-4xl md:text-6xl ui-danger font-black mb-2">DEFEATED</h2>
+                  <h2 className="text-4xl md:text-5xl ui-danger font-black mb-2 text-center w-full">DEFEATED</h2>
                   
                   <div className="bg-black/40 p-4 border-4 border-black">
                       <p className="ui-muted text-sm mb-1 uppercase">Cause of Failure</p>
