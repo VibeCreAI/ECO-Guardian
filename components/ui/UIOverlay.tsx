@@ -801,27 +801,31 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         />
 
         {/* Dark overlay for better menu contrast */}
-        <div className={`absolute inset-0 bg-black/40 pointer-events-none transition-opacity duration-300 ${menuBackgroundReady ? 'opacity-100' : 'opacity-0'}`} />
+        <div className={`absolute inset-0 bg-gradient-to-t from-black/60 via-black/35 to-black/45 pointer-events-none transition-opacity duration-300 ${menuBackgroundReady ? 'opacity-100' : 'opacity-0'}`} />
 
         {/* --- TOP RIGHT CONTROLS (Fixed Position) --- */}
         <div className={`absolute top-4 right-4 z-50 flex gap-2 transition-opacity duration-200 ${menuContentClass}`}>
-            <button 
+            <button
                 onClick={toggleFullScreen}
-                className="p-3 bg-slate-800/80 border-2 border-slate-600 rounded-full text-white hover:bg-slate-700 transition-colors shadow-lg active:scale-95 flex items-center justify-center backdrop-blur-sm"
+                className="w-10 h-10 bg-stone-900/80 border border-emerald-400/30 text-emerald-300 hover:bg-stone-800 hover:border-emerald-400/50 hover:text-emerald-200 hover:shadow-[0_0_12px_rgba(34,197,94,0.25)] transition-all shadow-lg active:scale-95 flex items-center justify-center backdrop-blur-sm"
                 title="Toggle Fullscreen"
             >
                 {isFullScreen ? (
-                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
                 ) : (
-                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="m15 3l2.3 2.3l-2.89 2.87l1.42 1.42L18.7 6.7L21 9V3zM3 9l2.3-2.3l2.87 2.89l1.42-1.42L6.7 5.3L9 3H3zm6 12l-2.3-2.3l2.89-2.87l-1.42-1.42L5.3 17.3L3 15v6zm12-6l-2.3 2.3l-2.87-2.89l-1.42 1.42l2.89 2.87L15 21h6z"/></svg>
+                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="m15 3l2.3 2.3l-2.89 2.87l1.42 1.42L18.7 6.7L21 9V3zM3 9l2.3-2.3l2.87 2.89l1.42-1.42L6.7 5.3L9 3H3zm6 12l-2.3-2.3l2.89-2.87l-1.42-1.42L5.3 17.3L3 15v6zm12-6l-2.3 2.3l-2.87-2.89l-1.42 1.42l2.89 2.87L15 21h6z"/></svg>
                 )}
             </button>
-            <button 
+            <button
                 onClick={toggleMute}
-                className="p-3 bg-slate-800/80 border-2 border-slate-600 rounded-full text-xl hover:bg-slate-700 transition-colors shadow-lg active:scale-95 backdrop-blur-sm"
+                className="w-10 h-10 bg-stone-900/80 border border-emerald-400/30 text-emerald-300 hover:bg-stone-800 hover:border-emerald-400/50 hover:text-emerald-200 hover:shadow-[0_0_12px_rgba(34,197,94,0.25)] transition-all shadow-lg active:scale-95 flex items-center justify-center backdrop-blur-sm leading-none"
                 title="Toggle Sound"
             >
-                {isMuted ? '🔇' : '🔊'}
+                {isMuted ? (
+                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="m19.8 22.6l-3.025-3.025q-.625.4-1.325.688t-1.45.462v-2.05q.35-.125.688-.25t.637-.3L12 14.8V20l-5-5H3V9h3.2L1.4 4.2l1.4-1.4l18.4 18.4zm-.2-5.8l-1.45-1.45q.425-.775.638-1.625t.212-1.75q0-2.35-1.375-4.2T14 5.275v-2.05q3.1.7 5.05 3.138T21 11.975q0 1.325-.363 2.55T19.6 16.8m-3.35-3.35L14 11.2V7.95q1.175.55 1.838 1.65T16.5 12q0 .375-.062.738t-.188.712M12 9.2L9.4 6.6L12 4z"/></svg>
+                ) : (
+                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M14 20.725v-2.05q2.25-.65 3.625-2.5t1.375-4.2t-1.375-4.2T14 5.275v-2.05q3.1.7 5.05 3.138T21 11.975t-1.95 5.613T14 20.725M3 15V9h4l5-5v16l-5-5zm11 1V7.95q1.175.55 1.838 1.65T16.5 12q0 1.275-.663 2.363T14 16"/></svg>
+                )}
             </button>
         </div>
 
@@ -851,33 +855,33 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                 {/* CONTROL PANEL */}
                 <div className="
                 relative mb-6 w-full
-                bg-slate-950/70
-                border border-cyan-400/30
-                shadow-[0_0_60px_rgba(34,211,238,0.15)]
+                bg-stone-950/75
+                border border-emerald-400/30
+                shadow-[0_0_60px_rgba(34,197,94,0.18)]
                 p-8
                 ">
                 {/* Scanlines + subtle noise */}
-                <div className="pointer-events-none absolute inset-0 opacity-20 mix-blend-overlay"
+                <div className="pointer-events-none absolute inset-0 opacity-15 mix-blend-overlay"
                     style={{
                         backgroundImage:
-                        "repeating-linear-gradient(to bottom, rgba(255,255,255,0.06), rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px)"
+                        "repeating-linear-gradient(to bottom, rgba(34,197,94,0.08), rgba(34,197,94,0.08) 1px, transparent 1px, transparent 4px)"
                     }}
                 />
-                <div className="pointer-events-none absolute inset-0 opacity-10"
+                <div className="pointer-events-none absolute inset-0 opacity-12"
                     style={{
                         backgroundImage:
-                        "radial-gradient(circle at 50% 0%, rgba(34,211,238,0.25), transparent 60%)"
+                        "radial-gradient(circle at 50% 0%, rgba(34,197,94,0.3), transparent 60%)"
                     }}
                 />
 
                 {/* Pixel corners */}
-                <div className="absolute top-2 left-2 w-2 h-2 bg-cyan-300/80 border border-black" />
-                <div className="absolute top-2 right-2 w-2 h-2 bg-cyan-300/80 border border-black" />
-                <div className="absolute bottom-2 left-2 w-2 h-2 bg-cyan-300/80 border border-black" />
-                <div className="absolute bottom-2 right-2 w-2 h-2 bg-cyan-300/80 border border-black" />
+                <div className="absolute top-2 left-2 w-2 h-2 bg-emerald-400/80 border border-black" />
+                <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-400/80 border border-black" />
+                <div className="absolute bottom-2 left-2 w-2 h-2 bg-emerald-400/80 border border-black" />
+                <div className="absolute bottom-2 right-2 w-2 h-2 bg-emerald-400/80 border border-black" />
 
-                <p className="text-center text-gray-400 text-xs mb-6 uppercase tracking-widest border-b border-slate-800 pb-4 font-mono">
-                    <span className="text-cyan-300 mr-2">●</span> PROTOCOL ONLINE <span className="text-green-400 ml-2">●</span>
+                <p className="text-center text-emerald-300/70 text-xs mb-6 uppercase tracking-widest border-b border-emerald-900/40 pb-4 font-mono">
+                    <span className="text-green-400 mr-2">●</span> GAIA PROTOCOL ACTIVE <span className="text-green-400 ml-2">●</span>
                 </p>
 
                 <div className="space-y-4">
@@ -885,11 +889,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                     onClick={() => preloadGame('MEDIUM')}
                     className="
                         group relative w-full
-                        bg-gradient-to-r from-cyan-600 to-emerald-600
-                        hover:from-cyan-500 hover:to-emerald-500
+                        bg-gradient-to-r from-emerald-600 to-green-500
+                        hover:from-emerald-500 hover:to-green-400
                         text-white py-5 font-extrabold
-                        border border-cyan-200/30
-                        shadow-[0_0_25px_rgba(34,211,238,0.25)]
+                        border border-emerald-300/30
+                        shadow-[0_0_25px_rgba(34,197,94,0.3)]
                         active:translate-y-0.5 transition-all overflow-hidden
                     "
                     >
@@ -904,30 +908,30 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                     <button
                         onClick={() => setMode(GameMode.LIBRARY)}
                         className="
-                        flex-1 bg-slate-900/80 hover:bg-slate-800
-                        text-cyan-300 py-3 font-bold
-                        border border-cyan-400/25
-                        shadow-[0_0_20px_rgba(34,211,238,0.12)]
+                        flex-1 bg-stone-900/80 hover:bg-stone-800
+                        text-emerald-300 py-3 font-bold
+                        border border-emerald-400/25
+                        shadow-[0_0_20px_rgba(34,197,94,0.12)]
                         active:translate-y-0.5 transition-all
                         "
                     >
                         <span className="text-sm tracking-wider flex items-center justify-center gap-2">
-                        <span className="text-cyan-300"> GRIMOIRE</span>
+                        <span className="text-emerald-300"> GRIMOIRE</span>
                         </span>
                     </button>
 
                     <button
                         onClick={() => setMode(GameMode.LEADERBOARD)}
                         className="
-                        flex-1 bg-slate-900/80 hover:bg-slate-800
-                        text-emerald-300 py-3 font-bold
-                        border border-emerald-400/25
-                        shadow-[0_0_20px_rgba(16,185,129,0.12)]
+                        flex-1 bg-stone-900/80 hover:bg-stone-800
+                        text-amber-200 py-3 font-bold
+                        border border-amber-400/25
+                        shadow-[0_0_20px_rgba(217,176,56,0.12)]
                         active:translate-y-0.5 transition-all
                         "
                     >
                         <span className="text-sm tracking-wider flex items-center justify-center gap-2">
-                        <span className="text-emerald-300"> LEADERBOARD</span>
+                        <span className="text-amber-200"> LEADERBOARD</span>
                         </span>
                     </button>
                     </div>
@@ -936,8 +940,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                 <style>{`@keyframes shine { 100% { transform: translateX(120%); } }`}</style>
 
                 {/* Footer */}
-                <div className="mt-6 pt-4 border-t border-slate-800 text-center flex justify-between items-center text-[10px] text-gray-500 font-mono">
-                    <span>VER 1.7</span>
+                <div className="mt-6 pt-4 border-t border-emerald-900/40 text-center flex justify-between items-center text-[10px] text-emerald-700/60 font-mono">
+                    <span>CYCLE 1.7</span>
                     <span>{isMobile ? "TOUCH ENABLED" : "KEYBOARD READY"}</span>
                 </div>
                 </div>
