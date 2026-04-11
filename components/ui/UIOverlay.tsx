@@ -57,6 +57,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const [startupAssetProgress, setStartupAssetProgress] = useState(0);
   const [startupDisplayedProgress, setStartupDisplayedProgress] = useState(0);
   const [startupAssetsReady, setStartupAssetsReady] = useState(false);
+  const [menuBackgroundReady, setMenuBackgroundReady] = useState(false);
   
   // UI Scaling for short screens (mobile landscape)
   const [uiScale, setUiScale] = useState(1);
@@ -80,6 +81,30 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     window.addEventListener('resize', handleResize);
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const image = new Image();
+
+    const markReady = () => {
+      if (active) setMenuBackgroundReady(true);
+    };
+
+    image.onload = markReady;
+    image.onerror = markReady;
+    image.decoding = 'async';
+    image.src = ASSET_PATHS.images.start.background;
+
+    if (image.complete) {
+      markReady();
+    }
+
+    return () => {
+      active = false;
+      image.onload = null;
+      image.onerror = null;
+    };
   }, []);
 
   // Fetch Leaderboard when entering LEADERBOARD mode
@@ -758,16 +783,28 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
   // --- MAIN MENU ---
   if (mode === GameMode.MENU) {
+    const menuContentClass = menuBackgroundReady ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none';
+
     return (
       <div 
-        className="absolute inset-0 flex items-center justify-center z-50 overflow-hidden bg-cover bg-center"
-        style={{ backgroundImage: `url('${ASSET_PATHS.images.start.background}')` }}
+        className="absolute inset-0 flex items-center justify-center z-50 overflow-hidden bg-black"
       >
+        <img
+          src={ASSET_PATHS.images.start.background}
+          alt=""
+          aria-hidden="true"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${menuBackgroundReady ? 'opacity-100' : 'opacity-0'}`}
+          loading="eager"
+          decoding="async"
+          onLoad={() => setMenuBackgroundReady(true)}
+          onError={() => setMenuBackgroundReady(true)}
+        />
+
         {/* Dark overlay for better menu contrast */}
-        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+        <div className={`absolute inset-0 bg-black/40 pointer-events-none transition-opacity duration-300 ${menuBackgroundReady ? 'opacity-100' : 'opacity-0'}`} />
 
         {/* --- TOP RIGHT CONTROLS (Fixed Position) --- */}
-        <div className="absolute top-4 right-4 z-50 flex gap-2 pointer-events-auto">
+        <div className={`absolute top-4 right-4 z-50 flex gap-2 transition-opacity duration-200 ${menuContentClass}`}>
             <button 
                 onClick={toggleFullScreen}
                 className="p-3 bg-slate-800/80 border-2 border-slate-600 rounded-full text-white hover:bg-slate-700 transition-colors shadow-lg active:scale-95 flex items-center justify-center backdrop-blur-sm"
@@ -790,7 +827,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
         {/* --- MAIN INTERFACE (Scalable) --- */}
         <div 
-            className="relative z-10 flex flex-col items-center justify-center h-full w-full px-4 transition-transform duration-200 ease-out"
+            className={`relative z-10 flex flex-col items-center justify-center h-full w-full px-4 transition-[opacity,transform] duration-200 ease-out ${menuContentClass}`}
             style={{ transform: `scale(${uiScale})` }}
         >
             <div className="max-w-lg w-full flex flex-col items-center mt-12 md:mt-16">
