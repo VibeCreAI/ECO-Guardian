@@ -44,7 +44,7 @@ interface ExternalBossSpriteProps {
 }
 
 const textureCache: Record<string, THREE.Texture> = {};
-const MOBS = [...ENEMY_RENDER_TYPES];
+const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
 
 const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize: number) => {

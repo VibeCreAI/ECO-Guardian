@@ -127,6 +127,16 @@ interface LightningBoltProps {
     glowColor?: string;
 }
 
+// Shared geometries/materials to avoid per-frame allocation
+const _boltCoreGeo = new THREE.BoxGeometry(1, 0.05, 0.05);
+const _boltGlowGeo = new THREE.BoxGeometry(1, 0.25, 0.25);
+const _nodeGeo = new THREE.SphereGeometry(0.4, 8, 8);
+const _nodeSmallGeo = new THREE.SphereGeometry(0.1, 8, 8);
+const _tempVec = new THREE.Vector3();
+const _tempDir = new THREE.Vector3();
+const _tempQuat = new THREE.Quaternion();
+const _xAxis = new THREE.Vector3(1, 0, 0);
+
 const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, color="#ffffff", glowColor="#0ea5e9" }) => {
     const segments = useMemo(() => {
         const segs = [];
@@ -136,44 +146,49 @@ const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, 
             const start = new THREE.Vector3(path[i].x, path[i].y ?? 1, path[i].z);
             const end = new THREE.Vector3(path[i+1].x, path[i+1].y ?? 1, path[i+1].z);
             const dist = start.distanceTo(end);
-            const steps = Math.max(3, Math.floor(dist * 2.0)); 
+            const steps = Math.max(3, Math.floor(dist * 2.0));
 
             let prev = start.clone();
             for(let j=1; j<=steps; j++) {
                 const t = j/steps;
                 const next = new THREE.Vector3().lerpVectors(start, end, t);
                 if (j < steps) {
-                    const offset = 0.25; 
+                    const offset = 0.25;
                     next.x += (Math.random() - 0.5) * offset;
                     next.y += (Math.random() - 0.5) * offset;
                     next.z += (Math.random() - 0.5) * offset;
                 }
-                segs.push({ start: prev, end: next });
+                // Pre-compute transform data to avoid allocations in render
+                const mid = new THREE.Vector3().addVectors(prev, next).multiplyScalar(0.5);
+                const dir = new THREE.Vector3().subVectors(next, prev);
+                const len = dir.length();
+                const quaternion = new THREE.Quaternion();
+                quaternion.setFromUnitVectors(_xAxis, dir.normalize());
+                segs.push({ mid, quaternion, len });
                 prev = next;
             }
         }
         return segs;
     }, [path]);
 
+    const coreMat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true }), [color]);
+    const glowMat = useMemo(() => new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, blending: THREE.AdditiveBlending }), [glowColor]);
+    const nodeMat = useMemo(() => new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, blending: THREE.AdditiveBlending }), [glowColor]);
+
     const opacity = Math.min(1, life / (initialLife * 0.5));
+    coreMat.opacity = opacity;
+    glowMat.opacity = opacity * 0.6;
+    nodeMat.opacity = opacity;
 
     return (
         <group>
-            {segments.map((s, i) => {
-                const mid = new THREE.Vector3().addVectors(s.start, s.end).multiplyScalar(0.5);
-                const dir = new THREE.Vector3().subVectors(s.end, s.start);
-                const len = dir.length();
-                const quaternion = new THREE.Quaternion();
-                quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.normalize());
-                
-                return (
-                    <group key={i} position={mid} quaternion={quaternion}><mesh><boxGeometry args={[len, 0.05, 0.05]} /><meshBasicMaterial color={color} transparent opacity={opacity} /></mesh><mesh><boxGeometry args={[len + 0.1, 0.25, 0.25]} /><meshBasicMaterial color={glowColor} transparent opacity={opacity * 0.6} blending={THREE.AdditiveBlending} /></mesh></group>
-                )
-            })}
+            {segments.map((s, i) => (
+                <group key={i} position={s.mid} quaternion={s.quaternion}><mesh geometry={_boltCoreGeo} material={coreMat} scale={[s.len, 1, 1]} /><mesh geometry={_boltGlowGeo} material={glowMat} scale={[s.len + 0.1, 1, 1]} /></group>
+            ))}
              {path.map((p, i) => {
                  if (p.y && p.y > 5) return null;
                  return (
-                     <mesh key={`node_${i}`} position={[p.x, p.y ?? 1, p.z]}><sphereGeometry args={[i === 0 ? 0.1 : 0.4, 8, 8]} /><meshBasicMaterial color={glowColor} transparent opacity={opacity} blending={THREE.AdditiveBlending} /></mesh>
+                     <mesh key={`node_${i}`} position={[p.x, p.y ?? 1, p.z]} geometry={i === 0 ? _nodeSmallGeo : _nodeGeo} material={nodeMat} />
                  );
              })}
         </group>
@@ -1179,21 +1194,21 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         } 
     }
     
-    if ((weapons['TESLA_COIL'] || 0) > 0) { 
-        weaponTimers.current.teslaCoil += delta; 
-        if (weaponTimers.current.teslaCoil > 0.25 * cdMod) { 
-            const radius = (4.5 + (weapons['TESLA_COIL'] * 0.6)) * areaMod; 
-            const dmg = ((playerStats.attackPower * 0.4) + (weapons['TESLA_COIL'] * 1.5)) * dmgMod; 
+    if ((weapons['TESLA_COIL'] || 0) > 0) {
+        weaponTimers.current.teslaCoil += delta;
+        if (weaponTimers.current.teslaCoil > 0.25 * cdMod) {
+            const radius = (4.5 + (weapons['TESLA_COIL'] * 0.6)) * areaMod;
+            const dmg = ((playerStats.attackPower * 0.4) + (weapons['TESLA_COIL'] * 1.5)) * dmgMod;
             const baseKB = WEAPONS_DATA['TESLA_COIL'].knockback;
             let zapCount = 0;
-            const maxZaps = 8 + (weapons['TESLA_COIL'] * 2);
-            enemiesRef.current.forEach(e => { 
+            const maxVisualZaps = 5; // Cap visuals to avoid lag, damage still hits all
+            enemiesRef.current.forEach(e => {
                 const dx = e.x - playerPosition.x;
                 const dz = e.z - playerPosition.z;
                 const distSq = dx*dx + dz*dz;
-                if (distSq < radius * radius) { 
-                    damageEnemy(e, dmg, baseKB, playerPosition.x, playerPosition.z, time); 
-                    if (zapCount < maxZaps) {
+                if (distSq < radius * radius) {
+                    damageEnemy(e, dmg, baseKB, playerPosition.x, playerPosition.z, time);
+                    if (zapCount < maxVisualZaps) {
                         visualEffectsRef.current.push({
                             id: `tesla_${Math.random()}`,
                             x: 0, z: 0,
@@ -1204,8 +1219,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                         });
                         zapCount++;
                     }
-                } 
-            }); 
+                }
+            });
             if (zapCount === 0 && Math.random() > 0.5) {
                  const angle = Math.random() * Math.PI * 2;
                  const r = radius * (0.5 + Math.random() * 0.5);
@@ -1219,8 +1234,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                  });
             }
             setRenderEffects([...visualEffectsRef.current]);
-            weaponTimers.current.teslaCoil = 0; 
-        } 
+            weaponTimers.current.teslaCoil = 0;
+        }
     }
 
     if ((weapons['THUNDER'] || 0) > 0) { 

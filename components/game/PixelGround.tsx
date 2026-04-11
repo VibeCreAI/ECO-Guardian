@@ -1,6 +1,5 @@
 
-import React, { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { AiStageConfig } from '../../types';
 
@@ -27,70 +26,6 @@ const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
     HELL:     { side: '#4A1515', bottom: '#2D0A0A' },
 };
 
-const PIXEL_GROUND_VERTEX_SHADER = `
-varying vec2 vUv;
-
-void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const VOLCANO_GROUND_FRAGMENT_SHADER = `
-uniform float uTime;
-uniform sampler2D uTexture;
-uniform vec2 uUvScale;
-
-varying vec2 vUv;
-
-void main() {
-    vec2 tiledUv = vUv * uUvScale;
-    vec2 flowUv = tiledUv;
-    flowUv.x += sin((tiledUv.y * 7.0) + uTime * 1.8) * 0.08;
-    flowUv.y += cos((tiledUv.x * 5.5) - uTime * 1.2) * 0.05;
-
-    vec4 base = texture2D(uTexture, flowUv);
-    float lavaMask = smoothstep(0.48, 0.82, base.r);
-    float pulse = 0.55 + 0.45 * abs(sin(uTime * 2.0 + tiledUv.x * 0.4));
-    vec3 lavaGlow = mix(base.rgb, vec3(1.0, 0.52, 0.08), lavaMask * pulse);
-    vec3 emberGlow = vec3(1.0, 0.86, 0.32) * lavaMask * pulse * 0.35;
-
-    gl_FragColor = vec4(lavaGlow + emberGlow, 1.0);
-}
-`;
-
-const VOID_GROUND_FRAGMENT_SHADER = `
-uniform float uTime;
-uniform sampler2D uTexture;
-uniform vec2 uUvScale;
-
-varying vec2 vUv;
-
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-void main() {
-    vec2 tiledUv = vUv * uUvScale;
-    vec4 base = texture2D(uTexture, tiledUv);
-
-    vec2 starGrid = floor(tiledUv * 6.0);
-    float starId = hash(starGrid);
-    float twinkle = 0.35 + 0.65 * abs(sin(uTime * 2.0 + starId * 6.28318));
-    vec2 cellUv = fract(tiledUv * 6.0) - 0.5;
-    float starShape = 1.0 - smoothstep(0.0, 0.12, length(cellUv));
-    float starMask = step(0.985, starId);
-    float nebula = 0.5 + 0.5 * sin(tiledUv.x * 0.8 + tiledUv.y * 0.6 + uTime * 0.3);
-    vec3 starColor = mix(vec3(0.78, 0.58, 1.0), vec3(1.0, 1.0, 1.0), starId);
-
-    vec3 color = base.rgb;
-    color += vec3(0.18, 0.0, 0.35) * nebula * 0.35;
-    color += starColor * starMask * starShape * twinkle * 1.4;
-
-    gl_FragColor = vec4(color, 1.0);
-}
-`;
-
 const resolveThemeType = (themeId: number, aiConfig?: AiStageConfig | null): ThemeName => {
     if (aiConfig?.theme?.landmarkType) {
         return aiConfig.theme.landmarkType as ThemeName;
@@ -112,7 +47,6 @@ const resolveThemeType = (themeId: number, aiConfig?: AiStageConfig | null): The
 };
 
 export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId, mode = 'OVERWORLD', aiConfig }) => {
-    const animatedMaterialRef = useRef<THREE.ShaderMaterial>(null);
     const themeType = useMemo(() => resolveThemeType(themeId, aiConfig), [themeId, aiConfig]);
     const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
     const uvScale = useMemo(() => new THREE.Vector2(width / tileWorldSize, height / tileWorldSize), [width, height, tileWorldSize]);
@@ -283,19 +217,6 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
         return tex;
     }, [themeType, width, height, mode, uvScale]);
 
-    const shaderUniforms = useMemo(() => ({
-        uTime: { value: 0 },
-        uTexture: { value: texture },
-        uUvScale: { value: uvScale.clone() },
-    }), [texture, uvScale]);
-
-    useFrame((state) => {
-        if (animatedMaterialRef.current) {
-            animatedMaterialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
-        }
-    });
-
-    const usesAnimatedShader = themeType === 'VOLCANO' || themeType === 'VOID';
     const boxDepth = mode === 'BATTLE' ? 2.0 : 3.0;
     const sideColors = THEME_SIDE_COLORS[themeType] || THEME_SIDE_COLORS.FOREST;
 
@@ -304,62 +225,18 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
 
     // Box material order: +X, -X, +Y (top), -Y (bottom), +Z, -Z
     const topMaterial = useMemo(() => {
-        if (usesAnimatedShader) return null; // handled separately
         return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0.1 });
-    }, [texture, usesAnimatedShader]);
+    }, [texture]);
 
     const boxMaterials = useMemo(() => {
-        const top = topMaterial || sideMaterial; // fallback for animated shader
-        return [sideMaterial, sideMaterial, top, bottomMaterial, sideMaterial, sideMaterial];
+        return [sideMaterial, sideMaterial, topMaterial, bottomMaterial, sideMaterial, sideMaterial];
     }, [sideMaterial, bottomMaterial, topMaterial]);
 
     return (
         <group position={[0, -boxDepth / 2, 0]}>
-            {usesAnimatedShader ? (
-                <>
-                    {/* Top face with animated shader */}
-                    <mesh position={[0, boxDepth / 2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-                        <planeGeometry args={[width, height]} />
-                        <shaderMaterial
-                            key={themeType}
-                            ref={animatedMaterialRef}
-                            uniforms={shaderUniforms}
-                            vertexShader={PIXEL_GROUND_VERTEX_SHADER}
-                            fragmentShader={themeType === 'VOLCANO' ? VOLCANO_GROUND_FRAGMENT_SHADER : VOID_GROUND_FRAGMENT_SHADER}
-                        />
-                    </mesh>
-                    {/* Side walls */}
-                    {/* Front face (+Z) */}
-                    <mesh position={[0, 0, height / 2]}>
-                        <planeGeometry args={[width, boxDepth]} />
-                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
-                    </mesh>
-                    {/* Back face (-Z) */}
-                    <mesh position={[0, 0, -height / 2]} rotation={[0, Math.PI, 0]}>
-                        <planeGeometry args={[width, boxDepth]} />
-                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
-                    </mesh>
-                    {/* Right face (+X) */}
-                    <mesh position={[width / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-                        <planeGeometry args={[height, boxDepth]} />
-                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
-                    </mesh>
-                    {/* Left face (-X) */}
-                    <mesh position={[-width / 2, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-                        <planeGeometry args={[height, boxDepth]} />
-                        <meshStandardMaterial color={sideColors.side} roughness={0.95} />
-                    </mesh>
-                    {/* Bottom face */}
-                    <mesh position={[0, -boxDepth / 2, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                        <planeGeometry args={[width, height]} />
-                        <meshStandardMaterial color={sideColors.bottom} roughness={1.0} />
-                    </mesh>
-                </>
-            ) : (
-                <mesh receiveShadow material={boxMaterials}>
-                    <boxGeometry args={[width, boxDepth, height]} />
-                </mesh>
-            )}
+            <mesh receiveShadow material={boxMaterials}>
+                <boxGeometry args={[width, boxDepth, height]} />
+            </mesh>
         </group>
     );
 };

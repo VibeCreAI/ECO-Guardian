@@ -62,7 +62,7 @@ const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }
   HELL: { sky: '#f87171', ground: '#450a0a' },
 };
 
-const PORTRAIT_CAMERA_BOOST = 32;
+const PORTRAIT_CAMERA_BOOST = 14;
 const PORTRAIT_ZOOM_RANGE_SCALE = 1.45;
 
 const CLOUD_CONFIGS = [
@@ -328,7 +328,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         portraitBoost = (1.0 - aspect) * PORTRAIT_CAMERA_BOOST;
         effectiveZoom = THREE.MathUtils.clamp(
           1 + ((zoomCurrent.current - 1) * PORTRAIT_ZOOM_RANGE_SCALE),
-          0.4,
+          0.25,
           2.4
         );
     }

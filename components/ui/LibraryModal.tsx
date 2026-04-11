@@ -45,7 +45,7 @@ export const LibraryModal: React.FC = () => {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-900/50">
                     
                     {tab === 'TREE' && (
                         <div className="space-y-8">
@@ -65,37 +65,37 @@ export const LibraryModal: React.FC = () => {
                                     const hasRes = !!playerStats.unlockedWeapons[res.key];
 
                                     return (
-                                        <div key={idx} className={`bg-slate-800 border-2 ${hasRes ? 'border-purple-400 bg-purple-900/10' : 'border-gray-700'} p-4 rounded-lg flex items-center justify-between group hover:border-blue-400 transition-all duration-300 relative overflow-hidden shadow-lg`}>
+                                        <div key={idx} className={`bg-slate-800 border-2 ${hasRes ? 'border-purple-400 bg-purple-900/10' : 'border-gray-700'} p-3 sm:p-4 rounded-lg flex items-center justify-between group hover:border-blue-400 transition-all duration-300 relative overflow-hidden shadow-lg min-w-0`}>
                                             {hasRes && <div className="absolute top-0 right-0 bg-purple-500 text-white text-[8px] font-bold px-4 py-1 rotate-45 translate-x-3 -translate-y-1">UNLOCKED</div>}
-                                            
+
                                             {/* Ingredients */}
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <div className={`w-14 h-14 bg-black/40 rounded flex items-center justify-center text-3xl border ${hasW1 ? 'border-green-400' : 'border-gray-600 opacity-50'}`}>
+                                            <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                                                <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 bg-black/40 rounded flex items-center justify-center text-2xl sm:text-3xl border shrink-0 ${hasW1 ? 'border-green-400' : 'border-gray-600 opacity-50'}`}>
                                                         {w1.icon}
                                                     </div>
-                                                    <div className="text-[10px] text-gray-400 font-bold">{w1.label}</div>
+                                                    <div className="text-[9px] sm:text-[10px] text-gray-400 font-bold text-center leading-tight">{w1.label}</div>
                                                 </div>
-                                                <div className="text-blue-500 font-black text-xl">+</div>
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <div className={`w-14 h-14 bg-black/40 rounded flex items-center justify-center text-3xl border ${hasW2 ? 'border-green-400' : 'border-gray-600 opacity-50'}`}>
+                                                <div className="text-blue-500 font-black text-base sm:text-xl shrink-0">+</div>
+                                                <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 bg-black/40 rounded flex items-center justify-center text-2xl sm:text-3xl border shrink-0 ${hasW2 ? 'border-green-400' : 'border-gray-600 opacity-50'}`}>
                                                         {w2.icon}
                                                     </div>
-                                                    <div className="text-[10px] text-gray-400 font-bold">{w2.label}</div>
+                                                    <div className="text-[9px] sm:text-[10px] text-gray-400 font-bold text-center leading-tight">{w2.label}</div>
                                                 </div>
                                             </div>
 
                                             {/* Evolution Flow */}
-                                            <div className="flex flex-col items-center px-2">
-                                                <div className="text-blue-400 text-2xl animate-pulse">➜</div>
+                                            <div className="flex flex-col items-center px-1 sm:px-2 shrink-0">
+                                                <div className="text-blue-400 text-xl sm:text-2xl animate-pulse">➜</div>
                                             </div>
 
                                             {/* Result */}
-                                            <div className="flex flex-col items-center gap-1">
-                                                <div className={`w-16 h-16 bg-purple-900/40 rounded border-2 ${hasRes ? 'border-purple-400' : 'border-purple-900/30'} flex items-center justify-center text-4xl shadow-[0_0_15px_rgba(168,85,247,0.3)]`}>
+                                            <div className="flex flex-col items-center gap-1 min-w-0 flex-1">
+                                                <div className={`w-12 h-12 sm:w-16 sm:h-16 bg-purple-900/40 rounded border-2 ${hasRes ? 'border-purple-400' : 'border-purple-900/30'} flex items-center justify-center text-3xl sm:text-4xl shadow-[0_0_15px_rgba(168,85,247,0.3)] shrink-0`}>
                                                     {res.icon}
                                                 </div>
-                                                <div className="text-[11px] text-purple-300 font-black text-center">{res.label}</div>
+                                                <div className="text-[10px] sm:text-[11px] text-purple-300 font-black text-center leading-tight">{res.label}</div>
                                             </div>
                                         </div>
                                     );
