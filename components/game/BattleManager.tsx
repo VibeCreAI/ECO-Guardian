@@ -317,12 +317,10 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const spawnBoss = () => {
      bossSpawned.current = true;
      
-     // Difficulty Scaling Logic
-     let growth = 1.7; // Medium
-     if (playerStats.quizDifficulty === 'EASY') growth = 1.6;
-     if (playerStats.quizDifficulty === 'HARD') growth = 1.8;
-
-     let hp = Math.floor(6000 * Math.pow(growth, activeStage - 1));
+     // Boss HP per stage (stage 1–10)
+     const BOSS_HP_TABLE = [4000, 8000, 16000, 32000, 62000, 100000, 200000, 400000, 800000, 1600000];
+     const stageIndex = Math.min(Math.max(activeStage - 1, 0), BOSS_HP_TABLE.length - 1);
+     let hp = BOSS_HP_TABLE[stageIndex];
      
      let damage = 25 + (activeStage * 5);
      const variant = aiConfig?.boss?.visualVariant || (activeStage % 2 === 0 ? "CRYPT" : "FOREST");
