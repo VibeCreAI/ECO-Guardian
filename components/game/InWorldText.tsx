@@ -31,6 +31,76 @@ const applyMaterialOpacity = (material: THREE.MeshBasicMaterial | null, opacity:
   material.depthWrite = false;
 };
 
+interface GroundTextPanelProps {
+  width: number;
+  height: number;
+  opacity?: number;
+  bgColor?: string;
+  borderColor?: string;
+  accentColor?: string;
+  materialRef?: React.Ref<THREE.MeshBasicMaterial>;
+}
+
+const GroundTextPanel: React.FC<GroundTextPanelProps> = ({
+  width,
+  height,
+  opacity = 0.34,
+  bgColor = '#082012',
+  borderColor = '#020805',
+  accentColor = '#4ade80',
+  materialRef,
+}) => {
+  const edge = 0.08;
+  const corner = 0.26;
+  const halfW = width / 2;
+  const halfH = height / 2;
+
+  return (
+    <>
+      <mesh position={[0, 0, -0.03]} renderOrder={0}>
+        <planeGeometry args={[width, height]} />
+        <meshBasicMaterial
+          ref={materialRef}
+          color={bgColor}
+          transparent
+          opacity={opacity}
+          toneMapped={false}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <mesh position={[0, halfH - edge / 2, -0.015]} renderOrder={1}>
+        <planeGeometry args={[width, edge]} />
+        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, -halfH + edge / 2, -0.015]} renderOrder={1}>
+        <planeGeometry args={[width, edge]} />
+        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[-halfW + edge / 2, 0, -0.015]} renderOrder={1}>
+        <planeGeometry args={[edge, height]} />
+        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[halfW - edge / 2, 0, -0.015]} renderOrder={1}>
+        <planeGeometry args={[edge, height]} />
+        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+      </mesh>
+
+      {[
+        [-halfW + corner / 2, halfH - corner / 2, -0.005],
+        [halfW - corner / 2, halfH - corner / 2, -0.005],
+        [-halfW + corner / 2, -halfH + corner / 2, -0.005],
+        [halfW - corner / 2, -halfH + corner / 2, -0.005],
+      ].map((position, idx) => (
+        <mesh key={idx} position={position as [number, number, number]} renderOrder={2}>
+          <planeGeometry args={[corner, corner]} />
+          <meshBasicMaterial color={accentColor} transparent opacity={0.72} toneMapped={false} depthWrite={false} />
+        </mesh>
+      ))}
+    </>
+  );
+};
+
 export const InWorldText: React.FC<InWorldTextProps> = ({
   landmarkPos,
   portalCenterPos,
@@ -90,7 +160,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       const pulse = 0.84 + Math.sin(state.clock.elapsedTime * 3.2) * 0.12;
       applyTextOpacity(quizHeaderRef.current, pulse);
       applyTextOpacity(quizQuestionRef.current, pulse);
-      applyMaterialOpacity(quizBgRef.current, 0.54 + Math.sin(state.clock.elapsedTime * 2.4) * 0.06);
+      applyMaterialOpacity(quizBgRef.current, 0.3 + Math.sin(state.clock.elapsedTime * 2.4) * 0.04);
     }
   });
 
@@ -98,23 +168,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
     <>
       {stageConfig && (
         <group position={narrativePosition} rotation={[-Math.PI / 2, 0, 0]}>
-          <mesh position={[0, 0, -0.02]} renderOrder={0}>
-            <planeGeometry args={[14, 5]} />
-            <meshBasicMaterial
-              ref={narrativeBgRef}
-              color="#020617"
-              transparent
-              opacity={0.55}
-              toneMapped={false}
-              depthWrite={false}
-            />
-          </mesh>
+          <GroundTextPanel width={14} height={5} materialRef={narrativeBgRef} opacity={0.32} />
 
           <Text
             ref={narrativeTitleRef}
             font={kenpixelFontUrl}
             fontSize={0.7}
-            color="#4ade80"
+            color="#a3ff12"
             position={[0, 1.2, 0.01]}
             anchorX="center"
             anchorY="middle"
@@ -130,7 +190,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
             ref={narrativeBodyRef}
             font={kenpixelFontUrl}
             fontSize={0.35}
-            color="#f8fafc"
+            color="#d8ffd0"
             position={[0, -0.4, 0.01]}
             anchorX="center"
             anchorY="middle"
@@ -147,23 +207,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
 
       {quizVisible && stageConfig?.quiz && (
         <group position={quizPosition} rotation={[-Math.PI / 2, 0, 0]}>
-          <mesh position={[0, 0, -0.02]} renderOrder={0}>
-            <planeGeometry args={[12, 3.6]} />
-            <meshBasicMaterial
-              ref={quizBgRef}
-              color="#020617"
-              transparent
-              opacity={0.54}
-              toneMapped={false}
-              depthWrite={false}
-            />
-          </mesh>
+          <GroundTextPanel width={12} height={3.6} materialRef={quizBgRef} opacity={0.3} />
 
           <Text
             ref={quizHeaderRef}
             font={kenpixelFontUrl}
             fontSize={0.35}
-            color="#4ade80"
+            color="#a3ff12"
             position={[0, 1.0, 0.01]}
             anchorX="center"
             anchorY="middle"
@@ -196,16 +246,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
 
       {hasBossPortal && bossTextPos && stageConfig?.boss && (
         <group position={bossTextPos} rotation={[-Math.PI / 2, 0, 0]}>
-          <mesh position={[0, 0, -0.02]} renderOrder={0}>
-            <planeGeometry args={[12, 3.4]} />
-            <meshBasicMaterial
-              color="#1c0a0a"
-              transparent
-              opacity={0.6}
-              toneMapped={false}
-              depthWrite={false}
-            />
-          </mesh>
+          <GroundTextPanel
+            width={12}
+            height={3.4}
+            bgColor="#240d0d"
+            accentColor="#ef4444"
+            opacity={0.34}
+          />
 
           <Text
             font={kenpixelFontUrl}
@@ -241,21 +288,12 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       )}
 
       <group position={shopTextPos} rotation={[-Math.PI / 2, 0, 0]}>
-        <mesh position={[0, 0, -0.02]} renderOrder={0}>
-          <planeGeometry args={[10, 3]} />
-          <meshBasicMaterial
-            color="#020617"
-            transparent
-            opacity={0.5}
-            toneMapped={false}
-            depthWrite={false}
-          />
-        </mesh>
+        <GroundTextPanel width={10} height={3} opacity={0.28} />
 
         <Text
           font={kenpixelFontUrl}
           fontSize={0.55}
-          color="#34d399"
+          color="#a3ff12"
           position={[0, 0.65, 0.01]}
           anchorX="center"
           anchorY="middle"
@@ -270,7 +308,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
         <Text
           font={kenpixelFontUrl}
           fontSize={0.26}
-          color="#cbd5e1"
+          color="#d8ffd0"
           position={[0, -0.3, 0.01]}
           anchorX="center"
           anchorY="middle"
