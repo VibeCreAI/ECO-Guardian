@@ -1485,9 +1485,20 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       </div>
 
       {!isMobile && (
-        <div className="absolute bottom-24 left-1 ui-chip ui-guide-chip px-1 py-0.5 text-[7px] leading-[1.15] text-left pointer-events-none z-50">
-          WASD or Arrows to Move<br/>
-          {(mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) ? 'SPACE or Click Dash to Burst' : ''}
+        <div className="absolute bottom-24 left-1 ui-chip ui-guide-chip px-1 py-0.5 text-[9px] leading-[1.15] text-left pointer-events-none z-50">
+          WASD or Arrows to Move
+          {(mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) && (
+            <>
+              <br />
+              SPACE or Click Dash to Burst
+            </>
+          )}
+          {mode === GameMode.OVERWORLD && (
+            <>
+              <br />
+              Choose a Portal to Battle
+            </>
+          )}
         </div>
       )}
     </div>
