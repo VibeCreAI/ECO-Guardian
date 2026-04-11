@@ -5,7 +5,7 @@ import { Preload } from '@react-three/drei';
 import { UIOverlay } from './components/ui/UIOverlay';
 import { Scene } from './components/game/Scene';
 import { AudioManager } from './components/game/AudioManager';
-import { Vector2 } from './types';
+import { GameMode, Vector2 } from './types';
 import { useGameStore } from './store/gameStore';
 
 const App: React.FC = () => {
@@ -77,6 +77,15 @@ const App: React.FC = () => {
     dashTrigger.current = true;
   };
 
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+
+    const { mode, battleWon } = useGameStore.getState();
+    if ((mode === GameMode.OVERWORLD || mode === GameMode.BATTLE) && !battleWon) {
+      dashTrigger.current = true;
+    }
+  };
+
   return (
     <div
       className="relative bg-neutral-900 overflow-hidden pixel-art"
@@ -84,12 +93,14 @@ const App: React.FC = () => {
     >
       <AudioManager />
       {/* Performance Optimization: Removed shadows={true} */}
-      <Canvas camera={{ position: [0, 10, 10], fov: 45 }}>
-        <Suspense fallback={null}>
-          <Scene inputVector={inputVector} dashTrigger={dashTrigger} />
-          <Preload all />
-        </Suspense>
-      </Canvas>
+      <div className="absolute inset-0" onPointerDown={handleCanvasPointerDown}>
+        <Canvas camera={{ position: [0, 10, 10], fov: 45 }}>
+          <Suspense fallback={null}>
+            <Scene inputVector={inputVector} dashTrigger={dashTrigger} />
+            <Preload all />
+          </Suspense>
+        </Canvas>
+      </div>
       
       <UIOverlay
         inputVector={inputVector}

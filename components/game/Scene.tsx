@@ -62,6 +62,9 @@ const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }
   HELL: { sky: '#f87171', ground: '#450a0a' },
 };
 
+const PORTRAIT_CAMERA_BOOST = 32;
+const PORTRAIT_ZOOM_RANGE_SCALE = 1.45;
+
 const CLOUD_CONFIGS = [
   { x: -28, y: 9.8, z: -36, drift: 0.55, scale: 1.2, seed: 101, segments: 22, bounds: [7.2, 1.9, 1.5] as [number, number, number], volume: 1.95, opacity: 0.52 },
   { x:   8, y: 10.2, z: -32, drift: 0.45, scale: 1.35, seed: 203, segments: 24, bounds: [7.8, 2.0, 1.6] as [number, number, number], volume: 2.05, opacity: 0.5 },
@@ -318,15 +321,20 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       fogRef.current.far  = 45 * zoomCurrent.current;
     }
 
-    let camY = 18 * zoomCurrent.current;
-    let camZ = 16 * zoomCurrent.current;
+    let portraitBoost = 0;
+    let effectiveZoom = zoomCurrent.current;
 
-    // Portrait Adjustment (further to fix "too zoomed in")
     if (aspect < 1.0) {
-        const boost = (1.0 - aspect) * 32;
-        camY += boost;
-        camZ += boost;
+        portraitBoost = (1.0 - aspect) * PORTRAIT_CAMERA_BOOST;
+        effectiveZoom = THREE.MathUtils.clamp(
+          1 + ((zoomCurrent.current - 1) * PORTRAIT_ZOOM_RANGE_SCALE),
+          0.4,
+          2.4
+        );
     }
+
+    const camY = (18 * effectiveZoom) + portraitBoost;
+    const camZ = (16 * effectiveZoom) + portraitBoost;
 
     _camTarget.current.set(playerRef.current.position.x, playerRef.current.position.y + camY, playerRef.current.position.z + camZ);
     camera.position.lerp(_camTarget.current, 4 * delta);
