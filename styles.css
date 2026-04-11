@@ -282,6 +282,29 @@ input {
   color: #516151;
 }
 
+.ui-slot-passive {
+  background: #0d3440;
+  border-color: var(--eco-cyan);
+  box-shadow: 3px 3px 0 0 var(--eco-line);
+}
+
+.ui-slot-level {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  background: rgba(5, 8, 5, 0.92);
+  border: 1px solid rgba(216, 255, 208, 0.65);
+  color: var(--eco-white);
+  line-height: 1;
+  padding: 1px 3px;
+  pointer-events: none;
+}
+
+.ui-slot-level-passive {
+  color: var(--eco-cyan);
+  border: none;
+}
+
 .ui-progress {
   background: var(--eco-ink);
   border: 3px solid var(--eco-line);

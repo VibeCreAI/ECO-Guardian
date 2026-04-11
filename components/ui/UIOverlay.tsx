@@ -623,9 +623,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                                 const data = PASSIVES_DATA[key];
                                 if(!data) return null;
                                 return (
-                                    <div key={key} className="w-8 h-8 ui-slot flex items-center justify-center relative group">
+                                    <div key={key} className="w-8 h-8 ui-slot ui-slot-passive flex items-center justify-center relative group">
                                         <span className="text-sm">{data.icon}</span>
-                                        <div className="absolute -bottom-1 -right-1 ui-chip ui-chip-cyan text-[7px] px-1">Lv.{level as number}</div>
+                                        <div className="ui-slot-level ui-slot-level-passive text-[7px]">Lv.{level as number}</div>
                                     </div>
                                 )
                             })}
@@ -1352,11 +1352,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
           <div className="flex gap-1 flex-wrap">
             {passiveSlotsUI.map(([key, level]) => (
-               <div key={key} className="w-8 h-8 ui-slot flex items-center justify-center text-white relative" title={key}>
+               <div key={key} className="w-8 h-8 ui-slot ui-slot-passive flex items-center justify-center text-white relative" title={key}>
                   <div className="text-sm">
                     {PASSIVES_DATA[key]?.icon || '❓'}
                   </div>
-                  <span className="absolute -bottom-1 -right-1 text-[8px] ui-chip ui-chip-cyan px-1">{level as number}</span>
+                  <span className="ui-slot-level ui-slot-level-passive text-[8px]">{level as number}</span>
                </div>
             ))}
           </div>

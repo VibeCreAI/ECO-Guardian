@@ -442,7 +442,7 @@ export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, s
         let activeTex = idleTex;
         if (action === 'RUN') { if (viewDirection === 'UP') activeTex = walkNorthTex; else if (viewDirection === 'DOWN') activeTex = walkSouthTex; else if (viewDirection === 'SIDE') { if (facing === 1) activeTex = walkEastTex; else activeTex = walkWestTex; } }
         if (matRef.current.map !== activeTex) { matRef.current.map = activeTex; matRef.current.needsUpdate = true; }
-        const fps = 8; const t = clock.elapsedTime; const totalFrames = 16; const frame = Math.floor(t * fps) % totalFrames;
+        const fps = 10; const t = clock.elapsedTime; const totalFrames = 16; const frame = Math.floor(t * fps) % totalFrames;
         if (activeTex) { const col = frame % 4; const row = Math.floor(frame / 4); activeTex.offset.x = col * 0.25; activeTex.offset.y = 0.75 - (row * 0.25); }
         if (isHit) { matRef.current.color.setHex(0xff0000); matRef.current.emissive.setHex(0xff0000); matRef.current.emissiveIntensity = 0.5; } else { matRef.current.color.setHex(0xffffff); matRef.current.emissive.setHex(0x000000); matRef.current.emissiveIntensity = 0; }
     });
