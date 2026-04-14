@@ -200,7 +200,7 @@ const getPropScale = (type: string) => {
 
 export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
-  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed, cameraZoom, setCameraZoom } = useGameStore();
+  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed, cameraZoom, setCameraZoom, isPortalEntry, portalRefUrl } = useGameStore();
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   const { camera, gl } = useThree();
   const [facing, setFacing] = useState(1);
@@ -219,6 +219,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const fogRef = useRef<THREE.Fog>(null);
   const _camTarget = useRef(new THREE.Vector3());
   const _portalVec = useRef(new THREE.Vector3());
+  const _vjNextVec = useRef(new THREE.Vector3(-13, 0, -5));
+  const _vjReturnVec = useRef(new THREE.Vector3(-25, 0, -5));
+  const portalGraceTimer = useRef(5.0); // 5-second grace period after portal entry
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
   const landmarkType = React.useMemo(() => getLandmarkType(activeStage, aiConfig), [activeStage, aiConfig]);
@@ -234,6 +237,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   
   const LANDMARK_POS = { x: 0, z: -10 };
   const SHOP_POS = { x: 15, z: -5 };
+  const VIBEJAM_NEXT_POS = { x: -13, z: -5 };   // VibeJam exit portal — always present
+  const VIBEJAM_RETURN_POS = { x: -25, z: -5 };  // VibeJam return portal — portal entry only
 
   const props = React.useMemo(() => {
     let possibleTypes: string[] = ['TREE', 'STONE', 'MUSHROOM']; 
@@ -241,6 +246,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     else { if (themeId === 2) possibleTypes = ['GRAVE', 'RUIN', 'STONE']; else if (themeId === 3) possibleTypes = ['SNOW_TREE', 'CRYSTAL', 'STONE']; else if (themeId === 4) possibleTypes = ['MAGMA_ROCK', 'LAVA_PILLAR']; else if (themeId === 5) possibleTypes = ['CACTUS', 'PALM', 'STONE']; else if (themeId === 6) possibleTypes = ['SWAMP_TREE', 'VINE', 'MUSHROOM']; else if (themeId === 7) possibleTypes = ['SERVER', 'NEON_SIGN']; else if (themeId === 8) possibleTypes = ['VOID_ROCK', 'STAR_PILLAR']; else if (themeId === 9) possibleTypes = ['CLOUD_PILLAR', 'GOLD_GATE']; else if (themeId === 10) possibleTypes = ['SPIKE_ROCK', 'LAVA_PILLAR']; }
     const items = []; for(let i=0; i<150; i++) { const type = possibleTypes[Math.floor(Math.random() * possibleTypes.length)]; const x = (Math.random() - 0.5) * 54; const z = (Math.random() - 0.5) * 54; const dist = Math.sqrt(x*x + z*z); if (z > -16 && z < 1 && x > -8 && x < 8) continue; if (z > 1 && z < 18 && x > -12 && x < 12) continue;
     const distToShop = Math.sqrt((x - SHOP_POS.x)**2 + (z - SHOP_POS.z)**2); if (distToShop < 8) continue;
+    const distToVJNext = Math.sqrt((x - VIBEJAM_NEXT_POS.x)**2 + (z - VIBEJAM_NEXT_POS.z)**2); if (distToVJNext < 6) continue;
+    const distToVJReturn = Math.sqrt((x - VIBEJAM_RETURN_POS.x)**2 + (z - VIBEJAM_RETURN_POS.z)**2); if (distToVJReturn < 6) continue;
     if (dist < 6) continue; items.push({ id: i, type, x, z }); }
     return items;
   }, [themeId, aiConfig]);
@@ -252,6 +259,11 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     }
     prevModeRef.current = mode;
   }, [mode]);
+
+  // Reset VibeJam portal grace timer whenever a portal entry session starts
+  useEffect(() => {
+    if (isPortalEntry) { portalGraceTimer.current = 5.0; }
+  }, [isPortalEntry]);
 
   useFrame((state, delta) => {
     if (showOverworldScene && !isOverworldSceneReady) {
@@ -307,6 +319,28 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
         if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) { for (const portal of portals) { _portalVec.current.set(portal.x, 0, portal.z); if (playerRef.current.position.distanceTo(_portalVec.current) < 1.5) { if (!isGenerating) { enterBattle(portal); } break; } } }
+
+        // VibeJam portal grace period countdown
+        if (isPortalEntry && portalGraceTimer.current > 0) { portalGraceTimer.current -= delta; }
+        const vjGraceActive = isPortalEntry && portalGraceTimer.current > 0;
+
+        // VibeJam Next portal (green) — always present, sends player to vibej.am webring
+        if (mode === GameMode.OVERWORLD && !vjGraceActive && playerRef.current.position.distanceTo(_vjNextVec.current) < 1.5) {
+          const params = new URLSearchParams();
+          params.set('portal', 'true');
+          params.set('ref', window.location.hostname);
+          const stats = useGameStore.getState().playerStats;
+          params.set('hp', String(Math.round(stats.hp)));
+          window.location.href = `https://vibej.am/portal/2026?${params.toString()}`;
+        }
+
+        // VibeJam Return portal (red) — only when player entered via ?portal=true
+        if (mode === GameMode.OVERWORLD && isPortalEntry && portalRefUrl && !vjGraceActive && playerRef.current.position.distanceTo(_vjReturnVec.current) < 1.5) {
+          const params = new URLSearchParams();
+          params.set('portal', 'true');
+          params.set('ref', window.location.hostname);
+          window.location.href = `${portalRefUrl}?${params.toString()}`;
+        }
     } else { setIsMoving(false); }
     const currentStats = useGameStore.getState().playerStats; if (currentStats.lastDamageTime > lastProcessedDamageTime.current) { shakeIntensity.current = 2.5; lastProcessedDamageTime.current = currentStats.lastDamageTime; }
     
@@ -449,6 +483,12 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             <PixelGround width={64} height={64} themeId={themeId} mode="OVERWORLD" aiConfig={aiConfig} />
             <VoxelLandmark type={landmarkType} position={[LANDMARK_POS.x, 0, LANDMARK_POS.z]} />
             <VoxelShop position={[SHOP_POS.x, 0, SHOP_POS.z]} />
+            {/* VibeJam Next portal — always present, sends player to the VibeJam webring */}
+            <VoxelPortal position={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]} color="#22d3ee" tintStructure isBoss={false} label="Vibe" />
+            {/* VibeJam Return portal — only when player arrived via ?portal=true */}
+            {isPortalEntry && portalRefUrl && (
+              <VoxelPortal position={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]} color="#fb923c" innerColor="#a78bfa" tintStructure isBoss={false} label="Return" />
+            )}
             {props.map((p) => {
                 const s = getPropScale(p.type);
                 return <PropSprite key={p.id} position={[p.x, s * 0.5, p.z]} type={p.type as any} scale={s} />;
@@ -467,6 +507,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
               }}
               hasBossPortal={portals.some(p => p.type === 'BOSS')}
               bossPortalPos={(() => { const bp = portals.find(p => p.type === 'BOSS'); return bp ? [bp.x, 0, bp.z] as [number, number, number] : null; })()}
+              vibeJamNextPos={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]}
+              isPortalEntry={isPortalEntry}
+              vibeJamReturnPos={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]}
             />
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}
           </group>

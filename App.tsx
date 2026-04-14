@@ -15,14 +15,24 @@ const App: React.FC = () => {
   
   const [isMobile, setIsMobile] = useState(false);
 
+  // VibeJam portal entry detection — must run before any other init
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('portal') === 'true') {
+      const ref = params.get('ref');
+      const refUrl = ref ? (ref.startsWith('http') ? ref : `https://${ref}`) : null;
+      useGameStore.getState().preloadGameFromPortal(refUrl);
+    }
+  }, []);
+
   // Platform detection
   useEffect(() => {
     const checkMobile = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       // Robust mobile detection
-      return /android|ipad|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && /Macintosh/i.test(userAgent) === false); 
+      return /android|ipad|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && /Macintosh/i.test(userAgent) === false);
     };
-    
+
     setIsMobile(checkMobile());
   }, []);
 

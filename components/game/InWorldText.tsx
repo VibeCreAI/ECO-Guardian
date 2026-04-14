@@ -15,6 +15,9 @@ interface InWorldTextProps {
   onNarrativeDone: () => void;
   hasBossPortal: boolean;
   bossPortalPos: [number, number, number] | null;
+  vibeJamNextPos: [number, number, number];
+  isPortalEntry: boolean;
+  vibeJamReturnPos: [number, number, number];
 }
 
 const applyTextOpacity = (text: any, opacity: number) => {
@@ -111,6 +114,9 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   hasBossPortal,
   shopPos,
   bossPortalPos,
+  vibeJamNextPos,
+  isPortalEntry,
+  vibeJamReturnPos,
 }) => {
   const narrativeDoneRef = useRef(false);
 
@@ -140,6 +146,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   const bossTextPos = useMemo<[number, number, number] | null>(
     () => bossPortalPos ? [bossPortalPos[0], 0.08, bossPortalPos[2] + 5] : null,
     [bossPortalPos],
+  );
+
+  const vibeJamNextTextPos = useMemo<[number, number, number]>(
+    () => [vibeJamNextPos[0], 0.08, vibeJamNextPos[2] + 4.5],
+    [vibeJamNextPos],
+  );
+
+  const vibeJamReturnTextPos = useMemo<[number, number, number]>(
+    () => [vibeJamReturnPos[0], 0.08, vibeJamReturnPos[2] + 4.5],
+    [vibeJamReturnPos],
   );
 
   const quizVisible = Boolean((showNarrative || narrativeDismissed) && stageConfig?.quiz?.question && !hasBossPortal);
@@ -321,6 +337,94 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
           Spend carbon to upgrade weapons and unlock eco-abilities
         </Text>
       </group>
+
+      {/* ── VibeJam Next Portal ground label ── */}
+      <group position={vibeJamNextTextPos} rotation={[-Math.PI / 2, 0, 0]}>
+        <GroundTextPanel
+          width={11}
+          height={3.2}
+          bgColor="#0d1f1f"
+          borderColor="#050f0f"
+          accentColor="#22d3ee"
+          opacity={0.32}
+        />
+
+        <Text
+          font={kenpixelFontUrl}
+          fontSize={0.52}
+          color="#22d3ee"
+          position={[0, 0.65, 0.01]}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={9}
+          textAlign="center"
+          outlineWidth={0.04}
+          outlineColor="#000000"
+        >
+          VIBE JAM PORTAL
+        </Text>
+
+        <Text
+          font={kenpixelFontUrl}
+          fontSize={0.26}
+          color="#a5f3fc"
+          position={[0, -0.3, 0.01]}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={9.5}
+          textAlign="center"
+          lineHeight={1.4}
+          outlineWidth={0.03}
+          outlineColor="#000000"
+        >
+          Travel to other worlds in the VibeJam universe
+        </Text>
+      </group>
+
+      {/* ── VibeJam Return Portal ground label (portal entry only) ── */}
+      {isPortalEntry && (
+        <group position={vibeJamReturnTextPos} rotation={[-Math.PI / 2, 0, 0]}>
+          <GroundTextPanel
+            width={11}
+            height={3.2}
+            bgColor="#1f0d0d"
+            borderColor="#0f0505"
+            accentColor="#fb923c"
+            opacity={0.32}
+          />
+
+          <Text
+            font={kenpixelFontUrl}
+            fontSize={0.52}
+            color="#fb923c"
+            position={[0, 0.65, 0.01]}
+            anchorX="center"
+            anchorY="middle"
+            maxWidth={9}
+            textAlign="center"
+            outlineWidth={0.04}
+            outlineColor="#000000"
+          >
+            RETURN PORTAL
+          </Text>
+
+          <Text
+            font={kenpixelFontUrl}
+            fontSize={0.26}
+            color="#fde68a"
+            position={[0, -0.3, 0.01]}
+            anchorX="center"
+            anchorY="middle"
+            maxWidth={9.5}
+            textAlign="center"
+            lineHeight={1.4}
+            outlineWidth={0.03}
+            outlineColor="#000000"
+          >
+            Return to the world you came from
+          </Text>
+        </group>
+      )}
     </>
   );
 };

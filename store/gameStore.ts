@@ -75,6 +75,9 @@ interface GameState {
   isMuted: boolean; // New state for audio control
   cameraZoom: number;
 
+  isPortalEntry: boolean;
+  portalRefUrl: string | null;
+
   setMode: (mode: GameMode) => void;
   togglePause: () => void; 
   toggleMute: () => void; // New action
@@ -121,9 +124,10 @@ interface GameState {
   dismissQuizResult: () => void;
   completeStage: () => void;
   
-  preloadGame: (difficulty: QuizDifficulty) => void; 
-  startGame: () => void;   
-  setHighlightedPortal: (id: string | null) => void; 
+  preloadGame: (difficulty: QuizDifficulty) => void;
+  preloadGameFromPortal: (refUrl: string | null) => void;
+  startGame: () => void;
+  setHighlightedPortal: (id: string | null) => void;
 }
 
 const loadMetaStats = () => {
@@ -518,6 +522,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   isMuted: false,
   cameraZoom: 1.0,
 
+  isPortalEntry: false,
+  portalRefUrl: null,
+
   setMode: (mode) => set((state) => ({ mode, previousMode: state.mode })),
   
   togglePause: () => set((state) => {
@@ -577,6 +584,59 @@ export const useGameStore = create<GameState>((set, get) => ({
           lastGameplayMode: GameMode.OVERWORLD,
           highlightedPortalId: null,
           cameraZoom: 1.0
+      });
+
+      useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
+          set((state) => {
+              const baseUpdate = {
+                  isStageReady: true,
+                  isOverworldSceneReady: false,
+                  portals: generatePortals(1),
+                  activeStage: 1,
+              };
+              if (state.mode === GameMode.LOADING_LEVEL) {
+                  return { ...baseUpdate, mode: GameMode.OVERWORLD };
+              }
+              return baseUpdate;
+          });
+      });
+  },
+
+  preloadGameFromPortal: (refUrl) => {
+      // Same as preloadGame('MEDIUM') but marks this session as a portal entry
+      // so the in-game VibeJam portals render correctly and the grace period applies.
+      const freshStats = getInitialStats(false);
+      freshStats.quizDifficulty = 'MEDIUM';
+      localStorage.removeItem(SAVE_KEY);
+      useAiDirectorStore.getState().resetQuizHistory();
+
+      set({
+          mode: GameMode.INSTRUCTIONS,
+          isStageReady: false,
+          isOverworldSceneReady: false,
+          playerStats: freshStats,
+          activeStage: 1,
+          portals: [],
+          worldPosition: { x: 0, z: 0 },
+          savedOverworldPosition: { x: 0, z: 0 },
+          battleWon: false,
+          bossStats: null,
+          bossNarrativeOpen: false,
+          dashCooldownCurrent: 0,
+          levelUpOptions: [],
+          queuedLevelUp: false,
+          shopOptions: generateShopOptions(freshStats),
+          chestReward: null,
+          quizResult: null,
+          isQuizOpen: false,
+          isImpactOpen: false,
+          showNarrative: false,
+          narrativeDismissed: false,
+          lastGameplayMode: GameMode.OVERWORLD,
+          highlightedPortalId: null,
+          cameraZoom: 1.0,
+          isPortalEntry: true,
+          portalRefUrl: refUrl,
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
