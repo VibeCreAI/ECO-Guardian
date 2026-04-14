@@ -7,6 +7,27 @@ export const SHOP_REFRESH_COST = 50;
 export const CAMERA_ZOOM_MIN = 0.5;
 export const CAMERA_ZOOM_MAX = 2.0;
 const SAVE_KEY = 'pixel_realm_save_v1';
+const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
+
+const loadPendingScores = (): HighScore[] => {
+  try {
+    const saved = localStorage.getItem(PENDING_SCORES_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) { return []; }
+};
+
+const savePendingScores = (scores: HighScore[]) => {
+  try {
+    localStorage.setItem(PENDING_SCORES_KEY, JSON.stringify(scores));
+  } catch (e) { /* storage full — silently skip */ }
+};
+
+const removePendingScore = (score: HighScore) => {
+  const pending = loadPendingScores().filter(
+    s => !(s.name === score.name && s.date === score.date)
+  );
+  savePendingScores(pending);
+};
 
 const clampCameraZoom = (value: number) =>
   Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, value));
@@ -886,7 +907,23 @@ export const useGameStore = create<GameState>((set, get) => ({
   fetchLeaderboard: async () => {
     // Check status first to update UI
     await get().checkDbStatus();
-    
+
+    // Flush any locally-queued scores that failed to submit while offline
+    const pending = loadPendingScores();
+    for (const score of pending) {
+      try {
+        const res = await fetch('/api/leaderboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(score)
+        });
+        if (res.ok) removePendingScore(score);
+      } catch (e) {
+        // Still offline — stop trying, leave remaining scores queued
+        break;
+      }
+    }
+
     try {
       const response = await fetch(`/api/leaderboard?_t=${Date.now()}`);
       if (response.ok) {
@@ -905,24 +942,34 @@ export const useGameStore = create<GameState>((set, get) => ({
           stage: state.activeStage,
           kills: state.playerStats.enemiesKilled,
           damage: state.playerStats.totalDamage,
-          carbonSaved: state.playerStats.lifetimeCarbon || state.playerStats.carbonSaved, 
+          carbonSaved: state.playerStats.lifetimeCarbon || state.playerStats.carbonSaved,
           date: Date.now()
       };
-      
+
+      // Save to localStorage queue immediately — score is safe even if offline
+      const pending = loadPendingScores();
+      savePendingScores([...pending, newScore]);
+
+      // Optimistic update in-memory
       const currentScores = [...state.highScores, newScore]
           .sort((a, b) => b.carbonSaved - a.carbonSaved)
           .slice(0, 50);
       set({ highScores: currentScores });
 
       try {
-        await fetch('/api/leaderboard', {
+        const res = await fetch('/api/leaderboard', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newScore)
         });
-        get().fetchLeaderboard();
+        if (res.ok) {
+          // Confirmed by server — remove from pending queue
+          removePendingScore(newScore);
+          get().fetchLeaderboard();
+        }
       } catch (e) {
-        console.error("Failed to submit score to backend", e);
+        // Offline — score stays in localStorage queue, will sync on next fetchLeaderboard()
+        set({ dbStatus: 'offline' });
       }
   },
 
