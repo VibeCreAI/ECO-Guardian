@@ -69,6 +69,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [startupAssetProgress, setStartupAssetProgress] = useState(0);
   const [startupDisplayedProgress, setStartupDisplayedProgress] = useState(0);
@@ -126,7 +128,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   // Fetch Leaderboard when entering LEADERBOARD mode
   useEffect(() => {
       if (mode === GameMode.LEADERBOARD) {
-          fetchLeaderboard();
+          setIsLeaderboardLoading(true);
+          fetchLeaderboard().finally(() => setIsLeaderboardLoading(false));
       }
   }, [mode, fetchLeaderboard]);
 
@@ -285,7 +288,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   };
 
   const handleSubmitScore = () => {
-      if (playerName.trim().length > 0) {
+      if (playerName.trim().length > 0 && !isSubmitting) {
+          setIsSubmitting(true);
           submitScore(playerName);
           setScoreSubmitted(true);
       }
@@ -679,8 +683,17 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                 </div>
 
                 <div className="flex-1 overflow-y-auto mb-6 bg-black/40 p-2 ui-card">
-                    {highScores.length === 0 ? (
-                        <div className="h-full flex items-center justify-center ui-muted">No records found yet. Be the first!</div>
+                    {isLeaderboardLoading ? (
+                        <div className="h-full flex flex-col items-center justify-center gap-3 ui-muted">
+                            <div className="w-6 h-6 border-4 border-green-400 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-xs uppercase tracking-widest">Loading scores...</span>
+                        </div>
+                    ) : highScores.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center gap-2 ui-muted">
+                            <div className="text-3xl">🌿</div>
+                            <div className="text-sm uppercase tracking-widest">No heroes yet.</div>
+                            <div className="text-xs opacity-60">Play a round and be the first on the board!</div>
+                        </div>
                     ) : (
                         <table className="w-full text-left border-collapse">
                             <thead>
@@ -708,8 +721,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                 </div>
                 
                 <div className="flex gap-4">
-                    <button onClick={() => fetchLeaderboard()} className="flex-1 ui-button ui-button-cyan py-4 font-bold text-lg">
-                        REFRESH
+                    <button
+                        onClick={() => { setIsLeaderboardLoading(true); fetchLeaderboard().finally(() => setIsLeaderboardLoading(false)); }}
+                        disabled={isLeaderboardLoading}
+                        className={`flex-1 ui-button py-4 font-bold text-lg ${isLeaderboardLoading ? 'ui-button-disabled' : 'ui-button-cyan'}`}
+                    >
+                        {isLeaderboardLoading ? 'LOADING...' : 'REFRESH'}
                     </button>
                     <button onClick={() => setMode(GameMode.MENU)} className="flex-1 ui-button ui-button-secondary py-4 font-bold text-lg">
                         BACK TO MENU
@@ -759,12 +776,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                               value={playerName}
                               onChange={(e) => setPlayerNameInput(e.target.value.toUpperCase())}
                           />
-                          <button 
+                          <button
                               onClick={handleSubmitScore}
-                              disabled={playerName.length === 0}
-                              className={`w-full py-3 font-bold text-lg transition-all ui-button ${playerName.length > 0 ? 'ui-button-warning' : 'ui-button-disabled'}`}
+                              disabled={playerName.length === 0 || isSubmitting}
+                              className={`w-full py-3 font-bold text-lg transition-all ui-button ${playerName.length > 0 && !isSubmitting ? 'ui-button-warning' : 'ui-button-disabled'}`}
                           >
-                              SUBMIT SCORE
+                              {isSubmitting ? 'SUBMITTING...' : 'SUBMIT SCORE'}
                           </button>
                       </div>
                   ) : (
