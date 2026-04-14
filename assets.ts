@@ -40,6 +40,12 @@ const ENEMY_SPRITE_SHEET_PATHS = {
   FUNGAL_TIRE: assetPath('images/enemies/stage_6_toxic_swamp/swamp_drum2.png'),
   SLUDGE_TOAD: assetPath('images/enemies/stage_6_toxic_swamp/swamp_jelly.png'),
   BOG_HEAP: assetPath('images/enemies/stage_6_toxic_swamp/swamp_mud.png'),
+  NEON_WRAPPER: assetPath('images/enemies/stage_7_cyber_city_ruins/city_smile.png'),
+  DRONE_LITTER: assetPath('images/enemies/stage_7_cyber_city_ruins/city_drone.png'),
+  VENDING_HUSK: assetPath('images/enemies/stage_7_cyber_city_ruins/city_vending.png'),
+  TRAFFIC_CONE_BOT: assetPath('images/enemies/stage_7_cyber_city_ruins/city_corn.png'),
+  DUMPSTER_MECH: assetPath('images/enemies/stage_7_cyber_city_ruins/city_bin.png'),
+  BILLBOARD_TANK: assetPath('images/enemies/stage_7_cyber_city_ruins/city_monster.png'),
   MISINFORMATION: assetPath('images/enemies/misinformation.png'),
 } as const satisfies Record<string, string>;
 
