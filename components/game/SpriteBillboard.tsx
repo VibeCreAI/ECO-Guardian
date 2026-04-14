@@ -46,6 +46,50 @@ interface ExternalBossSpriteProps {
 const textureCache: Record<string, THREE.Texture> = {};
 const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
+const OUTLINE_HEX = '#f8fafc';
+
+const bakeAlphaOutline = (ctx: CanvasRenderingContext2D, width: number, height: number, colorHex: string, radius = 2) => {
+    const sourceImage = ctx.getImageData(0, 0, width, height);
+    const source = sourceImage.data;
+    const outlined = new Uint8ClampedArray(source);
+    const outlineColor = new THREE.Color(colorHex);
+    const r = Math.round(outlineColor.r * 255);
+    const g = Math.round(outlineColor.g * 255);
+    const b = Math.round(outlineColor.b * 255);
+    const alphaThreshold = 16;
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const idx = (y * width + x) * 4;
+            if (source[idx + 3] > alphaThreshold) continue;
+
+            let adjacentOpaque = false;
+            for (let oy = -radius; oy <= radius && !adjacentOpaque; oy += 1) {
+                const ny = y + oy;
+                if (ny < 0 || ny >= height) continue;
+                for (let ox = -radius; ox <= radius; ox += 1) {
+                    if (ox === 0 && oy === 0) continue;
+                    const nx = x + ox;
+                    if (nx < 0 || nx >= width) continue;
+                    const nIdx = (ny * width + nx) * 4;
+                    if (source[nIdx + 3] > alphaThreshold) {
+                        adjacentOpaque = true;
+                        break;
+                    }
+                }
+            }
+
+            if (adjacentOpaque) {
+                outlined[idx] = r;
+                outlined[idx + 1] = g;
+                outlined[idx + 2] = b;
+                outlined[idx + 3] = 255;
+            }
+        }
+    }
+
+    ctx.putImageData(new ImageData(outlined, width, height), 0, 0);
+};
 
 const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize: number) => {
     const s = Math.floor(size / gridSize); 
@@ -60,7 +104,24 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     if (textureCache[cacheKey]) return textureCache[cacheKey];
 
     if (externalSpriteUrl) {
-        const tex = textureLoader.load(externalSpriteUrl);
+        const tex = textureLoader.load(externalSpriteUrl, (loadedTexture) => {
+            if (type === 'BOSS' || isEnemyRenderType(type)) {
+                const image = loadedTexture.image as { width?: number; height?: number } | undefined;
+                if (image?.width && image?.height) {
+                    const outlineCanvas = document.createElement('canvas');
+                    outlineCanvas.width = image.width;
+                    outlineCanvas.height = image.height;
+                    const outlineCtx = outlineCanvas.getContext('2d');
+                    if (outlineCtx) {
+                        outlineCtx.clearRect(0, 0, outlineCanvas.width, outlineCanvas.height);
+                        outlineCtx.drawImage(loadedTexture.image, 0, 0);
+                        bakeAlphaOutline(outlineCtx, outlineCanvas.width, outlineCanvas.height, OUTLINE_HEX);
+                        loadedTexture.image = outlineCanvas;
+                        loadedTexture.needsUpdate = true;
+                    }
+                }
+            }
+        });
         tex.minFilter = THREE.NearestFilter;
         tex.magFilter = THREE.NearestFilter;
         tex.generateMipmaps = false;
@@ -282,6 +343,10 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
              if (type === 'CRYSTAL') { r(28, 32, 8, 32, '#06b6d4'); r(20, 44, 8, 20, '#67e8f9'); r(36, 44, 8, 20, '#67e8f9'); } else if (type === 'CACTUS') { r(28, 24, 10, 40, '#15803d'); r(18, 32, 10, 10, '#15803d'); r(18, 24, 6, 8, '#15803d'); r(38, 28, 10, 10, '#15803d'); r(42, 20, 6, 8, '#15803d'); } else if (type === 'NEON_SIGN') { r(12, 24, 40, 24, '#1e293b'); r(16, 28, 32, 16, '#f0abfc'); r(30, 48, 4, 16, '#475569'); } else if (type === 'MUSHROOM') { r(28, 44, 8, 20, '#fef3c7'); r(20, 28, 24, 16, '#dc2626'); r(24, 32, 4, 4, 'white'); r(36, 36, 4, 4, 'white'); } else { r(24, 40, 16, 24, '#eab308'); }
         } else { r(24, 40, 16, 24, '#888'); }
     }
+    if (type === 'BOSS' || isEnemyRenderType(type)) {
+        bakeAlphaOutline(ctx, canvas.width, canvas.height, OUTLINE_HEX);
+    }
+
     const tex = new THREE.CanvasTexture(canvas);
     const useNearest = usesPixelEnemyStyle(type);
     tex.minFilter = isEnemyRenderType(type) ? (useNearest ? THREE.NearestFilter : THREE.LinearFilter) : THREE.NearestFilter;
@@ -329,18 +394,39 @@ const BossTauntBubble = ({ entity }: { entity: any }) => {
 export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position, scale = 4.5, entity, opacity, textureUrl }) => {
     const texture = useLoader(THREE.TextureLoader, textureUrl);
     const frameCount = 16;
+    const shadowRef = useRef<THREE.Mesh>(null);
+    const outlineAppliedRef = useRef(false);
+    const shadowScale = Math.max(1.2, Math.min(2.4, scale * 0.32));
     
     useMemo(() => {
         if (!texture) return;
         const imageWidth = (texture.image as { width?: number } | undefined)?.width ?? 1024;
         const frameInset = 0.5 / imageWidth;
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.magFilter = THREE.NearestFilter;
         texture.generateMipmaps = false;
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.repeat.set((1 / frameCount) - frameInset * 2, 1);
         texture.colorSpace = THREE.SRGBColorSpace;
+
+        if (!outlineAppliedRef.current) {
+            const image = texture.image as { width?: number; height?: number } | undefined;
+            if (image?.width && image?.height) {
+                const outlineCanvas = document.createElement('canvas');
+                outlineCanvas.width = image.width;
+                outlineCanvas.height = image.height;
+                const outlineCtx = outlineCanvas.getContext('2d');
+                if (outlineCtx) {
+                    outlineCtx.clearRect(0, 0, outlineCanvas.width, outlineCanvas.height);
+                    outlineCtx.drawImage(texture.image, 0, 0);
+                    bakeAlphaOutline(outlineCtx, outlineCanvas.width, outlineCanvas.height, OUTLINE_HEX);
+                    texture.image = outlineCanvas;
+                    outlineAppliedRef.current = true;
+                }
+            }
+        }
+
         texture.needsUpdate = true;
     }, [texture]);
 
@@ -359,8 +445,11 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
                 z += (Math.random() - 0.5) * 0.2; 
             }
             meshRef.current.position.set(x, yPos, z);
+            if (shadowRef.current) shadowRef.current.position.set(x, 0.04, z);
             
             meshRef.current.scale.set(scale, scale, 1);
+        } else if (shadowRef.current) {
+            shadowRef.current.position.set(position[0], 0.04, position[2]);
         }
 
         const t = clock.elapsedTime;
@@ -411,12 +500,24 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
     });
 
     return (
-        <mesh ref={meshRef} position={position} scale={[scale, scale, 1]}>
-            <planeGeometry args={[1, 1]} />
-            <meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />
-            {entity && <BossHealthBar entity={entity} />}
-            {entity && <BossTauntBubble entity={entity} />}
-        </mesh>
+        <>
+            <mesh
+                ref={shadowRef}
+                position={[position[0], 0.04, position[2]]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                scale={[shadowScale, shadowScale * 0.72, 1]}
+                renderOrder={-2}
+            >
+                <circleGeometry args={[1, 12]} />
+                <meshBasicMaterial color="#000000" transparent opacity={0.24} depthWrite={false} />
+            </mesh>
+            <mesh ref={meshRef} position={position} scale={[scale, scale, 1]}>
+                <planeGeometry args={[1, 1]} />
+                <meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />
+                {entity && <BossHealthBar entity={entity} />}
+                {entity && <BossTauntBubble entity={entity} />}
+            </mesh>
+        </>
     );
 };
 
@@ -452,8 +553,11 @@ export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, s
 
 export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, color, scale = 1, facing = 1, renderOrder = 0, isHit = false, type, entity, action = 'IDLE', viewDirection = 'DOWN', variant }) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const shadowRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const texture = useMemo(() => generateTexture(type || 'UNKNOWN', color, variant), [type, color, variant]);
+  const shouldRenderEnemyShadow = Boolean(type && (type === 'BOSS' || isEnemyRenderType(type)));
+  const shadowScale = Math.max(0.75, Math.min(1.5, scale * 0.55));
 
   useEffect(() => {
       if (type === 'BOSS' || (type && MOBS.includes(type))) { texture.repeat.set(0.5, 1); texture.wrapS = THREE.ClampToEdgeWrapping; texture.wrapT = THREE.ClampToEdgeWrapping; } else { texture.repeat.set(1, 1); texture.wrapS = THREE.ClampToEdgeWrapping; texture.wrapT = THREE.ClampToEdgeWrapping; }
@@ -467,6 +571,7 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
         const yPos = (entity.type === 'BOSS') ? 2.25 : 0.9; let x = entity.x; let z = entity.z;
         if (entity.dashTime && entity.dashTime > 0.3) { x += (Math.random() - 0.5) * 0.2; z += (Math.random() - 0.5) * 0.2; }
         meshRef.current.position.set(x, yPos, z); 
+        if (shadowRef.current) shadowRef.current.position.set(x, 0.04, z);
         const currentFacing = entity.facing || 1; 
         
         let s = scale;
@@ -477,6 +582,10 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
 
         meshRef.current.scale.set(s * Math.sign(currentFacing), s, 1);
     } 
+    else if (shadowRef.current) {
+        const basePos = position || [0, 0, 0];
+        shadowRef.current.position.set(basePos[0], 0.04, basePos[2]);
+    }
     if (materialRef.current) {
         // Priority to explicit opacity (Boss Fading)
         if (entity && entity.opacity !== undefined) {
@@ -510,7 +619,26 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
 
   const initPos = position || [0, 0, 0]; const isBoss = type === 'BOSS';
   return (
-    <mesh ref={meshRef} position={initPos as any} scale={[scale * Math.sign(facing), scale, 1]} renderOrder={renderOrder}><planeGeometry args={[1, 1]} /><meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />{isBoss && entity && <BossHealthBar entity={entity} />}{isBoss && entity && <BossTauntBubble entity={entity} />}</mesh>
+    <>
+      {shouldRenderEnemyShadow && (
+        <mesh
+          ref={shadowRef}
+          position={[initPos[0], 0.04, initPos[2]]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[shadowScale, shadowScale * 0.7, 1]}
+          renderOrder={renderOrder - 2}
+        >
+          <circleGeometry args={[1, 12]} />
+          <meshBasicMaterial color="#000000" transparent opacity={0.24} depthWrite={false} />
+        </mesh>
+      )}
+      <mesh ref={meshRef} position={initPos as any} scale={[scale * Math.sign(facing), scale, 1]} renderOrder={renderOrder}>
+        <planeGeometry args={[1, 1]} />
+        <meshStandardMaterial ref={materialRef} map={texture} transparent alphaTest={0.01} side={THREE.DoubleSide} />
+        {isBoss && entity && <BossHealthBar entity={entity} />}
+        {isBoss && entity && <BossTauntBubble entity={entity} />}
+      </mesh>
+    </>
   );
 };
 

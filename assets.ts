@@ -28,6 +28,18 @@ const ENEMY_SPRITE_SHEET_PATHS = {
   SMELT_RAT: assetPath('images/enemies/stage_4_magma_refinery/burnning_coal.png'),
   FURNACE_TITAN: assetPath('images/enemies/stage_4_magma_refinery/fire_machine.png'),
   REFINERY_COLOSSUS: assetPath('images/enemies/stage_4_magma_refinery/burnning_factory.png'),
+  GLASS_SCARAB: assetPath('images/enemies/stage_5_silicon_dunes/sand_wind.png'),
+  SILICON_WASP: assetPath('images/enemies/stage_5_silicon_dunes/sand_bucket.png'),
+  SAND_BATTERY: assetPath('images/enemies/stage_5_silicon_dunes/sand_battery.png'),
+  DUST_FILTER: assetPath('images/enemies/stage_5_silicon_dunes/sand_can.png'),
+  PYRAMID_JUNK: assetPath('images/enemies/stage_5_silicon_dunes/sand_machine.png'),
+  DUNE_COMPACTOR: assetPath('images/enemies/stage_5_silicon_dunes/sand_factory.png'),
+  SPORE_AEROSOL: assetPath('images/enemies/stage_6_toxic_swamp/swamp_spray.png'),
+  SWAMP_DIAPER: assetPath('images/enemies/stage_6_toxic_swamp/swamp_diper.png'),
+  ALGAE_BARREL: assetPath('images/enemies/stage_6_toxic_swamp/swamp_drum1.png'),
+  FUNGAL_TIRE: assetPath('images/enemies/stage_6_toxic_swamp/swamp_drum2.png'),
+  SLUDGE_TOAD: assetPath('images/enemies/stage_6_toxic_swamp/swamp_jelly.png'),
+  BOG_HEAP: assetPath('images/enemies/stage_6_toxic_swamp/swamp_mud.png'),
   MISINFORMATION: assetPath('images/enemies/misinformation.png'),
 } as const satisfies Record<string, string>;
 
