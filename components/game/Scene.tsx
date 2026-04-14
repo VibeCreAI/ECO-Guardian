@@ -335,11 +335,12 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         }
 
         // VibeJam Return portal (red) — only when player entered via ?portal=true
-        if (mode === GameMode.OVERWORLD && isPortalEntry && portalRefUrl && !vjGraceActive && playerRef.current.position.distanceTo(_vjReturnVec.current) < 1.5) {
+        if (mode === GameMode.OVERWORLD && isPortalEntry && !vjGraceActive && playerRef.current.position.distanceTo(_vjReturnVec.current) < 1.5) {
           const params = new URLSearchParams();
           params.set('portal', 'true');
           params.set('ref', window.location.hostname);
-          window.location.href = `${portalRefUrl}?${params.toString()}`;
+          const destination = portalRefUrl ?? 'https://vibej.am/portal/2026';
+          window.location.href = `${destination}?${params.toString()}`;
         }
     } else { setIsMoving(false); }
     const currentStats = useGameStore.getState().playerStats; if (currentStats.lastDamageTime > lastProcessedDamageTime.current) { shakeIntensity.current = 2.5; lastProcessedDamageTime.current = currentStats.lastDamageTime; }
@@ -486,7 +487,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             {/* VibeJam Next portal — always present, sends player to the VibeJam webring */}
             <VoxelPortal position={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]} color="#22d3ee" tintStructure isBoss={false} label="Vibe" />
             {/* VibeJam Return portal — only when player arrived via ?portal=true */}
-            {isPortalEntry && portalRefUrl && (
+            {isPortalEntry && (
               <VoxelPortal position={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]} color="#fb923c" innerColor="#a78bfa" tintStructure isBoss={false} label="Return" />
             )}
             {props.map((p) => {
