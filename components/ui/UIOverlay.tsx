@@ -1416,7 +1416,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         <div className="flex flex-col gap-1 mt-1 w-auto max-w-[250px] md:max-w-none">
           <div className="flex gap-1 flex-wrap">
             {weaponSlotsUI.map((slot, idx) => (
-               <div key={`w_slot_${idx}`} className={`w-8 h-8 ui-slot flex items-center justify-center text-sm leading-none text-white relative ${slot.status === 'LOCKED' ? 'ui-card-danger opacity-60' : (slot.data && EVO_KEYS.includes(slot.data[0]) ? 'ui-card-warning ui-slot-evolution' : '')}`}>
+               <div key={`w_slot_${idx}`} className={`w-8 h-8 ui-slot flex items-center justify-center text-sm leading-none text-white relative ${slot.status === 'LOCKED' ? 'ui-card-danger opacity-60' : (slot.data && EVO_KEYS.includes(slot.data[0]) ? 'ui-slot-evolution' : '')}`}>
                   {slot.status === 'FILLED' && slot.data && (
                       <>
                           {slot.data[0] === 'MAGIC_MISSILE' && '✨'}
