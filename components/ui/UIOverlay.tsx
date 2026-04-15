@@ -65,7 +65,7 @@ const PauseIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -308,6 +308,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
     // SHOP COORDINATES: Must match Scene.tsx (x: 15, z: -5)
     const SHOP_POS = { x: 15, z: -5 };
+    // VibeJam COORDINATES: Must match Scene.tsx
+    const VIBEJAM_NEXT_POS = { x: -13, z: -5 };
+    const VIBEJAM_RETURN_POS = { x: -25, z: -5 };
 
     // Shop Marker
     const dxShop = SHOP_POS.x - worldPosition.x;
@@ -317,6 +320,20 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     const renderDistShop = Math.min(distShop * scale, mapRadius - 12);
     const shopPinX = Math.cos(angleShop) * renderDistShop;
     const shopPinY = Math.sin(angleShop) * renderDistShop;
+    const dxVibeNext = VIBEJAM_NEXT_POS.x - worldPosition.x;
+    const dzVibeNext = VIBEJAM_NEXT_POS.z - worldPosition.z;
+    const distVibeNext = Math.sqrt(dxVibeNext * dxVibeNext + dzVibeNext * dzVibeNext);
+    const angleVibeNext = Math.atan2(dzVibeNext, dxVibeNext);
+    const renderDistVibeNext = Math.min(distVibeNext * scale, mapRadius - 10);
+    const vibeNextPinX = Math.cos(angleVibeNext) * renderDistVibeNext;
+    const vibeNextPinY = Math.sin(angleVibeNext) * renderDistVibeNext;
+    const dxVibeReturn = VIBEJAM_RETURN_POS.x - worldPosition.x;
+    const dzVibeReturn = VIBEJAM_RETURN_POS.z - worldPosition.z;
+    const distVibeReturn = Math.sqrt(dxVibeReturn * dxVibeReturn + dzVibeReturn * dzVibeReturn);
+    const angleVibeReturn = Math.atan2(dzVibeReturn, dxVibeReturn);
+    const renderDistVibeReturn = Math.min(distVibeReturn * scale, mapRadius - 10);
+    const vibeReturnPinX = Math.cos(angleVibeReturn) * renderDistVibeReturn;
+    const vibeReturnPinY = Math.sin(angleVibeReturn) * renderDistVibeReturn;
 
     return (
       <div 
@@ -337,6 +354,29 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         >
             ♻️
         </div>
+
+        <div
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 border border-black bg-cyan-400 text-[7px] leading-[10px] text-black text-center font-bold"
+            style={{
+                top: center + vibeNextPinY,
+                left: center + vibeNextPinX
+            }}
+            title="Vibe Portal"
+        >
+            V
+        </div>
+        {isPortalEntry && (
+            <div
+                className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 border border-black bg-orange-400 text-[7px] leading-[10px] text-black text-center font-bold"
+                style={{
+                    top: center + vibeReturnPinY,
+                    left: center + vibeReturnPinX
+                }}
+                title="Return Portal"
+            >
+                R
+            </div>
+        )}
 
         {portals.map(portal => {
             const dx = portal.x - worldPosition.x; const dz = portal.z - worldPosition.z;
