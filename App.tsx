@@ -7,6 +7,8 @@ import { Scene } from './components/game/Scene';
 import { AudioManager } from './components/game/AudioManager';
 import { GameMode, Vector2 } from './types';
 import { useGameStore } from './store/gameStore';
+import { useMultiplayer } from './multiplayer/useMultiplayer';
+import { useHostPortalVoteTick } from './multiplayer/useHostPortalVoteTick';
 
 const App: React.FC = () => {
   // Input References (mutable ref to avoid re-renders on every frame input)
@@ -14,6 +16,33 @@ const App: React.FC = () => {
   const dashTrigger = useRef<boolean>(false);
   
   const [isMobile, setIsMobile] = useState(false);
+
+  useMultiplayer();
+  useHostPortalVoteTick();
+
+  // Auto-join matchmaking when a run begins; auto-leave when returning to menu.
+  const gameMode = useGameStore((s) => s.mode);
+  const activeStage = useGameStore((s) => s.activeStage);
+  const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
+  const mpStatus = useGameStore((s) => s.multiplayer.connectionStatus);
+  useEffect(() => {
+    const inRun =
+      gameMode === GameMode.OVERWORLD ||
+      gameMode === GameMode.BATTLE ||
+      gameMode === GameMode.QUIZ_RESULT ||
+      gameMode === GameMode.REWARD ||
+      gameMode === GameMode.CHEST_REWARD ||
+      gameMode === GameMode.LOADING_LEVEL ||
+      gameMode === GameMode.PAUSED ||
+      gameMode === GameMode.SHOP ||
+      gameMode === GameMode.STATUS ||
+      gameMode === GameMode.LIBRARY;
+    if (inRun && !mpGroupId && mpStatus === 'idle') {
+      useGameStore.getState().joinMatchmaking(activeStage);
+    } else if (!inRun && mpGroupId) {
+      useGameStore.getState().leaveMatchmaking();
+    }
+  }, [gameMode, mpGroupId, mpStatus, activeStage]);
 
   // VibeJam portal entry detection — must run before any other init
   useEffect(() => {

@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import { GameMode, PlayerStats, UpgradeOption, Portal, ActiveBattleState, HighScore, ImpactLogEntry, QuizDifficulty, AdviceResult } from '../types';
 import { useAiDirectorStore } from './aiDirectorStore';
 import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint, PassiveDef } from '../constants';
+import type { EnemySnapshotEntry, PeerState, MultiplayerMessage } from '../multiplayer/sync';
+import { MAX_GROUP_SIZE, type SlotIndex } from '../multiplayer/config';
+import type { PresenceEntry } from '../multiplayer/roomClient';
+import { getOrCreateLocalPlayerId } from '../multiplayer/supabaseClient';
+import { advanceGroupStageIfHost, broadcastMultiplayer, connectMultiplayer, disconnectMultiplayer, getActiveGroupId } from '../multiplayer/service';
 
 export const SHOP_REFRESH_COST = 50;
 export const CAMERA_ZOOM_MIN = 0.5;
@@ -77,6 +82,54 @@ interface GameState {
 
   isPortalEntry: boolean;
   portalRefUrl: string | null;
+
+  multiplayer: {
+    localPlayerId: string;
+    joinedAt: number | null;
+    groupId: string | null;
+    isHost: boolean;
+    slotIndex: SlotIndex;
+    peers: Record<string, PeerState>;
+    enemyStates: Record<
+      string,
+      {
+        id: string;
+        x: number;
+        z: number;
+        hp: number;
+        maxHp: number;
+        enemyType: string;
+        name?: string;
+        visualVariant?: string;
+        facing: number;
+        lastSeen: number;
+      }
+    >;
+    portalVotes: Record<string, { voters: string[]; required: number; countdownMs: number | null }>;
+    guideMessage: string | null;
+    connectionStatus: 'idle' | 'connecting' | 'connected' | 'error';
+    livingCount: number;
+    stageSync: {
+      pendingStage: number | null;
+      expectedPlayerIds: string[];
+      ackedByPlayerId: Record<string, boolean>;
+    };
+  };
+
+  joinMatchmaking: (stage: number) => Promise<void>;
+  leaveMatchmaking: () => Promise<void>;
+  applyPresenceUpdate: (entries: PresenceEntry[], localSlot: SlotIndex, isHost: boolean) => void;
+  applyMultiplayerMessage: (msg: MultiplayerMessage) => void;
+  applyPeerSnapshot: (id: string, state: Partial<PeerState>) => void;
+  removePeer: (id: string) => void;
+  promoteToHost: () => void;
+  onGroupStageAdvance: (newStage: number) => void;
+  setLocalPortalVote: (portalId: string | null) => void;
+  applyPortalVoteState: (votes: Record<string, string[]>, required: number, livingCount: number, countdownPortalId: string | null, countdownEndsAt: number | null) => void;
+  setGuideMessage: (msg: string | null) => void;
+  setMultiplayerConnectionStatus: (status: 'idle' | 'connecting' | 'connected' | 'error') => void;
+  setMultiplayerGroupId: (groupId: string | null) => void;
+  resetMultiplayerSession: () => void;
 
   setMode: (mode: GameMode) => void;
   togglePause: () => void; 
@@ -525,6 +578,379 @@ export const useGameStore = create<GameState>((set, get) => ({
   isPortalEntry: false,
   portalRefUrl: null,
 
+  multiplayer: {
+    localPlayerId: getOrCreateLocalPlayerId(),
+    joinedAt: null,
+    groupId: null,
+    isHost: true,
+    slotIndex: 0,
+    peers: {},
+    enemyStates: {},
+    portalVotes: {},
+    guideMessage: null,
+    connectionStatus: 'idle',
+    livingCount: 1,
+    stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+  },
+
+  joinMatchmaking: async (stage) => {
+    const state = get();
+    set((s) => ({ multiplayer: { ...s.multiplayer, connectionStatus: 'connecting' } }));
+    try {
+      const name = `Player-${state.multiplayer.localPlayerId.slice(0, 4)}`;
+      const session = await connectMultiplayer(name, stage);
+      if (session) {
+        set((s) => ({
+          multiplayer: {
+            ...s.multiplayer,
+            joinedAt: session.joinedAt,
+            groupId: getActiveGroupId(),
+            connectionStatus: 'connected',
+          },
+        }));
+      } else {
+        set((s) => ({ multiplayer: { ...s.multiplayer, connectionStatus: 'idle' } }));
+      }
+    } catch (err) {
+      console.warn('[gameStore] joinMatchmaking failed', err);
+      set((s) => ({ multiplayer: { ...s.multiplayer, connectionStatus: 'error' } }));
+    }
+  },
+
+  leaveMatchmaking: async () => {
+    try {
+      await disconnectMultiplayer();
+    } catch (err) {
+      console.warn('[gameStore] leaveMatchmaking failed', err);
+    }
+    get().resetMultiplayerSession();
+  },
+
+  applyPresenceUpdate: (entries, localSlot, isHost) => {
+    set((state) => {
+      const localId = state.multiplayer.localPlayerId;
+      const nextPeers: Record<string, PeerState> = {};
+      const assignedSlotsByPlayerId = new Map<string, SlotIndex>();
+
+      // New joiners may first see only themselves (localSlot=0) before full presence sync arrives.
+      // Allow one-way promotion from default slot 0 -> actual non-zero slot, but never demote.
+      const shouldPromoteFromDefault =
+        state.multiplayer.slotIndex === 0 && localSlot !== 0;
+      const initialLocalSlot = (shouldPromoteFromDefault
+        ? localSlot
+        : state.multiplayer.slotIndex) as SlotIndex;
+
+      assignedSlotsByPlayerId.set(localId, initialLocalSlot);
+      Object.values(state.multiplayer.peers).forEach((peer) => {
+        assignedSlotsByPlayerId.set(peer.playerId, peer.slotIndex);
+      });
+
+      const usedSlots = new Set<SlotIndex>();
+      entries.forEach((entry) => {
+        const existingSlot = assignedSlotsByPlayerId.get(entry.playerId);
+        if (existingSlot !== undefined) usedSlots.add(existingSlot);
+      });
+
+      const nextFreeSlot = (): SlotIndex => {
+        for (let i = 0; i < MAX_GROUP_SIZE; i++) {
+          const slot = i as SlotIndex;
+          if (!usedSlots.has(slot)) {
+            usedSlots.add(slot);
+            return slot;
+          }
+        }
+        return 0;
+      };
+
+      let computedLocalSlot: SlotIndex = initialLocalSlot;
+      entries.forEach((entry, idx) => {
+        const existing = state.multiplayer.peers[entry.playerId];
+        const slot = assignedSlotsByPlayerId.get(entry.playerId) ?? nextFreeSlot();
+        if (entry.playerId === localId) {
+          computedLocalSlot = slot;
+          return;
+        }
+        nextPeers[entry.playerId] = existing
+          ? { ...existing, name: entry.name, slotIndex: slot, joinedAt: entry.joinedAt }
+          : {
+              playerId: entry.playerId,
+              name: entry.name,
+              slotIndex: slot,
+              joinedAt: entry.joinedAt,
+              x: 0,
+              z: 0,
+              facing: 1,
+              viewDirection: 'DOWN',
+              action: 'IDLE',
+              isDashing: false,
+              scene: 'OVERWORLD',
+              hp: 100,
+              maxHp: 100,
+              portalVote: null,
+              lastSeen: Date.now(),
+            };
+      });
+      const livingCount = Math.max(1, entries.length);
+      return {
+        multiplayer: {
+          ...state.multiplayer,
+          peers: nextPeers,
+          slotIndex: computedLocalSlot,
+          isHost,
+          livingCount,
+        },
+      };
+    });
+  },
+
+  applyMultiplayerMessage: (msg) => {
+    const state = get();
+    switch (msg.type) {
+      case 'player_state': {
+        if (msg.playerId === state.multiplayer.localPlayerId) return;
+        get().applyPeerSnapshot(msg.playerId, {
+          x: msg.x,
+          z: msg.z,
+          facing: msg.facing,
+          viewDirection: msg.viewDirection,
+          action: msg.action,
+          isDashing: msg.isDashing,
+          scene: msg.scene ?? 'OVERWORLD',
+          hp: msg.hp,
+          maxHp: msg.maxHp,
+          portalVote: msg.portalVote,
+          lastSeen: Date.now(),
+        });
+        return;
+      }
+      case 'portal_vote_state': {
+        get().applyPortalVoteState(
+          msg.votes,
+          msg.required,
+          msg.livingCount,
+          msg.countdownPortalId,
+          msg.countdownEndsAt
+        );
+        return;
+      }
+      case 'enemy_snapshot': {
+        const now = Date.now();
+        const nextEnemies: Record<string, GameState['multiplayer']['enemyStates'][string]> = {};
+        for (const entry of msg.enemies as EnemySnapshotEntry[]) {
+          const existing = state.multiplayer.enemyStates[entry.id];
+          nextEnemies[entry.id] = {
+            id: entry.id,
+            x: entry.x,
+            z: entry.z,
+            hp: entry.hp,
+            maxHp: entry.maxHp ?? existing?.maxHp ?? 100,
+            enemyType: entry.enemyType ?? existing?.enemyType ?? 'UNKNOWN',
+            name: entry.name ?? existing?.name,
+            visualVariant: entry.visualVariant ?? existing?.visualVariant,
+            facing: entry.facing ?? existing?.facing ?? 1,
+            lastSeen: now,
+          };
+        }
+        set((s) => ({
+          multiplayer: {
+            ...s.multiplayer,
+            enemyStates: nextEnemies,
+          },
+        }));
+        return;
+      }
+      case 'enemy_death': {
+        set((s) => {
+          if (!s.multiplayer.enemyStates[msg.id]) return {};
+          const { [msg.id]: _removed, ...rest } = s.multiplayer.enemyStates;
+          return { multiplayer: { ...s.multiplayer, enemyStates: rest } };
+        });
+        return;
+      }
+      case 'battle_start': {
+        set((s) => ({ multiplayer: { ...s.multiplayer, enemyStates: {} } }));
+        const portal = state.portals.find((p) => p.id === msg.portalId);
+        if (portal) {
+          get().enterBattle(portal);
+        }
+        return;
+      }
+      case 'stage_advance': {
+        get().onGroupStageAdvance(msg.newStage);
+        const local = get().multiplayer.localPlayerId;
+        broadcastMultiplayer({ type: 'stage_ack', playerId: local, newStage: msg.newStage, t: Date.now() });
+        return;
+      }
+      case 'stage_ack': {
+        if (!state.multiplayer.isHost) return;
+        const sync = state.multiplayer.stageSync;
+        if (sync.pendingStage == null || msg.newStage !== sync.pendingStage) return;
+        if (!sync.expectedPlayerIds.includes(msg.playerId)) return;
+        const ackedByPlayerId = { ...sync.ackedByPlayerId, [msg.playerId]: true };
+        const allAcked = sync.expectedPlayerIds.every((id) => ackedByPlayerId[id]);
+        set((s) => ({
+          multiplayer: {
+            ...s.multiplayer,
+            stageSync: {
+              ...s.multiplayer.stageSync,
+              ackedByPlayerId,
+            },
+          },
+        }));
+        if (allAcked) {
+          void advanceGroupStageIfHost(sync.pendingStage, true);
+          set((s) => ({
+            multiplayer: {
+              ...s.multiplayer,
+              stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+            },
+          }));
+        }
+        return;
+      }
+      default:
+        return;
+    }
+  },
+
+  applyPeerSnapshot: (id, partial) => {
+    set((state) => {
+      const existing = state.multiplayer.peers[id];
+      if (!existing) return {};
+      return {
+        multiplayer: {
+          ...state.multiplayer,
+          peers: { ...state.multiplayer.peers, [id]: { ...existing, ...partial } },
+        },
+      };
+    });
+  },
+
+  removePeer: (id) => {
+    set((state) => {
+      if (!state.multiplayer.peers[id]) return {};
+      const { [id]: _removed, ...rest } = state.multiplayer.peers;
+      const nextExpected = state.multiplayer.stageSync.expectedPlayerIds.filter((pid) => pid !== id);
+      const nextAcked = { ...state.multiplayer.stageSync.ackedByPlayerId };
+      delete nextAcked[id];
+      const shouldFinalize =
+        state.multiplayer.isHost &&
+        state.multiplayer.stageSync.pendingStage != null &&
+        nextExpected.length > 0 &&
+        nextExpected.every((pid) => nextAcked[pid]);
+      if (shouldFinalize) {
+        void advanceGroupStageIfHost(state.multiplayer.stageSync.pendingStage!, true);
+      }
+      return {
+        multiplayer: {
+          ...state.multiplayer,
+          peers: rest,
+          stageSync: shouldFinalize
+            ? { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} }
+            : { ...state.multiplayer.stageSync, expectedPlayerIds: nextExpected, ackedByPlayerId: nextAcked },
+        },
+      };
+    });
+  },
+
+  promoteToHost: () => {
+    set((state) => ({ multiplayer: { ...state.multiplayer, isHost: true } }));
+  },
+
+  onGroupStageAdvance: (newStage) => {
+    const state = get();
+    if (newStage <= state.activeStage) return;
+    set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
+    useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, "Group advanced").then(() => {
+      set((prevState) => ({
+        activeStage: newStage,
+        portals: generatePortals(newStage),
+        shopOptions: generateShopOptions(prevState.playerStats),
+        worldPosition: { x: 0, z: 0 },
+        savedOverworldPosition: { x: 0, z: 0 },
+        mode: GameMode.OVERWORLD,
+        lastGameplayMode: GameMode.OVERWORLD,
+        isStageReady: true,
+        isOverworldSceneReady: false,
+        battleWon: false,
+        bossStats: null,
+        bossNarrativeOpen: false,
+        queuedLevelUp: false,
+        playerStats: {
+          ...prevState.playerStats,
+          hp: prevState.playerStats.maxHp,
+        },
+        isQuizOpen: false,
+        isImpactOpen: false,
+        showNarrative: false,
+        narrativeDismissed: false,
+        highlightedPortalId: null,
+      }));
+    });
+  },
+
+  setLocalPortalVote: (_portalId) => {
+    // Piggybacked on player_state broadcast by Scene.tsx; no store mutation needed.
+  },
+
+  applyPortalVoteState: (votes, required, livingCount, countdownPortalId, countdownEndsAt) => {
+    set((state) => {
+      const portalVotes: Record<string, { voters: string[]; required: number; countdownMs: number | null }> = {};
+      Object.entries(votes).forEach(([portalId, voters]) => {
+        const isCountdown = portalId === countdownPortalId && countdownEndsAt != null;
+        const countdownMs = isCountdown ? Math.max(0, countdownEndsAt - Date.now()) : null;
+        portalVotes[portalId] = { voters, required, countdownMs };
+      });
+      let guideMessage: string | null = null;
+      const anyVoters = Object.values(votes).some((v) => v.length > 0);
+      if (livingCount > 1) {
+        if (countdownPortalId && countdownEndsAt != null) {
+          const secs = Math.max(0, Math.ceil((countdownEndsAt - Date.now()) / 1000));
+          guideMessage = `Starting in ${secs}…`;
+        } else if (anyVoters) {
+          const passing = Object.values(votes).find((v) => v.length >= required);
+          if (!passing) {
+            guideMessage = `Stand on the same portal — ${required} of ${livingCount} needed`;
+          }
+        }
+      }
+      return {
+        multiplayer: { ...state.multiplayer, portalVotes, guideMessage, livingCount },
+      };
+    });
+  },
+
+  setGuideMessage: (msg) => {
+    set((state) => ({ multiplayer: { ...state.multiplayer, guideMessage: msg } }));
+  },
+
+  setMultiplayerConnectionStatus: (status) => {
+    set((state) => ({ multiplayer: { ...state.multiplayer, connectionStatus: status } }));
+  },
+
+  setMultiplayerGroupId: (groupId) => {
+    set((state) => ({ multiplayer: { ...state.multiplayer, groupId } }));
+  },
+
+  resetMultiplayerSession: () => {
+    set((state) => ({
+      multiplayer: {
+        ...state.multiplayer,
+        groupId: null,
+        joinedAt: null,
+        isHost: true,
+        slotIndex: 0,
+        peers: {},
+        enemyStates: {},
+        portalVotes: {},
+        guideMessage: null,
+        connectionStatus: 'idle',
+        livingCount: 1,
+        stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+      },
+    }));
+  },
+
   setMode: (mode) => set((state) => ({ mode, previousMode: state.mode })),
   
   togglePause: () => set((state) => {
@@ -666,7 +1092,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   enterBattle: (portal) => {
       const state = get();
-      if (state.mode === GameMode.BATTLE || state.mode === GameMode.QUIZ_RESULT) return;
+      // Battle can only be entered from overworld; ignore stale/duplicate triggers.
+      if (state.mode !== GameMode.OVERWORLD) return;
 
       const aiConfig = useAiDirectorStore.getState().currentConfig;
       let isBonus = false;
@@ -1281,6 +1708,27 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       const nextStage = state.activeStage + 1;
       const lastResult = state.activeBattle.isBonus ? "Ecosystem purged." : "Ecosystem partially restored.";
+      if (state.multiplayer.isHost && state.multiplayer.groupId) {
+          const expectedPlayerIds = [state.multiplayer.localPlayerId, ...Object.keys(state.multiplayer.peers)];
+          const ackedByPlayerId: Record<string, boolean> = { [state.multiplayer.localPlayerId]: true };
+          set((s) => ({
+            multiplayer: {
+              ...s.multiplayer,
+              stageSync: { pendingStage: nextStage, expectedPlayerIds, ackedByPlayerId },
+            },
+          }));
+          broadcastMultiplayer({ type: 'stage_advance', newStage: nextStage, seed: Date.now(), t: Date.now() });
+          // Host acks itself immediately. Group is reopened after all expected acks arrive.
+          if (expectedPlayerIds.length <= 1) {
+            void advanceGroupStageIfHost(nextStage, true);
+            set((s) => ({
+              multiplayer: {
+                ...s.multiplayer,
+                stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+              },
+            }));
+          }
+      }
 
       saveMetaStats(state.playerStats);
       set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });

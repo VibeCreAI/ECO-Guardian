@@ -292,6 +292,47 @@ function selectYesNoQuestion(
     };
 }
 
+const stableHash = (input: string): number => {
+    let hash = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+        hash ^= input.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+};
+
+function selectYesNoQuestionDeterministic(
+    stageName: string,
+    seedKey: string,
+    excludedQuestions: string[] = []
+): AiStageConfig['quiz'] {
+    const stagePool = YES_NO_POOLS[stageName] ?? [];
+    if (stagePool.length === 0) {
+        throw new Error(`No YES/NO question pool configured for stage "${stageName}".`);
+    }
+
+    const excluded = new Set(excludedQuestions);
+    const start = stableHash(`${stageName}:${seedKey}`) % stagePool.length;
+
+    let template = stagePool[start];
+    for (let i = 0; i < stagePool.length; i++) {
+        const candidate = stagePool[(start + i) % stagePool.length];
+        if (!excluded.has(candidate.q)) {
+            template = candidate;
+            break;
+        }
+    }
+
+    const correctOption = template.a === 'YES' ? 'A' : 'B';
+    return {
+        question: template.q,
+        options: { A: 'YES', B: 'NO' },
+        correctOption,
+        explanation: template.e,
+        impactValue: 100,
+    };
+}
+
 // --- DEATH MESSAGES ---
 
 const DEATH_MESSAGES = [
@@ -408,15 +449,6 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
     generateNextStage: async (stats, currentStage, lastResult) => {
         set({ isGenerating: true, error: null });
         const targetStage = currentStage + 1;
-        const askedQuestions = [
-            ...new Set([
-                ...get().usedQuizQuestions,
-                ...stats.impactHistory
-                    .map(entry => entry.question)
-                    .filter((question): question is string => Boolean(question)),
-            ]),
-        ];
-
         // 1. SELECT FIXED STAGE
         const stageTemplate = FIXED_STAGES[targetStage - 1];
         if (!stageTemplate) {
@@ -429,13 +461,18 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
         }
         let finalConfig = JSON.parse(JSON.stringify(stageTemplate));
 
-        // 2. GENERATE YES/NO QUESTION FROM STATIC POOL
-        finalConfig.quiz = selectYesNoQuestion(finalConfig.stageName, askedQuestions);
+        // 2. GENERATE YES/NO QUESTION DETERMINISTICALLY PER STAGE
+        // This keeps all multiplayer clients aligned even if local quiz histories differ.
+        finalConfig.quiz = selectYesNoQuestionDeterministic(
+            finalConfig.stageName,
+            `stage-${targetStage}-initial`,
+            []
+        );
 
         set({
             currentConfig: finalConfig,
             isGenerating: false,
-            usedQuizQuestions: [...new Set([...askedQuestions, finalConfig.quiz.question])],
+            usedQuizQuestions: [...new Set([...get().usedQuizQuestions, finalConfig.quiz.question])],
         });
     },
 
@@ -445,9 +482,12 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
 
         set({ isGenerating: true });
 
-        const quiz = selectYesNoQuestion(
+        // Deterministic per-stage seed so all clients in the same stage get the same round-2 quiz.
+        // Do not depend on local quiz history, which can diverge between peers.
+        const quiz = selectYesNoQuestionDeterministic(
             state.currentConfig.stageName,
-            state.usedQuizQuestions
+            `mid-stage-${stage}`,
+            []
         );
 
         set((prevState) => {

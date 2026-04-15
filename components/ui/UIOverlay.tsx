@@ -9,6 +9,7 @@ import { LibraryModal } from './LibraryModal';
 import { ShopModal } from './ShopModal';
 import { WEAPONS_DATA, EVOLUTION_RECIPES, PASSIVES_DATA } from '../../constants';
 import { ASSET_PATHS, preloadStartupAssets } from '../../assets';
+import { PortalVoteBadge } from './PortalVoteBadge';
 
 interface UIOverlayProps {
   inputVector: React.MutableRefObject<{x: number, y: number}>;
@@ -76,10 +77,25 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const [startupDisplayedProgress, setStartupDisplayedProgress] = useState(0);
   const [startupAssetsReady, setStartupAssetsReady] = useState(false);
   const [menuBackgroundReady, setMenuBackgroundReady] = useState(false);
+  const mpPeers = useGameStore((s) => s.multiplayer.peers);
+  const mpPortalVotes = useGameStore((s) => s.multiplayer.portalVotes);
+  const mpGuideMessage = useGameStore((s) => s.multiplayer.guideMessage);
+  const mpSlotIndex = useGameStore((s) => s.multiplayer.slotIndex);
+  const mpLocalPlayerId = useGameStore((s) => s.multiplayer.localPlayerId);
+  const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
   
   // UI Scaling for short screens (mobile landscape)
   const [uiScale, setUiScale] = useState(1);
   const [isShortHeight, setIsShortHeight] = useState(false);
+  const hasMpPeers = Object.keys(mpPeers).length > 0;
+  const activePlayers = 1 + Object.keys(mpPeers).length;
+  const voterSlotsByPlayerId = React.useMemo(() => {
+    const map: Record<string, number> = { [mpLocalPlayerId]: mpSlotIndex };
+    Object.values(mpPeers).forEach((peer) => {
+      map[peer.playerId] = peer.slotIndex;
+    });
+    return map;
+  }, [mpPeers, mpLocalPlayerId, mpSlotIndex]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1285,6 +1301,22 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
   return (
     <div className="contents" style={{ fontSize: 0 }}>
+      {hasMpPeers && mode === GameMode.OVERWORLD && portals.map((portal) => {
+        const vote = mpPortalVotes[portal.id];
+        if (!vote || vote.voters.length === 0) return null;
+        const screenPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 - 120 };
+        const countdownSeconds = vote.countdownMs != null ? Math.max(0, Math.ceil(vote.countdownMs / 1000)) : null;
+        return (
+          <PortalVoteBadge
+            key={`pv_${portal.id}`}
+            voters={vote.voters}
+            required={vote.required}
+            voterSlotsByPlayerId={voterSlotsByPlayerId}
+            screenPos={screenPos}
+            countdownSeconds={countdownSeconds}
+          />
+        );
+      })}
       {isGenerating && mode === GameMode.OVERWORLD && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] animate-pulse">
               <div className="ui-card ui-card-cyan p-4 text-xs font-bold flex items-center gap-3">
@@ -1312,6 +1344,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         <div className="flex items-center gap-2">
           <div className="ui-chip p-1 text-white text-xs px-2">LVL {playerStats.level}</div>
           <div className="ui-chip ui-chip-primary p-1 text-xs px-2">STAGE {activeStage}</div>
+          {mpGroupId && (
+            <div className="ui-chip p-1 text-xs px-2 text-cyan-200 border border-cyan-500/50">
+              ACTIVE {activePlayers}
+            </div>
+          )}
           {playerStats.quizStreak > 0 && (
             <div className="ui-chip ui-chip-warning p-1 text-xs px-2 animate-pulse">
               x{playerStats.quizStreak}

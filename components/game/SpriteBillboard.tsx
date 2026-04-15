@@ -4,6 +4,7 @@ import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ASSET_PATHS, getEnemySpriteSheetPath } from '../../assets';
 import { drawEnemySheet, ENEMY_RENDER_TYPES, ENEMY_SHEET_HEIGHT, ENEMY_SHEET_WIDTH, isEnemyRenderType, isGhostEnemyType, usesPixelEnemyStyle } from './enemyDrawing';
+import { getCachedPlayerSlotTextures, getPlayerSlotTextures } from './playerTint';
 
 interface SpriteBillboardProps {
   position?: [number, number, number];
@@ -33,6 +34,7 @@ interface PlayerSpriteProps {
     action: 'IDLE' | 'RUN';
     viewDirection: 'DOWN' | 'UP' | 'SIDE';
     isHit: boolean;
+    slotIndex?: 0 | 1 | 2 | 3;
 }
 
 interface ExternalBossSpriteProps {
@@ -521,7 +523,7 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
     );
 };
 
-export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, scale = 1.0, facing, action, viewDirection, isHit }) => {
+export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, scale = 1.0, facing, action, viewDirection, isHit, slotIndex = 0 }) => {
     const [idleTex, walkSouthTex, walkNorthTex, walkEastTex, walkWestTex] = useLoader(THREE.TextureLoader, [
         ASSET_PATHS.images.player.idle,
         ASSET_PATHS.images.player.walkSouth,
@@ -534,14 +536,42 @@ export const PlayerSpriteBillboard: React.FC<PlayerSpriteProps> = ({ position, s
         [idleTex, walkSouthTex, walkNorthTex, walkEastTex, walkWestTex].forEach(t => { if (t) { t.minFilter = THREE.NearestFilter; t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping; t.repeat.set(0.25, 0.25); }});
     }, [idleTex, walkSouthTex, walkNorthTex, walkEastTex, walkWestTex]);
 
+    const [slotTextures, setSlotTextures] = useState<Record<string, THREE.Texture> | null>(() => {
+        if (slotIndex === 0) return null;
+        const cached = getCachedPlayerSlotTextures(slotIndex as 1 | 2 | 3);
+        return cached as unknown as Record<string, THREE.Texture> | null;
+    });
+
+    useEffect(() => {
+        if (slotIndex === 0) { setSlotTextures(null); return; }
+        const cached = getCachedPlayerSlotTextures(slotIndex as 1 | 2 | 3);
+        if (cached) { setSlotTextures(cached as unknown as Record<string, THREE.Texture>); return; }
+        let cancelled = false;
+        getPlayerSlotTextures(slotIndex as 1 | 2 | 3).then((textures) => {
+            if (!cancelled) setSlotTextures(textures as unknown as Record<string, THREE.Texture>);
+        });
+        return () => { cancelled = true; };
+    }, [slotIndex]);
+
     const meshRef = useRef<THREE.Mesh>(null);
     const matRef = useRef<THREE.MeshStandardMaterial>(null);
 
     useFrame(({ clock, camera }) => {
         if (!meshRef.current || !matRef.current) return;
         meshRef.current.quaternion.copy(camera.quaternion);
-        let activeTex = idleTex;
-        if (action === 'RUN') { if (viewDirection === 'UP') activeTex = walkNorthTex; else if (viewDirection === 'DOWN') activeTex = walkSouthTex; else if (viewDirection === 'SIDE') { if (facing === 1) activeTex = walkEastTex; else activeTex = walkWestTex; } }
+        let activeTex: THREE.Texture = idleTex;
+        if (slotIndex !== 0 && slotTextures) {
+            activeTex = slotTextures.idle;
+            if (action === 'RUN') {
+                if (viewDirection === 'UP') activeTex = slotTextures.walkNorth;
+                else if (viewDirection === 'DOWN') activeTex = slotTextures.walkSouth;
+                else if (viewDirection === 'SIDE') activeTex = facing === 1 ? slotTextures.walkEast : slotTextures.walkWest;
+            }
+        } else if (action === 'RUN') {
+            if (viewDirection === 'UP') activeTex = walkNorthTex;
+            else if (viewDirection === 'DOWN') activeTex = walkSouthTex;
+            else if (viewDirection === 'SIDE') { if (facing === 1) activeTex = walkEastTex; else activeTex = walkWestTex; }
+        }
         if (matRef.current.map !== activeTex) { matRef.current.map = activeTex; matRef.current.needsUpdate = true; }
         const fps = 10; const t = clock.elapsedTime; const totalFrames = 16; const frame = Math.floor(t * fps) % totalFrames;
         if (activeTex) { const col = frame % 4; const row = Math.floor(frame / 4); activeTex.offset.x = col * 0.25; activeTex.offset.y = 0.75 - (row * 0.25); }

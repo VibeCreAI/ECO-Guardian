@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, Suspense, useMemo } from 'react';
-import { Cloud, Clouds, Sky, Stars } from '@react-three/drei';
+import { Cloud, Clouds, Sky, Stars, Text } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -8,13 +8,18 @@ import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, Vector2, AiStageConfig } from '../../types';
 import { SpriteBillboard, PropSprite, PlayerSpriteBillboard } from './SpriteBillboard';
+import { RemotePlayer } from './RemotePlayer';
 import { BattleManager } from './BattleManager';
+import { broadcastMultiplayer } from '../../multiplayer/service';
+import { POSITION_BROADCAST_HZ, PORTAL_VOTE_PROXIMITY } from '../../multiplayer/config';
+import { setLocalPortalVote } from '../../multiplayer/portalVote';
 import { PixelGround } from './PixelGround';
 import { VoxelPortal } from './VoxelPortal';
 import { VoxelLandmark } from './VoxelLandmark';
 import { VoxelShop } from './VoxelShop';
 import { QuestArrow } from './QuestArrow';
 import { InWorldText } from './InWorldText';
+import kenpixelFontUrl from 'three/examples/fonts/ttf/kenpixel.ttf?url';
 
 interface SceneProps {
   inputVector: React.MutableRefObject<Vector2>;
@@ -201,6 +206,21 @@ const getPropScale = (type: string) => {
 export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
   const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed, cameraZoom, setCameraZoom, isPortalEntry, portalRefUrl } = useGameStore();
+  const localSlotIndex = useGameStore((s) => s.multiplayer.slotIndex);
+  const mpJoinedAt = useGameStore((s) => s.multiplayer.joinedAt);
+  const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
+  const peers = useGameStore((s) => s.multiplayer.peers);
+  const mpPortalVotes = useGameStore((s) => s.multiplayer.portalVotes);
+  const localPlayerId = useGameStore((s) => s.multiplayer.localPlayerId);
+  const peerList = useMemo(() => Object.values(peers), [peers]);
+  const visiblePeerList = useMemo(
+    () => peerList.filter((p) => p.scene !== 'BATTLE'),
+    [peerList]
+  );
+  const hasPeers = peerList.length > 0;
+  const lastBroadcastRef = useRef<number>(0);
+  const localPortalVoteRef = useRef<string | null>(null);
+  const [localPortalVoteId, setLocalPortalVoteId] = useState<string | null>(null);
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   const { camera, gl } = useThree();
   const [facing, setFacing] = useState(1);
@@ -214,6 +234,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const shakeIntensity = useRef(0);
   const lastProcessedDamageTime = useRef(0);
   const prevModeRef = useRef<GameMode>(mode);
+  const prevBroadcastModeRef = useRef<GameMode>(mode);
   const overworldWarmupFrames = useRef(0);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
@@ -222,6 +243,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const _vjNextVec = useRef(new THREE.Vector3(-13, 0, -5));
   const _vjReturnVec = useRef(new THREE.Vector3(-25, 0, -5));
   const portalGraceTimer = useRef(5.0); // 5-second grace period after portal entry
+  const joinSpawnAdjustedForGroupRef = useRef<string | null>(null);
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
   const landmarkType = React.useMemo(() => getLandmarkType(activeStage, aiConfig), [activeStage, aiConfig]);
@@ -259,6 +281,28 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     }
     prevModeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    if (!playerRef.current) return;
+    if (mode !== GameMode.OVERWORLD) return;
+    if (!mpGroupId || !mpJoinedAt) return;
+    if (joinSpawnAdjustedForGroupRef.current === mpGroupId) return;
+    if (Date.now() - mpJoinedAt > 4000) return;
+    if (localSlotIndex <= 0) return; // keep existing player (slot 0) fixed
+
+    // Nudge only newly joined non-host players a little to avoid overlap at spawn.
+    const offsets: Array<{ x: number; z: number }> = [
+      { x: 0, z: 0 },
+      { x: 2.0, z: 0 },
+      { x: -2.0, z: 0 },
+      { x: 0, z: 2.0 },
+    ];
+    const offset = offsets[localSlotIndex] ?? offsets[1];
+    playerRef.current.position.x += offset.x;
+    playerRef.current.position.z += offset.z;
+    updatePosition(playerRef.current.position.x, playerRef.current.position.z);
+    joinSpawnAdjustedForGroupRef.current = mpGroupId;
+  }, [mode, mpGroupId, mpJoinedAt, localSlotIndex, updatePosition]);
 
   // Reset VibeJam portal grace timer whenever a portal entry session starts
   useEffect(() => {
@@ -318,7 +362,56 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         const limit = mode === GameMode.BATTLE ? 24.5 : 30.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
-        if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) { for (const portal of portals) { _portalVec.current.set(portal.x, 0, portal.z); if (playerRef.current.position.distanceTo(_portalVec.current) < 1.5) { if (!isGenerating) { enterBattle(portal); } break; } } }
+        if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) {
+          let nearestPortalId: string | null = null;
+          for (const portal of portals) {
+            _portalVec.current.set(portal.x, 0, portal.z);
+            const dist = playerRef.current.position.distanceTo(_portalVec.current);
+            if (dist < PORTAL_VOTE_PROXIMITY) {
+              nearestPortalId = portal.id;
+              if (!hasPeers && !isGenerating) {
+                enterBattle(portal);
+              }
+              break;
+            }
+          }
+          if (localPortalVoteRef.current !== nearestPortalId) {
+            localPortalVoteRef.current = nearestPortalId;
+            setLocalPortalVoteId(nearestPortalId);
+            setLocalPortalVote(nearestPortalId);
+          }
+        } else {
+          if (localPortalVoteRef.current !== null) {
+            localPortalVoteRef.current = null;
+            setLocalPortalVoteId(null);
+            setLocalPortalVote(null);
+          }
+        }
+
+        // Broadcast only while in overworld.
+        // Battle is solo-per-player, so battle movement should not leak into overworld peers.
+        if (mode === GameMode.OVERWORLD && mpGroupId && hasPeers) {
+          const nowMs = performance.now();
+          const broadcastInterval = 1000 / POSITION_BROADCAST_HZ;
+          if (nowMs - lastBroadcastRef.current >= broadcastInterval) {
+            lastBroadcastRef.current = nowMs;
+            broadcastMultiplayer({
+              type: 'player_state',
+              playerId: localPlayerId,
+              x: playerRef.current.position.x,
+              z: playerRef.current.position.z,
+              facing,
+              viewDirection,
+              action: isMoving ? 'RUN' : 'IDLE',
+              isDashing: dashTimer.current > 0,
+              scene: 'OVERWORLD',
+              hp: playerStats.hp,
+              maxHp: playerStats.maxHp,
+              portalVote: localPortalVoteRef.current,
+              t: Date.now(),
+            });
+          }
+        }
 
         // VibeJam portal grace period countdown
         if (isPortalEntry && portalGraceTimer.current > 0) { portalGraceTimer.current -= delta; }
@@ -385,6 +478,33 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     camera.lookAt(playerRef.current.position);
   });
 
+  useEffect(() => {
+    if (!mpGroupId || !hasPeers) {
+      prevBroadcastModeRef.current = mode;
+      return;
+    }
+    const prev = prevBroadcastModeRef.current;
+    prevBroadcastModeRef.current = mode;
+
+    if (mode === GameMode.BATTLE && prev !== GameMode.BATTLE) {
+      broadcastMultiplayer({
+        type: 'player_state',
+        playerId: localPlayerId,
+        x: worldPosition.x,
+        z: worldPosition.z,
+        facing,
+        viewDirection,
+        action: 'IDLE',
+        isDashing: false,
+        scene: 'BATTLE',
+        hp: playerStats.hp,
+        maxHp: playerStats.maxHp,
+        portalVote: null,
+        t: Date.now(),
+      });
+    }
+  }, [mode, mpGroupId, hasPeers, localPlayerId, worldPosition.x, worldPosition.z, facing, viewDirection, playerStats.hp, playerStats.maxHp]);
+
   const getPortalColor = (portal: any) => { if (portal.colorOverride) return portal.colorOverride; if (portal.type === 'BOSS') return '#aa00ff'; return '#00ffff'; };
   // Map quizOption key to display label for portals
   const getPortalLabel = (portal: any): string | undefined => { if (!portal.quizOption) return undefined; if (portal.quizOption === 'A') return 'YES'; if (portal.quizOption === 'B') return 'NO'; return portal.quizOption; };
@@ -399,6 +519,11 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD)
   );
   const showBattleScene = (mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE));
+  const localVotedPortal = useMemo(
+    () => (localPortalVoteId ? portals.find((p) => p.id === localPortalVoteId) ?? null : null),
+    [localPortalVoteId, portals]
+  );
+  const localVoteState = localPortalVoteId ? mpPortalVotes[localPortalVoteId] : null;
   const useMutedGameplayBackdrop = showOverworldScene || showBattleScene;
   const bloomThreshold = useMutedGameplayBackdrop ? 0.9 : 0.6;
   const bloomIntensity = useMutedGameplayBackdrop ? 0.35 : 0.6;
@@ -522,10 +647,53 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
               portalRefUrl={portalRefUrl}
             />
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}
+            {hasPeers && localVotedPortal && (
+              <group position={[localVotedPortal.x, 0.08, localVotedPortal.z + 2.8]} rotation={[-Math.PI / 2, 0, 0]}>
+                <mesh position={[0, 0, -0.02]}>
+                  <planeGeometry args={[6.6, 2.1]} />
+                  <meshBasicMaterial color="#081518" transparent opacity={0.72} depthWrite={false} />
+                </mesh>
+                <Text
+                  font={kenpixelFontUrl}
+                  fontSize={0.28}
+                  color="#67e8f9"
+                  position={[0, 0.4, 0.01]}
+                  anchorX="center"
+                  anchorY="middle"
+                  maxWidth={5.8}
+                  textAlign="center"
+                  outlineWidth={0.03}
+                  outlineColor="#000000"
+                >
+                  {localVoteState ? `${localVoteState.voters.length}/${localVoteState.required} READY` : 'PORTAL VOTE'}
+                </Text>
+                <Text
+                  font={kenpixelFontUrl}
+                  fontSize={0.2}
+                  color="#d1fae5"
+                  position={[0, -0.35, 0.01]}
+                  anchorX="center"
+                  anchorY="middle"
+                  maxWidth={5.8}
+                  textAlign="center"
+                  outlineWidth={0.02}
+                  outlineColor="#000000"
+                >
+                  {localVoteState?.countdownMs != null
+                    ? `STARTING IN ${Math.max(0, Math.ceil(localVoteState.countdownMs / 1000))}`
+                    : 'Stand together on one portal'}
+                </Text>
+              </group>
+            )}
           </group>
       )}
       <PlayerTrailRenderer playerRef={playerRef} dashTimer={dashTimer} />
-      <group ref={playerRef}><Suspense fallback={null}><PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} /></Suspense><mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.5, 16]} /><meshBasicMaterial color="black" opacity={0.5} transparent /></mesh></group>
+      <group ref={playerRef}><Suspense fallback={null}><PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} slotIndex={localSlotIndex} /></Suspense><mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.5, 16]} /><meshBasicMaterial color="black" opacity={0.5} transparent /></mesh></group>
+      {showOverworldScene && !showBattleScene && visiblePeerList.map((peer) => (
+        <Suspense key={peer.playerId} fallback={null}>
+          <RemotePlayer peer={peer} scale={2.0} />
+        </Suspense>
+      ))}
       <Suspense fallback={null}>
         {showBattleScene && (
             <BattleManager playerPosition={playerRef.current ? playerRef.current.position : new THREE.Vector3(0,0,0)} activeBattle={activeBattle} />
