@@ -544,6 +544,22 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
 
     if (victoryTriggered.current) {
         if (mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD) return;
+        const isFinalBossVictory = activeBattle.isBoss && activeStage >= 10;
+
+        if (isFinalBossVictory) {
+            if (!completionHandled.current) {
+                // Final stage: instantly bank remaining drops, then jump to victory flow.
+                if (xpOrbsRef.current.length > 0) {
+                    xpOrbsRef.current.forEach((orb) => collectCo2Orb(orb.value));
+                    xpOrbsRef.current = [];
+                    setRenderOrbs([]);
+                }
+                completionHandled.current = true;
+                completeStage();
+            }
+            return;
+        }
+
         updateVisuals(true);
         if (xpOrbsRef.current.length === 0 && !lootCollected.current) {
              lootCollected.current = true;

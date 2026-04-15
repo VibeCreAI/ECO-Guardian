@@ -148,7 +148,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   }, []);
 
   useEffect(() => {
-      if (mode === GameMode.GAMEOVER) {
+      if (mode === GameMode.GAMEOVER || mode === GameMode.VICTORY) {
           setScoreSubmitted(false);
           setIsSubmitting(false);
           setPlayerNameInput('');
@@ -528,6 +528,30 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                   <div className="ui-copy text-sm md:text-base">
                       "The balance is restored. The biomes breathe once more. Thank you, Guardian."
                   </div>
+
+                  {!scoreSubmitted ? (
+                      <div className="flex flex-col gap-2">
+                          <input
+                              type="text"
+                              placeholder="ENTER HERO NAME"
+                              maxLength={10}
+                              className="ui-input p-3 text-center font-bold uppercase"
+                              value={playerName}
+                              onChange={(e) => setPlayerNameInput(e.target.value.toUpperCase())}
+                          />
+                          <button
+                              onClick={handleSubmitScore}
+                              disabled={playerName.length === 0 || isSubmitting}
+                              className={`w-full py-3 font-bold text-lg transition-all ui-button ${playerName.length > 0 && !isSubmitting ? 'ui-button-warning' : 'ui-button-disabled'}`}
+                          >
+                              {isSubmitting ? 'SUBMITTING...' : 'SUBMIT SCORE'}
+                          </button>
+                      </div>
+                  ) : (
+                      <div className="text-green-300 font-bold py-2 ui-card ui-card-highlight animate-pulse">
+                          SCORE UPLOADED
+                      </div>
+                  )}
 
                   <button 
                       onClick={() => setMode(GameMode.MENU)}
