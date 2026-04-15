@@ -414,26 +414,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     );
   };
 
-  // --- LOADING SCREEN ---
-  if (mode === GameMode.LOADING_LEVEL) {
-      return (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-5">
-              <div className="ui-loading-spinner" aria-hidden="true" />
-              <p className="text-green-400 font-bold animate-pulse text-sm">LOADING...</p>
-          </div>
-      );
-  }
-
-  if (mode === GameMode.OVERWORLD && !isOverworldSceneReady) {
-      return (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-5">
-              <div className="ui-loading-spinner" aria-hidden="true" />
-              <p className="text-green-400 font-bold animate-pulse text-sm">FINALIZING BIOME...</p>
-              <p className="ui-muted text-[10px] uppercase">{currentConfig?.stageName ?? 'Preparing biome'}</p>
-          </div>
-      );
-  }
-
   // --- VICTORY SCREEN (NEW) ---
   if (mode === GameMode.VICTORY) {
       return (
@@ -1120,26 +1100,16 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       );
   }
 
-  // --- LOADING / MISSION BRIEFING ---
+  // --- Non-blocking startup badge ---
   if (mode === GameMode.INSTRUCTIONS) {
       return (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-6 p-6">
-              <div className="ui-loading-spinner" aria-hidden="true" />
-              <p className="text-green-400 font-bold text-sm animate-pulse">
-                  {!isStageReady ? 'CONSULTING GAIA...' : !isOverworldSceneReady ? 'ASSEMBLING BIOME...' : 'DEPLOYING GUARDIAN...'}
+          <div className="absolute top-3 left-3 ui-card px-3 py-2 pointer-events-none z-50">
+              <p className="text-[10px] uppercase ui-muted">
+                  {!isStageReady ? 'Preparing world' : !isOverworldSceneReady ? 'Finalizing scene' : 'Starting'}
               </p>
-              <div className="w-full max-w-xs">
-                  <div className="flex justify-between text-[10px] ui-muted mb-1">
-                      <span>{currentConfig?.stageName ?? 'Preparing biome'}</span>
-                      <span>{startupDisplayedProgress}%</span>
-                  </div>
-                  <div className="h-4 ui-progress overflow-hidden">
-                      <div
-                          className="h-full ui-progress-fill-eco transition-[width] duration-200"
-                          style={{ width: `${startupDisplayedProgress}%` }}
-                      />
-                  </div>
-              </div>
+              <p className="text-[11px] text-green-300 font-bold">
+                  {currentConfig?.stageName ?? 'ECO GUARDIAN'} {startupDisplayedProgress}%
+              </p>
           </div>
       );
   }

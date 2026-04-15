@@ -394,7 +394,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const showDefaultSky = !showStars && sceneTheme !== 'CYBER' && sceneTheme !== 'SKY';
   const showOverworldScene = (
     mode === GameMode.OVERWORLD ||
-    (mode === GameMode.INSTRUCTIONS && isStageReady) ||
+    mode === GameMode.INSTRUCTIONS ||
+    mode === GameMode.LOADING_LEVEL ||
     ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD)
   );
   const showBattleScene = (mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE));
