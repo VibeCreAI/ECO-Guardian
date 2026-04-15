@@ -320,7 +320,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
   const renderMinimap = () => {
     if (mode !== GameMode.OVERWORLD) return null;
-    const mapSize = 120; const mapRadius = mapSize / 2; const center = mapRadius; const scale = 3; 
+    const mapSize = 108; const mapRadius = mapSize / 2; const center = mapRadius; const scale = 3; 
 
     // SHOP COORDINATES: Must match Scene.tsx (x: 15, z: -5)
     const SHOP_POS = { x: 15, z: -5 };
@@ -353,7 +353,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
 
     return (
       <div 
-        className="absolute top-4 right-4 w-[120px] h-[120px] ui-card overflow-hidden pointer-events-none z-50 origin-top-right transition-transform"
+        className={`absolute right-4 w-[108px] h-[108px] ui-card overflow-hidden pointer-events-none z-50 origin-top-right transition-transform ${isShortHeight ? 'top-[34px]' : 'top-[42px]'}`}
         style={{ transform: isShortHeight ? 'scale(0.7)' : 'scale(1)' }}
       >
         <div className="absolute top-1/2 left-0 w-full h-[2px] bg-green-200/30 -translate-y-1/2" />
