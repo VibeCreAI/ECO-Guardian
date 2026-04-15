@@ -18,6 +18,7 @@ interface InWorldTextProps {
   vibeJamNextPos: [number, number, number];
   isPortalEntry: boolean;
   vibeJamReturnPos: [number, number, number];
+  portalRefUrl: string | null;
 }
 
 const applyTextOpacity = (text: any, opacity: number) => {
@@ -117,6 +118,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   vibeJamNextPos,
   isPortalEntry,
   vibeJamReturnPos,
+  portalRefUrl,
 }) => {
   const narrativeDoneRef = useRef(false);
 
@@ -157,6 +159,15 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
     () => [vibeJamReturnPos[0], 0.08, vibeJamReturnPos[2] + 4.5],
     [vibeJamReturnPos],
   );
+  const returnDestinationLabel = useMemo(() => {
+    if (!portalRefUrl) return 'vibej.am';
+    try {
+      const parsed = new URL(portalRefUrl);
+      return parsed.hostname;
+    } catch {
+      return portalRefUrl;
+    }
+  }, [portalRefUrl]);
 
   const quizVisible = Boolean((showNarrative || narrativeDismissed) && stageConfig?.quiz?.question && !hasBossPortal);
 
@@ -421,7 +432,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
             outlineWidth={0.03}
             outlineColor="#000000"
           >
-            Return to the world you came from
+            {`Back to: ${returnDestinationLabel}`}
           </Text>
         </group>
       )}

@@ -336,11 +336,18 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
         // VibeJam Return portal (red) — only when player entered via ?portal=true
         if (mode === GameMode.OVERWORLD && isPortalEntry && !vjGraceActive && playerRef.current.position.distanceTo(_vjReturnVec.current) < 1.5) {
-          const params = new URLSearchParams();
-          params.set('portal', 'true');
-          params.set('ref', window.location.hostname);
           const destination = portalRefUrl ?? 'https://vibej.am/portal/2026';
-          window.location.href = `${destination}?${params.toString()}`;
+          try {
+            const url = new URL(destination);
+            url.searchParams.set('portal', 'true');
+            url.searchParams.set('ref', window.location.hostname);
+            window.location.href = url.toString();
+          } catch {
+            const params = new URLSearchParams();
+            params.set('portal', 'true');
+            params.set('ref', window.location.hostname);
+            window.location.href = `${destination}?${params.toString()}`;
+          }
         }
     } else { setIsMoving(false); }
     const currentStats = useGameStore.getState().playerStats; if (currentStats.lastDamageTime > lastProcessedDamageTime.current) { shakeIntensity.current = 2.5; lastProcessedDamageTime.current = currentStats.lastDamageTime; }
@@ -511,6 +518,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
               vibeJamNextPos={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]}
               isPortalEntry={isPortalEntry}
               vibeJamReturnPos={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]}
+              portalRefUrl={portalRefUrl}
             />
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}
           </group>
