@@ -247,7 +247,7 @@ const getInitialStats = (useSaved = true): PlayerStats => {
       maxHp: 100,
       attackPower: 10,
       moveSpeed: 5,
-      dashCooldownTime: 1.5,
+      dashCooldownTime: 1.0,
       maxWeaponSlots: 4, 
       unlockedWeapons: { 'MAGIC_MISSILE': 1 },
       unlockedPassives: {},
@@ -1315,7 +1315,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                   stats.statUpgrades.attack += 1;
               } else if (item.key === 'SPEED') {
                   stats.moveSpeed += (item.value || 0.5);
-                  stats.dashCooldownTime = Math.max(0.5, stats.dashCooldownTime - 0.2); 
+                  stats.dashCooldownTime = Math.max(0.2, stats.dashCooldownTime - 0.2);
                   stats.statUpgrades.speed += 1;
               }
           }
@@ -1555,7 +1555,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           stats.attackPower += (option.value || 5);
           break;
         case 'SPEED':
-          stats.dashCooldownTime = Math.max(0.5, stats.dashCooldownTime - 0.2);
+          stats.dashCooldownTime = Math.max(0.2, stats.dashCooldownTime - 0.2);
           stats.moveSpeed += (option.value || 0.5);
           break;
       }

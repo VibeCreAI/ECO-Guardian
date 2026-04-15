@@ -58,6 +58,12 @@ const ENEMY_SPRITE_SHEET_PATHS = {
   DATA_SMOG: assetPath('images/enemies/stage_9_cloud_data_center/cloud_filter.png'),
   STRATOSPHERE_HEAP: assetPath('images/enemies/stage_9_cloud_data_center/cloud_server.png'),
   OZONE_EATER: assetPath('images/enemies/stage_9_cloud_data_center/cloud_polluted.png'),
+  HELLFIRE_WRAPPER: assetPath('images/enemies/stage_10_digital_hell/hell_bag.png'),
+  DAMNED_DRONE: assetPath('images/enemies/stage_10_digital_hell/hell_tire.png'),
+  INFERNAL_BARREL: assetPath('images/enemies/stage_10_digital_hell/hell_drum.png'),
+  BRIMSTONE_PHONE: assetPath('images/enemies/stage_10_digital_hell/hell_monitor.png'),
+  WASTE_DEMON: assetPath('images/enemies/stage_10_digital_hell/hell_bin.png'),
+  LANDFILL_ARCHFIEND: assetPath('images/enemies/stage_10_digital_hell/hell_waste.png'),
   MISINFORMATION: assetPath('images/enemies/misinformation.png'),
 } as const satisfies Record<string, string>;
 

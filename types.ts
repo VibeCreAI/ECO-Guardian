@@ -217,6 +217,7 @@ export interface Enemy {
   opacity?: number;
   teleportState?: 'IDLE' | 'TELEGRAPH' | 'FADEOUT' | 'FADEIN';
   teleportTimer?: number;
+  orbitDirection?: 1 | -1;
 }
 
 export interface Projectile {

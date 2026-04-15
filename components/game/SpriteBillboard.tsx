@@ -397,9 +397,8 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
     const texture = useLoader(THREE.TextureLoader, textureUrl);
     const frameCount = 16;
     const shadowRef = useRef<THREE.Mesh>(null);
-    const outlineAppliedRef = useRef(false);
     const shadowScale = Math.max(1.2, Math.min(2.4, scale * 0.32));
-    
+
     useMemo(() => {
         if (!texture) return;
         const imageWidth = (texture.image as { width?: number } | undefined)?.width ?? 1024;
@@ -411,24 +410,6 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
         texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.repeat.set((1 / frameCount) - frameInset * 2, 1);
         texture.colorSpace = THREE.SRGBColorSpace;
-
-        if (!outlineAppliedRef.current) {
-            const image = texture.image as { width?: number; height?: number } | undefined;
-            if (image?.width && image?.height) {
-                const outlineCanvas = document.createElement('canvas');
-                outlineCanvas.width = image.width;
-                outlineCanvas.height = image.height;
-                const outlineCtx = outlineCanvas.getContext('2d');
-                if (outlineCtx) {
-                    outlineCtx.clearRect(0, 0, outlineCanvas.width, outlineCanvas.height);
-                    outlineCtx.drawImage(texture.image, 0, 0);
-                    bakeAlphaOutline(outlineCtx, outlineCanvas.width, outlineCanvas.height, OUTLINE_HEX);
-                    texture.image = outlineCanvas;
-                    outlineAppliedRef.current = true;
-                }
-            }
-        }
-
         texture.needsUpdate = true;
     }, [texture]);
 
@@ -442,9 +423,9 @@ export const ExternalBossSprite: React.FC<ExternalBossSpriteProps> = ({ position
         if (entity) {
             const yPos = 2.25; 
             let x = entity.x; let z = entity.z;
-            if (entity.dashTime && entity.dashTime > 0.3) { 
-                x += (Math.random() - 0.5) * 0.2; 
-                z += (Math.random() - 0.5) * 0.2; 
+            if (entity.dashTime && entity.dashTime > 0.5) {
+                x += (Math.random() - 0.5) * 0.2;
+                z += (Math.random() - 0.5) * 0.2;
             }
             meshRef.current.position.set(x, yPos, z);
             if (shadowRef.current) shadowRef.current.position.set(x, 0.04, z);

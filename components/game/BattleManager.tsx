@@ -342,7 +342,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         visualVariant: variant,
         taunt: taunt,
         knockbackX: 0, knockbackZ: 0,
-        opacity: 1.0, teleportState: 'IDLE', teleportTimer: 0
+        opacity: 1.0, teleportState: 'IDLE', teleportTimer: 0,
+        orbitDirection: Math.random() < 0.5 ? 1 : -1,
      });
      setRenderEnemies([...enemiesRef.current]);
   };
@@ -638,32 +639,58 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
             let pattern: 'DASH' | 'TELEPORT' | 'ORBIT' = 'DASH';
             
             if (activeStage >= 10) {
-                // Ascended: Cycle randomly
-                const cycle = Math.floor(time / 10) % 3;
-                if (cycle === 0) pattern = 'TELEPORT';
-                else if (cycle === 1) pattern = 'ORBIT';
-                else pattern = 'DASH';
+                // Ascended: HP-gated phases (DASH -> TELEPORT -> ORBIT as HP drops)
+                const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1;
+                if (hpRatio > 0.66) pattern = 'DASH';
+                else if (hpRatio > 0.33) pattern = 'TELEPORT';
+                else pattern = 'ORBIT';
             } else if (activeStage >= 7) {
                 pattern = 'ORBIT';
             } else if (activeStage >= 4) {
                 pattern = 'TELEPORT';
             }
 
+            // Clean up leftover state when the pattern is NOT TELEPORT so the
+            // attack cooldown check doesn't get blocked by a stale fade state
+            // after an HP-driven phase swap.
+            if (pattern !== 'TELEPORT' && enemy.teleportState && enemy.teleportState !== 'IDLE') {
+                enemy.teleportState = 'IDLE';
+                enemy.opacity = 1.0;
+                enemy.teleportTimer = 0;
+            }
+
             // --- TELEPORT PATTERN ---
             if (pattern === 'TELEPORT') {
                 if (!enemy.teleportState) {
                     enemy.teleportState = 'IDLE';
-                    enemy.teleportTimer = 5.0;
+                    enemy.teleportTimer = 4.0 + Math.random() * 2.0;
                 }
-                
+
                 if (enemy.teleportState === 'IDLE') {
                     // Normal chasing while idle
-                    vx = (dx / dist) * moveSpeed; 
+                    vx = (dx / dist) * moveSpeed;
                     vz = (dz / dist) * moveSpeed;
-                    enemy.teleportTimer = (enemy.teleportTimer || 5.0) - delta;
+                    enemy.teleportTimer = (enemy.teleportTimer ?? 5.0) - delta;
                     if (enemy.teleportTimer <= 0) {
                         enemy.teleportState = 'TELEGRAPH'; // Telegraph before fade
                         enemy.teleportTimer = 1.5; // Warning time (flashing)
+
+                        // Fire a pre-committed shot at player's current position.
+                        // Punishes standing still during the telegraph window.
+                        const aimAngle = Math.atan2(dz, dx);
+                        projectilesRef.current.push({
+                            id: Math.random().toString(),
+                            x: enemy.x, z: enemy.z,
+                            vx: Math.cos(aimAngle) * 9,
+                            vz: Math.sin(aimAngle) * 9,
+                            damage: enemy.damage,
+                            fromPlayer: false,
+                            color: '#ff6600',
+                            life: 4,
+                            type: 'NORMAL',
+                            variant: 'BOSS_NORMAL',
+                        });
+                        projectilesChanged = true;
                     }
                 } else if (enemy.teleportState === 'TELEGRAPH') {
                     vx = 0; vz = 0; // Stop moving
@@ -676,18 +703,31 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                     vx = 0; vz = 0;
                     enemy.opacity = Math.max(0, (enemy.opacity || 1.0) - delta * 2);
                     if (enemy.opacity <= 0) {
-                        // Teleport Move - RANDOMIZED NEAR PLAYER (NOT ON TOP)
-                        const angle = Math.random() * Math.PI * 2;
-                        // Minimum safe distance 6, max 14
-                        const r = 6 + Math.random() * 8; 
-                        
-                        enemy.x = playerPosition.x + Math.cos(angle) * r;
-                        enemy.z = playerPosition.z + Math.sin(angle) * r;
-                        
-                        // Bounds Check (Clamp to arena)
-                        const limit = 24.0;
-                        enemy.x = Math.max(-limit, Math.min(limit, enemy.x));
-                        enemy.z = Math.max(-limit, Math.min(limit, enemy.z));
+                        // Teleport Move - reject & retry until we find a destination
+                        // that fits inside the arena at the desired radius, so the
+                        // boss never gets clamped to a wall on appearance.
+                        const limit = 22.0;
+                        let tx = enemy.x, tz = enemy.z;
+                        let found = false;
+                        for (let attempt = 0; attempt < 12; attempt++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const r = 8 + Math.random() * 8;
+                            const cx = playerPosition.x + Math.cos(angle) * r;
+                            const cz = playerPosition.z + Math.sin(angle) * r;
+                            if (Math.abs(cx) <= limit && Math.abs(cz) <= limit) {
+                                tx = cx; tz = cz; found = true; break;
+                            }
+                        }
+                        if (!found) {
+                            // Fallback: place 10u from player toward arena center
+                            const angleToCenter = Math.atan2(-playerPosition.z, -playerPosition.x);
+                            tx = playerPosition.x + Math.cos(angleToCenter) * 10;
+                            tz = playerPosition.z + Math.sin(angleToCenter) * 10;
+                            tx = Math.max(-limit, Math.min(limit, tx));
+                            tz = Math.max(-limit, Math.min(limit, tz));
+                        }
+                        enemy.x = tx;
+                        enemy.z = tz;
 
                         enemy.teleportState = 'FADEIN';
                         enemy.opacity = 0;
@@ -697,27 +737,82 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                     enemy.opacity = Math.min(1, (enemy.opacity || 0) + delta * 2);
                     if (enemy.opacity >= 1) {
                         enemy.teleportState = 'IDLE';
-                        enemy.teleportTimer = (activeStage >= 10) ? 2.5 : 5.0; 
+                        // Randomized idle window so players can't perfectly predict the telegraph
+                        enemy.teleportTimer = (activeStage >= 10)
+                            ? (2.0 + Math.random() * 1.5)
+                            : (4.0 + Math.random() * 2.0);
                     }
                 }
             } 
             // --- ORBIT PATTERN ---
             else if (pattern === 'ORBIT') {
                 enemy.opacity = 1.0; // Ensure visible
-                const desiredDist = 8.0;
-                
-                // Spiral movement: Tangential + Radial correction
-                const angle = Math.atan2(dz, dx);
-                // Move perpendicular (Orbit)
-                const orbitSpeed = moveSpeed * 1.5;
-                vx += Math.cos(angle + Math.PI/2) * orbitSpeed;
-                vz += Math.sin(angle + Math.PI/2) * orbitSpeed;
-                
-                // Move towards/away to maintain distance
-                const distError = dist - desiredDist;
-                if (Math.abs(distError) > 0.5) {
-                    vx += (dx / dist) * Math.sign(distError) * moveSpeed;
-                    vz += (dz / dist) * Math.sign(distError) * moveSpeed;
+
+                // Stage 8+: breathing radius pulses between ~5 and ~11 units
+                let desiredDist = 8.0;
+                if (activeStage >= 8) {
+                    desiredDist = 8.0 + Math.sin(bossPhaseTimer.current * 0.8) * 3.0;
+                }
+
+                // Shrink the orbit circle so it fits inside the arena when the
+                // player is near a wall/corner. Floor at 3u so the boss never
+                // collapses onto the player.
+                const arenaLimit = 24.0;
+                const maxFit = Math.max(3.0, Math.min(
+                    arenaLimit - Math.abs(playerPosition.x),
+                    arenaLimit - Math.abs(playerPosition.z)
+                ));
+                desiredDist = Math.min(desiredDist, maxFit);
+
+                let orbitActive = true;
+
+                // Stage 9+: telegraphed lunges interrupt the orbit
+                if (activeStage >= 9) {
+                    if (enemy.dashTime && enemy.dashTime > 0) {
+                        orbitActive = false;
+                        enemy.dashTime -= delta;
+                        if (enemy.dashTime > 0.8) {
+                            // Telegraph: freeze and flash
+                            vx = 0; vz = 0;
+                        } else {
+                            // Lunge along saved vector
+                            const lungeSpeed = 14;
+                            vx = (enemy.dashVector?.x || 0) * lungeSpeed;
+                            vz = (enemy.dashVector?.z || 0) * lungeSpeed;
+                            if (Math.random() > 0.5) {
+                                visualEffectsRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, life: 0.5, type: 'DASH_TRAIL' });
+                                setRenderEffects([...visualEffectsRef.current]);
+                            }
+                        }
+                        // Flip orbit direction on the frame the lunge finishes
+                        if (enemy.dashTime <= 0) {
+                            enemy.orbitDirection = (enemy.orbitDirection === 1 ? -1 : 1);
+                        }
+                    } else {
+                        enemy.dashCooldown = (enemy.dashCooldown || 6.0) - delta;
+                        if (enemy.dashCooldown <= 0 && dist > 4) {
+                            enemy.dashTime = 1.4; // 0.6 telegraph + 0.8 lunge
+                            enemy.dashCooldown = 6.0;
+                            enemy.dashVector = { x: dx / dist, z: dz / dist };
+                        }
+                    }
+                }
+
+                if (orbitActive) {
+                    // Spiral movement: Tangential + Radial correction
+                    const angle = Math.atan2(dz, dx);
+                    // Move perpendicular (Orbit) - direction per-spawn random, flipped post-lunge on stage 9+
+                    const orbitDir = enemy.orbitDirection ?? 1;
+                    const orbitSpeed = moveSpeed * 1.5;
+                    vx += Math.cos(angle + orbitDir * Math.PI/2) * orbitSpeed;
+                    vz += Math.sin(angle + orbitDir * Math.PI/2) * orbitSpeed;
+
+                    // Move towards/away to maintain distance
+                    const distError = dist - desiredDist;
+                    if (Math.abs(distError) > 0.5) {
+                        vx += (dx / dist) * Math.sign(distError) * moveSpeed;
+                        vz += (dz / dist) * Math.sign(distError) * moveSpeed;
+                    }
                 }
             }
             // --- DASH PATTERN (DEFAULT) ---
@@ -725,7 +820,23 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                 enemy.opacity = 1.0;
                 if (enemy.dashTime && enemy.dashTime > 0) {
                      enemy.dashTime -= delta;
-                     if (enemy.dashTime > 0.3) { vx = 0; vz = 0; } 
+                     if (enemy.dashTime > 0.5) {
+                         // Telegraph phase: freeze and paint the dash path so the
+                         // player can see where the boss is about to go.
+                         vx = 0; vz = 0;
+                         if (enemy.dashVector && Math.random() > 0.5) {
+                             for (let i = 1; i <= 4; i++) {
+                                 visualEffectsRef.current.push({
+                                     id: Math.random().toString(),
+                                     x: enemy.x + enemy.dashVector.x * i * 1.8,
+                                     z: enemy.z + enemy.dashVector.z * i * 1.8,
+                                     life: 0.25,
+                                     type: 'DASH_TRAIL',
+                                 });
+                             }
+                             setRenderEffects([...visualEffectsRef.current]);
+                         }
+                     }
                      else {
                          const dashSpeed = 25 + (activeStage * 1.5);
                          vx = (enemy.dashVector?.x || 0) * dashSpeed; vz = (enemy.dashVector?.z || 0) * dashSpeed;
@@ -739,10 +850,25 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                     vz = (dz / dist) * moveSpeed * 0.3;
                     enemy.dashCooldown = (enemy.dashCooldown || 5.0) - delta;
                     if (enemy.dashCooldown <= 0) {
-                         const distToPlayer = Math.sqrt(dx*dx + dz*dx);
+                         const distToPlayer = Math.sqrt(dx*dx + dz*dz);
                          if (distToPlayer > 6 && distToPlayer < 22) {
-                             enemy.dashTime = 0.8; enemy.dashCooldown = Math.max(4.0, 9.0 - (activeStage * 0.5)); 
-                             enemy.dashVector = { x: dx/distToPlayer, z: dz/distToPlayer };
+                             // Wall-aware dash: project the end of the dash and
+                             // skip the trigger if it would end outside the arena.
+                             const dashSpeed = 25 + (activeStage * 1.5);
+                             const dashDuration = 0.5; // active-dash window
+                             const nx = dx / distToPlayer;
+                             const nz = dz / distToPlayer;
+                             const endX = enemy.x + nx * dashSpeed * dashDuration;
+                             const endZ = enemy.z + nz * dashSpeed * dashDuration;
+                             const wallLimit = 22.0;
+                             if (Math.abs(endX) < wallLimit && Math.abs(endZ) < wallLimit) {
+                                 enemy.dashTime = 1.0;
+                                 enemy.dashCooldown = Math.max(4.0, 9.0 - (activeStage * 0.5));
+                                 enemy.dashVector = { x: nx, z: nz };
+                             } else {
+                                 // Re-try sooner instead of sitting on full cooldown
+                                 enemy.dashCooldown = 1.5;
+                             }
                          }
                     }
                 }
