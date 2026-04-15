@@ -271,6 +271,11 @@ input {
   box-shadow: 3px 3px 0 0 var(--eco-line);
 }
 
+.ui-slot-evolution {
+  border-color: var(--eco-yellow);
+  box-shadow: 3px 3px 0 0 var(--eco-yellow);
+}
+
 .ui-slot-active {
   background: var(--eco-panel-3);
   border-color: var(--eco-acid);

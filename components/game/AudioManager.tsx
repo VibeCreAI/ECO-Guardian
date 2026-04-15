@@ -5,14 +5,16 @@ import { GameMode } from '../../types';
 import { ASSET_PATHS } from '../../assets';
 
 export const AudioManager: React.FC = () => {
-  const { mode, activeStage, activeBattle, lastGameplayMode, isMuted } = useGameStore();
+  const { mode, previousMode, activeStage, activeBattle, lastGameplayMode, isMuted } = useGameStore();
   const audioRef = useRef<HTMLAudioElement>(null);
   const hasInteracted = useRef(false);
   
   // Map game state to audio file
   const getTrackForState = () => {
+    const isMenuLibrary = mode === GameMode.LIBRARY && previousMode === GameMode.MENU;
+
     // Priority 1: Menu / Intro / Game Over / Leaderboard
-    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.GAMEOVER || mode === GameMode.LEADERBOARD) {
+    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.GAMEOVER || mode === GameMode.LEADERBOARD || isMenuLibrary) {
       return ASSET_PATHS.audio.music.menu;
     }
 

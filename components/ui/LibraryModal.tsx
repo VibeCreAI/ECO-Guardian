@@ -7,6 +7,7 @@ import { GameMode } from '../../types';
 export const LibraryModal: React.FC = () => {
     const { setMode, previousMode, togglePause, playerStats } = useGameStore();
     const [tab, setTab] = useState<'TREE' | 'PASSIVES'>('TREE');
+    const isFullLibraryView = previousMode === GameMode.MENU;
 
     const handleClose = () => {
         if (previousMode === GameMode.MENU) {
@@ -51,7 +52,7 @@ export const LibraryModal: React.FC = () => {
                         <div className="space-y-8">
                             <div className="ui-card p-4">
                                 <p className="text-center ui-copy text-sm">
-                                    "When two base weapons reach their peak (Lv.5), they can fuse into an Ultimate Evolution."
+                                    "When two compatible base weapons are owned, they can fuse into an Ultimate Evolution."
                                 </p>
                             </div>
                             
@@ -63,22 +64,23 @@ export const LibraryModal: React.FC = () => {
                                     const hasW1 = !!playerStats.unlockedWeapons[w1.key];
                                     const hasW2 = !!playerStats.unlockedWeapons[w2.key];
                                     const hasRes = !!playerStats.unlockedWeapons[res.key];
+                                    const showAsUnlocked = !isFullLibraryView && hasRes;
 
                                     return (
-                                        <div key={idx} className={`ui-card ${hasRes ? 'ui-card-highlight' : ''} p-3 sm:p-4 flex items-center justify-between group transition-all duration-300 relative overflow-hidden min-w-0`}>
-                                            {hasRes && <div className="absolute top-0 right-0 ui-chip ui-chip-warning text-[8px] font-bold px-3 py-1">UNLOCKED</div>}
+                                        <div key={idx} className={`ui-card ${showAsUnlocked ? 'ui-card-highlight' : ''} p-3 sm:p-4 flex items-center justify-between group transition-all duration-300 relative overflow-hidden min-w-0`}>
+                                            {showAsUnlocked && <div className="absolute top-0 right-0 ui-chip ui-chip-warning text-[8px] font-bold px-3 py-1">UNLOCKED</div>}
 
                                             {/* Ingredients */}
                                             <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
                                                 <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-                                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 ui-slot flex items-center justify-center text-2xl sm:text-3xl shrink-0 ${hasW1 ? 'ui-slot-active' : 'opacity-50'}`}>
+                                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 ui-slot flex items-center justify-center text-2xl sm:text-3xl shrink-0 ${isFullLibraryView ? '' : (hasW1 ? 'ui-slot-active' : 'opacity-50')}`}>
                                                         {w1.icon}
                                                     </div>
                                                     <div className="text-[9px] sm:text-[10px] ui-muted font-bold text-center leading-tight">{w1.label}</div>
                                                 </div>
                                                 <div className="ui-cyan font-black text-base sm:text-xl shrink-0">+</div>
                                                 <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-                                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 ui-slot flex items-center justify-center text-2xl sm:text-3xl shrink-0 ${hasW2 ? 'ui-slot-active' : 'opacity-50'}`}>
+                                                    <div className={`w-10 h-10 sm:w-14 sm:h-14 ui-slot flex items-center justify-center text-2xl sm:text-3xl shrink-0 ${isFullLibraryView ? '' : (hasW2 ? 'ui-slot-active' : 'opacity-50')}`}>
                                                         {w2.icon}
                                                     </div>
                                                     <div className="text-[9px] sm:text-[10px] ui-muted font-bold text-center leading-tight">{w2.label}</div>
@@ -92,7 +94,7 @@ export const LibraryModal: React.FC = () => {
 
                                             {/* Result */}
                                             <div className="flex flex-col items-center gap-1 min-w-0 flex-1">
-                                                <div className={`w-12 h-12 sm:w-16 sm:h-16 ui-slot ${hasRes ? 'ui-slot-active' : ''} flex items-center justify-center text-3xl sm:text-4xl shrink-0`}>
+                                                <div className={`w-12 h-12 sm:w-16 sm:h-16 ui-slot ${showAsUnlocked ? 'ui-slot-active' : ''} flex items-center justify-center text-3xl sm:text-4xl shrink-0`}>
                                                     {res.icon}
                                                 </div>
                                                 <div className="text-[10px] sm:text-[11px] ui-warning font-black text-center leading-tight">{res.label}</div>
@@ -110,14 +112,14 @@ export const LibraryModal: React.FC = () => {
                                     {Object.values(WEAPONS_DATA).filter(w => !w.isEvolution).map(w => {
                                         const isUnlocked = !!playerStats.unlockedWeapons[w.key];
                                         return (
-                                            <div key={w.key} className={`flex items-start gap-3 p-3 transition-colors ui-card ${isUnlocked ? 'ui-card-highlight' : 'ui-card-muted opacity-80'}`}>
+                                            <div key={w.key} className={`flex items-start gap-3 p-3 transition-colors ui-card ${isFullLibraryView ? '' : (isUnlocked ? 'ui-card-highlight' : 'ui-card-muted opacity-80')}`}>
                                                 <div className="w-12 h-12 ui-slot flex items-center justify-center text-2xl shrink-0">
                                                     {w.icon}
                                                 </div>
                                                 <div className="overflow-hidden">
                                                     <div className="font-bold text-gray-100 text-sm flex items-center gap-2">
                                                         {w.label}
-                                                        {isUnlocked && <span className="text-[9px] ui-chip ui-chip-primary px-1">EQ</span>}
+                                                        {!isFullLibraryView && isUnlocked && <span className="text-[9px] ui-chip ui-chip-primary px-1">EQ</span>}
                                                     </div>
                                                     <div className="text-[10px] ui-muted mt-1 leading-tight">{w.description}</div>
                                                 </div>
@@ -135,14 +137,14 @@ export const LibraryModal: React.FC = () => {
                                 {Object.values(PASSIVES_DATA).map(p => {
                                     const isUnlocked = (playerStats.unlockedPassives[p.key] || 0) > 0;
                                     return (
-                                        <div key={p.key} className={`p-4 flex items-start gap-4 transition-all duration-300 ui-card ${isUnlocked ? 'ui-card-highlight' : 'ui-card-muted opacity-70'}`}>
-                                            <div className={`w-12 h-12 ui-slot flex items-center justify-center text-2xl shrink-0 ${isUnlocked ? 'ui-slot-active' : ''}`}>
+                                        <div key={p.key} className={`p-4 flex items-start gap-4 transition-all duration-300 ui-card ${isFullLibraryView ? '' : (isUnlocked ? 'ui-card-highlight' : 'ui-card-muted opacity-70')}`}>
+                                            <div className={`w-12 h-12 ui-slot flex items-center justify-center text-2xl shrink-0 ${!isFullLibraryView && isUnlocked ? 'ui-slot-active' : ''}`}>
                                                 {p.icon}
                                             </div>
                                             <div>
-                                                <h4 className={`font-bold ${isUnlocked ? 'text-green-200' : 'ui-muted'}`}>{p.label}</h4>
+                                                <h4 className={`font-bold ${isFullLibraryView ? 'text-gray-100' : (isUnlocked ? 'text-green-200' : 'ui-muted')}`}>{p.label}</h4>
                                                 <p className="ui-muted text-[11px] mt-1 leading-relaxed">{p.description}</p>
-                                                {isUnlocked && <div className="text-green-300 text-[10px] mt-2 font-bold">RANK {playerStats.unlockedPassives[p.key]}</div>}
+                                                {!isFullLibraryView && isUnlocked && <div className="text-green-300 text-[10px] mt-2 font-bold">RANK {playerStats.unlockedPassives[p.key]}</div>}
                                             </div>
                                         </div>
                                     );
@@ -156,7 +158,7 @@ export const LibraryModal: React.FC = () => {
                 {/* Status Bar / Hint */}
                 <div className="p-3 ui-panel-footer flex justify-between items-center text-[10px] font-mono">
                     <span>TIP: Master combinations to survive high-difficulty stages.</span>
-                    <span>LOADED: {Object.keys(playerStats.unlockedWeapons).length} WEAPONS</span>
+                    <span>{isFullLibraryView ? `FULL LIBRARY: ${Object.keys(WEAPONS_DATA).length} WEAPONS` : `LOADED: ${Object.keys(playerStats.unlockedWeapons).length} WEAPONS`}</span>
                 </div>
             </div>
         </div>
