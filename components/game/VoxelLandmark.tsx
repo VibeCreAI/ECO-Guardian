@@ -173,10 +173,10 @@ const ThemeHell = () => {
         for(let x=-8; x<=8; x++) for(let y=25; y<=30; y++) for(let z=-2; z<=2; z++) { v.push({ x, y, z, color: '#44403c' }); }
         return v;
     }, []);
-    const vortexRef = useRef<THREE.Group>(null);
-    useFrame((state, delta) => { if(vortexRef.current) { vortexRef.current.rotation.z -= delta * 2; const s = 1 + Math.sin(state.clock.elapsedTime * 10) * 0.1; vortexRef.current.scale.set(s,s,1); } });
+    const particlesRef = useRef<THREE.Group>(null);
+    useFrame((state, delta) => { if (particlesRef.current) { particlesRef.current.children.forEach((p) => { p.position.y += delta * 8; p.position.x += (Math.random() - 0.5) * 0.2; if (p.position.y > 22) { p.position.y = 6; p.position.x = (Math.random() - 0.5) * 4; p.position.z = (Math.random() - 0.5) * 4; } }); } });
     return (
-        <group><StaticVoxelBatch voxels={staticVoxels} scale={0.4} /><group ref={vortexRef} position={[0, 12, 0]}><mesh><planeGeometry args={[6, 20]} /><meshBasicMaterial color="#ef4444" side={THREE.DoubleSide} transparent opacity={0.6} /></mesh><mesh rotation={[0, 0, Math.PI/4]}><planeGeometry args={[4, 16]} /><meshBasicMaterial color="#7f1d1d" side={THREE.DoubleSide} transparent opacity={0.6} /></mesh></group><pointLight position={[0, 12, 2]} color="#ef4444" intensity={3} distance={15} /></group>
+        <group><StaticVoxelBatch voxels={staticVoxels} scale={0.4} /><group ref={particlesRef} position={[0, 4, 0]}>{new Array(18).fill(0).map((_, i) => ( <DynamicVoxel key={i} position={[(Math.random()-0.5)*3, 6 + Math.random()*14, (Math.random()-0.5)*3]} color={Math.random()>0.5 ? '#ef4444' : '#f97316'} emissive scale={0.35} /> ))}</group><pointLight position={[0, 12, 2]} color="#ef4444" intensity={3} distance={15} /></group>
     );
 };
 

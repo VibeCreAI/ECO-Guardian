@@ -81,9 +81,9 @@ export const usesPixelEnemyStyle = (type: string) => pixelStageOneSet.has(type);
 
 export const getEnemyCombatProfile = (type: EnemyMobType) => {
   const category = ENEMY_CATEGORY_BY_TYPE[type];
-  if (category === 'FAST') return { category, speed: 4.0, hpMod: 0.6, damageMod: 1.0, attackRange: rangedSet.has(type) ? 6 : 1 };
-  if (category === 'TANK') return { category, speed: 1.2, hpMod: 2.5, damageMod: 1.5, attackRange: rangedSet.has(type) ? 6 : 1 };
-  return { category: 'MEDIUM' as const, speed: 3.0, hpMod: 0.8, damageMod: 1.0, attackRange: rangedSet.has(type) ? 6 : 1 };
+  if (category === 'FAST') return { category, speed: 4.0, hpMod: 0.6, damageMod: 1.0, attackRange: rangedSet.has(type) ? 18 : 1 };
+  if (category === 'TANK') return { category, speed: 1.2, hpMod: 2.5, damageMod: 1.5, attackRange: rangedSet.has(type) ? 18 : 1 };
+  return { category: 'MEDIUM' as const, speed: 3.0, hpMod: 0.8, damageMod: 1.0, attackRange: rangedSet.has(type) ? 18 : 1 };
 };
 
 const withState = (ctx: CanvasRenderingContext2D, draw: () => void) => {

@@ -71,51 +71,134 @@ const FireAura: React.FC<{ radius: number, position: THREE.Vector3 }> = ({ radiu
 
 const TeslaCoil: React.FC<{ radius: number, position: THREE.Vector3 }> = ({ radius, position }) => {
     const groupRef = useRef<THREE.Group>(null);
-    const mesh1 = useRef<THREE.Mesh>(null);
+    const outerRef = useRef<THREE.Mesh>(null);
+    const innerRef = useRef<THREE.Mesh>(null);
+    const sparksRef = useRef<THREE.Group>(null);
+    const innerMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
-    const texture = useMemo(() => {
+    const outerTexture = useMemo(() => {
         const canvas = document.createElement('canvas');
-        canvas.width = 128; canvas.height = 128;
+        canvas.width = 256; canvas.height = 256;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-            ctx.clearRect(0,0,128,128);
-            ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 6; ctx.beginPath();
-            for(let i=0; i<=360; i+=10) {
+            ctx.clearRect(0,0,256,256);
+            const cx = 128, cy = 128;
+            ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 10; ctx.lineCap = 'round'; ctx.beginPath();
+            for(let i=0; i<=360; i+=6) {
                 const rad = (i * Math.PI) / 180;
-                const r = 50 + (Math.random() * 12); 
-                const x = 64 + Math.cos(rad) * r;
-                const y = 64 + Math.sin(rad) * r;
+                const r = 108 + (Math.random() * 14 - 7);
+                const x = cx + Math.cos(rad) * r;
+                const y = cy + Math.sin(rad) * r;
                 if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
             }
             ctx.closePath(); ctx.stroke();
-            ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2; ctx.beginPath();
-            for(let i=0; i<=360; i+=20) {
+            ctx.strokeStyle = '#dbeafe'; ctx.lineWidth = 3; ctx.beginPath();
+            for(let i=0; i<=360; i+=6) {
                 const rad = (i * Math.PI) / 180;
-                const x1 = 64 + Math.cos(rad) * 40;
-                const y1 = 64 + Math.sin(rad) * 40;
-                const x2 = 64 + Math.cos(rad) * 60;
-                const y2 = 64 + Math.sin(rad) * 60;
-                ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+                const r = 108 + (Math.random() * 10 - 5);
+                const x = cx + Math.cos(rad) * r;
+                const y = cy + Math.sin(rad) * r;
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
             }
-            ctx.stroke();
+            ctx.closePath(); ctx.stroke();
+            ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+            for(let i=0; i<360; i+=15) {
+                const rad = (i * Math.PI) / 180;
+                ctx.beginPath();
+                let px = cx + Math.cos(rad) * 80;
+                let py = cy + Math.sin(rad) * 80;
+                ctx.moveTo(px, py);
+                for (let s=0; s<4; s++) {
+                    const tr = 80 + s * 8;
+                    const ta = rad + (Math.random() - 0.5) * 0.35;
+                    px = cx + Math.cos(ta) * tr;
+                    py = cy + Math.sin(ta) * tr;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
         }
         const tex = new THREE.CanvasTexture(canvas);
-        tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+        return tex;
+    }, []);
+
+    const innerTexture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0,0,256,256);
+            const cx = 128, cy = 128;
+            const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 110);
+            grd.addColorStop(0, 'rgba(147,197,253,0.55)');
+            grd.addColorStop(0.55, 'rgba(59,130,246,0.25)');
+            grd.addColorStop(1, 'rgba(29,78,216,0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath(); ctx.arc(cx, cy, 110, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#bfdbfe'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+            for(let i=0; i<6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                ctx.beginPath();
+                let px = cx, py = cy;
+                ctx.moveTo(px, py);
+                for (let s=1; s<=8; s++) {
+                    const tr = s * 12;
+                    const ta = a + (Math.random() - 0.5) * 0.4;
+                    px = cx + Math.cos(ta) * tr;
+                    py = cy + Math.sin(ta) * tr;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
         return tex;
     }, []);
 
     useFrame((state, delta) => {
         if (useGameStore.getState().mode === GameMode.PAUSED) return;
         if (groupRef.current) groupRef.current.position.set(position.x, 0.05, position.z);
-        if (mesh1.current) {
-            mesh1.current.rotation.z += delta * 0.5; // Slowed down from 5.0
-            const s = 1 + Math.sin(state.clock.elapsedTime * 20) * 0.1;
-            mesh1.current.scale.set(s, s, 1);
+        const t = state.clock.elapsedTime;
+        if (outerRef.current) outerRef.current.rotation.z += delta * 0.25;
+        if (innerRef.current) innerRef.current.rotation.z -= delta * 0.6;
+        if (innerMatRef.current) innerMatRef.current.opacity = 0.28 + Math.sin(t * 4) * 0.05;
+        if (sparksRef.current) {
+            sparksRef.current.rotation.z += delta * 1.1;
+            sparksRef.current.children.forEach((child, i) => {
+                const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
+                if (mat) mat.opacity = 0.6 + Math.sin(t * 6 + i * 1.3) * 0.35;
+            });
         }
     });
 
+    const sparks = useMemo(() => {
+        const arr: { angle: number }[] = [];
+        const count = 5;
+        for (let i = 0; i < count; i++) arr.push({ angle: (i / count) * Math.PI * 2 });
+        return arr;
+    }, []);
+
     return (
-        <group ref={groupRef} rotation={[-Math.PI/2, 0, 0]}><mesh ref={mesh1}><planeGeometry args={[radius * 2, radius * 2]} /><meshBasicMaterial map={texture} transparent opacity={0.15} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} /></mesh></group>
+        <group ref={groupRef} rotation={[-Math.PI/2, 0, 0]}>
+            <mesh ref={innerRef} position={[0, 0, -0.02]}>
+                <planeGeometry args={[radius * 2, radius * 2]} />
+                <meshBasicMaterial ref={innerMatRef} map={innerTexture} transparent opacity={0.28} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+            </mesh>
+            <mesh ref={outerRef}>
+                <planeGeometry args={[radius * 2, radius * 2]} />
+                <meshBasicMaterial map={outerTexture} transparent opacity={0.35} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+            </mesh>
+            <group ref={sparksRef}>
+                {sparks.map((s, i) => (
+                    <mesh key={i} position={[Math.cos(s.angle) * radius, Math.sin(s.angle) * radius, 0.01]}>
+                        <sphereGeometry args={[0.22, 8, 8]} />
+                        <meshBasicMaterial color="#bfdbfe" transparent opacity={0.8} blending={THREE.AdditiveBlending} depthWrite={false} />
+                    </mesh>
+                ))}
+            </group>
+        </group>
     );
 };
 
@@ -1024,8 +1107,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
 
             if (enemy.attackRange > 1) {
                  enemy.attackCooldown = (enemy.attackCooldown || 0) + delta;
-                 if (dist < 8 && dist > 3) { 
-                     vx = 0; vz = 0; 
+                 if (dist < enemy.attackRange && dist > 3) {
+                     vx = 0; vz = 0;
                      if (enemy.attackCooldown > 2.0) { 
                          // SCALED ENEMY PROJECTILE PATTERNS
                          const a = Math.atan2(dz, dx);
@@ -1039,25 +1122,25 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                              const count = 8;
                              for(let i=0; i<count; i++) {
                                  const na = (i / count) * Math.PI * 2;
-                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(na)*5, vz: Math.sin(na)*5, damage: dmg * 0.8, fromPlayer: false, color: '#f87171', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(na)*6, vz: Math.sin(na)*6, damage: dmg * 0.8, fromPlayer: false, color: '#f87171', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
                              }
                              didAttack = true;
                          } else if (activeStage >= 5 && roll > 0.6) {
                              // Rapid Burst (3 fast shots)
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*4, vz: Math.sin(a)*4, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*10, vz: Math.sin(a)*10, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
                              didAttack = true;
                          } else if (activeStage >= 3 && roll > 0.4) {
                              // Triple Spread
                              for(let i=-1; i<=1; i++) {
                                  const spreadA = a + (i * 0.3);
-                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*6, vz: Math.sin(spreadA)*6, damage: dmg, fromPlayer: false, color: '#a3e635', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*7, vz: Math.sin(spreadA)*7, damage: dmg, fromPlayer: false, color: '#a3e635', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
                              }
                              didAttack = true;
                          } else {
                              // Standard Single Shot
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg, fromPlayer: false, color: 'red', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*7, vz: Math.sin(a)*7, damage: dmg, fromPlayer: false, color: 'red', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
                              didAttack = true;
                          }
 
@@ -1336,44 +1419,40 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     
     if ((weapons['TESLA_COIL'] || 0) > 0) {
         weaponTimers.current.teslaCoil += delta;
-        if (weaponTimers.current.teslaCoil > 0.25 * cdMod) {
+        if (weaponTimers.current.teslaCoil > 0.5 * cdMod) {
             const radius = (4.5 + (weapons['TESLA_COIL'] * 0.6)) * areaMod;
             const dmg = ((playerStats.attackPower * 0.4) + (weapons['TESLA_COIL'] * 1.5)) * dmgMod;
             const baseKB = WEAPONS_DATA['TESLA_COIL'].knockback;
-            let zapCount = 0;
-            const maxVisualZaps = 5; // Cap visuals to avoid lag, damage still hits all
+            const hitTargets: Enemy[] = [];
             enemiesRef.current.forEach(e => {
                 const dx = e.x - playerPosition.x;
                 const dz = e.z - playerPosition.z;
                 const distSq = dx*dx + dz*dz;
                 if (distSq < radius * radius) {
                     damageEnemy(e, dmg, baseKB, playerPosition.x, playerPosition.z, time);
-                    if (zapCount < maxVisualZaps) {
-                        visualEffectsRef.current.push({
-                            id: `tesla_${Math.random()}`,
-                            x: 0, z: 0,
-                            life: 0.15,
-                            initialLife: 0.15,
-                            type: 'CHAIN_LIGHTNING',
-                            path: [{x: playerPosition.x, z: playerPosition.z}, {x: e.x, z: e.z}]
-                        });
-                        zapCount++;
-                    }
+                    hitTargets.push(e);
                 }
             });
-            if (zapCount === 0 && Math.random() > 0.5) {
-                 const angle = Math.random() * Math.PI * 2;
-                 const r = radius * (0.5 + Math.random() * 0.5);
-                 visualEffectsRef.current.push({
-                    id: `tesla_idle_${Math.random()}`,
-                    x: 0, z: 0,
-                    life: 0.1,
-                    initialLife: 0.1,
-                    type: 'CHAIN_LIGHTNING',
-                    path: [{x: playerPosition.x, z: playerPosition.z}, {x: playerPosition.x + Math.cos(angle)*r, z: playerPosition.z + Math.sin(angle)*r}]
-                 });
+            if (hitTargets.length > 0) {
+                hitTargets.sort((a, b) => {
+                    const da = (a.x-playerPosition.x)**2 + (a.z-playerPosition.z)**2;
+                    const db = (b.x-playerPosition.x)**2 + (b.z-playerPosition.z)**2;
+                    return db - da;
+                });
+                const maxVisualZaps = Math.min(2, hitTargets.length);
+                for (let i = 0; i < maxVisualZaps; i++) {
+                    const e = hitTargets[i];
+                    visualEffectsRef.current.push({
+                        id: `tesla_${Math.random()}`,
+                        x: 0, z: 0,
+                        life: 0.45,
+                        initialLife: 0.45,
+                        type: 'CHAIN_LIGHTNING',
+                        path: [{x: playerPosition.x, z: playerPosition.z}, {x: e.x, z: e.z}]
+                    });
+                }
+                setRenderEffects([...visualEffectsRef.current]);
             }
-            setRenderEffects([...visualEffectsRef.current]);
             weaponTimers.current.teslaCoil = 0;
         }
     }
