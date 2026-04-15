@@ -34,6 +34,37 @@ const removePendingScore = (score: HighScore) => {
   savePendingScores(pending);
 };
 
+const sortLeaderboardScores = (scores: HighScore[]) =>
+  [...scores].sort((a, b) => b.carbonSaved - a.carbonSaved).slice(0, 50);
+
+const getScoreDate = (score: HighScore) => {
+  const value = Number(score.date);
+  return Number.isFinite(value) ? value : 0;
+};
+
+const isSameScoreFingerprint = (a: HighScore, b: HighScore) =>
+  a.name === b.name &&
+  a.stage === b.stage &&
+  a.kills === b.kills &&
+  a.damage === b.damage &&
+  a.carbonSaved === b.carbonSaved;
+
+const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
+  const matches = scores
+    .map((score, index) => ({ score, index }))
+    .filter(({ score }) => isSameScoreFingerprint(score, submitted));
+
+  if (matches.length === 0) return -1;
+  if (matches.length === 1) return matches[0].index;
+
+  const submittedDate = getScoreDate(submitted);
+  return matches.reduce((best, current) => {
+    const bestDelta = Math.abs(getScoreDate(best.score) - submittedDate);
+    const currentDelta = Math.abs(getScoreDate(current.score) - submittedDate);
+    return currentDelta < bestDelta ? current : best;
+  }).index;
+};
+
 const clampCameraZoom = (value: number) =>
   Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, value));
 
@@ -156,7 +187,7 @@ interface GameState {
 
   recordDamage: (amount: number) => void;
   recordKill: () => void;
-  submitScore: (name: string) => void;
+  submitScore: (name: string) => Promise<{ score: HighScore; rank: number | null }>;
   fetchLeaderboard: () => Promise<void>; 
   checkDbStatus: () => Promise<void>;
 
@@ -1442,10 +1473,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       savePendingScores([...pending, newScore]);
 
       // Optimistic update in-memory
-      const currentScores = [...state.highScores, newScore]
-          .sort((a, b) => b.carbonSaved - a.carbonSaved)
-          .slice(0, 50);
-      set({ highScores: currentScores });
+      const optimisticScores = sortLeaderboardScores([...state.highScores, newScore]);
+      set({ highScores: optimisticScores });
+      let rankIndex = findSubmittedScoreIndex(optimisticScores, newScore);
 
       try {
         const res = await fetch('/api/leaderboard', {
@@ -1456,12 +1486,25 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (res.ok) {
           // Confirmed by server — remove from pending queue
           removePendingScore(newScore);
-          get().fetchLeaderboard();
+          try {
+            const scores = await res.json();
+            if (Array.isArray(scores)) {
+              const typedScores = scores as HighScore[];
+              set({ highScores: typedScores });
+              rankIndex = findSubmittedScoreIndex(typedScores, newScore);
+            } else {
+              void get().fetchLeaderboard();
+            }
+          } catch (e) {
+            void get().fetchLeaderboard();
+          }
         }
       } catch (e) {
         // Offline — score stays in localStorage queue, will sync on next fetchLeaderboard()
         set({ dbStatus: 'offline' });
       }
+
+      return { score: newScore, rank: rankIndex >= 0 ? rankIndex + 1 : null };
   },
 
   selectUpgrade: (option) => set((state) => {

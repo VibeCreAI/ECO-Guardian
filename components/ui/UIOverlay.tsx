@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
-import { GameMode, UpgradeOption } from '../../types';
+import { GameMode, HighScore, UpgradeOption } from '../../types';
 import { VirtualJoystick } from './VirtualJoystick';
 import { StatusModal } from './StatusModal';
 import { LibraryModal } from './LibraryModal';
@@ -64,6 +64,34 @@ const PauseIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
     </svg>
 );
 
+const getScoreDate = (score: HighScore) => {
+    const value = Number(score.date);
+    return Number.isFinite(value) ? value : 0;
+};
+
+const isSameScoreFingerprint = (a: HighScore, b: HighScore) =>
+    a.name === b.name &&
+    a.stage === b.stage &&
+    a.kills === b.kills &&
+    a.damage === b.damage &&
+    a.carbonSaved === b.carbonSaved;
+
+const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
+    const matches = scores
+        .map((score, index) => ({ score, index }))
+        .filter(({ score }) => isSameScoreFingerprint(score, submitted));
+
+    if (matches.length === 0) return -1;
+    if (matches.length === 1) return matches[0].index;
+
+    const submittedDate = getScoreDate(submitted);
+    return matches.reduce((best, current) => {
+        const bestDelta = Math.abs(getScoreDate(best.score) - submittedDate);
+        const currentDelta = Math.abs(getScoreDate(current.score) - submittedDate);
+        return currentDelta < bestDelta ? current : best;
+    }).index;
+};
+
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
   const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore();
@@ -71,6 +99,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedRunScore, setSubmittedRunScore] = useState<HighScore | null>(null);
+  const [submittedRunRank, setSubmittedRunRank] = useState<number | null>(null);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [startupAssetProgress, setStartupAssetProgress] = useState(0);
@@ -116,6 +146,21 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+      if (mode === GameMode.GAMEOVER) {
+          setScoreSubmitted(false);
+          setIsSubmitting(false);
+          setPlayerNameInput('');
+          setSubmittedRunScore(null);
+          setSubmittedRunRank(null);
+      }
+
+      if (mode === GameMode.MENU) {
+          setSubmittedRunScore(null);
+          setSubmittedRunRank(null);
+      }
+  }, [mode]);
 
   useEffect(() => {
     let active = true;
@@ -303,19 +348,33 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
     if (dashCooldownCurrent <= 0 && (mode === GameMode.BATTLE || mode === GameMode.OVERWORLD)) onDash();
   };
 
-  const handleSubmitScore = () => {
-      if (playerName.trim().length > 0 && !isSubmitting) {
-          setIsSubmitting(true);
-          submitScore(playerName);
+  const handleSubmitScore = async () => {
+      if (playerName.trim().length === 0 || isSubmitting) return;
+
+      setIsSubmitting(true);
+      try {
+          const result = await submitScore(playerName.trim().toUpperCase());
           setScoreSubmitted(true);
+          setSubmittedRunScore(result.score);
+          setSubmittedRunRank(result.rank);
+          setMode(GameMode.LEADERBOARD);
+      } finally {
+          setIsSubmitting(false);
       }
   };
   
   const handleReset = () => {
       setScoreSubmitted(false);
+      setIsSubmitting(false);
       setPlayerNameInput('');
+      setSubmittedRunScore(null);
+      setSubmittedRunRank(null);
       resetGame();
   };
+
+  const submittedRunRowIndex = submittedRunScore
+      ? findSubmittedScoreIndex(highScores, submittedRunScore)
+      : -1;
 
 
   const renderMinimap = () => {
@@ -718,6 +777,20 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                     </div>
                 </div>
 
+                {submittedRunScore && (
+                    <div className={`mb-4 p-3 border-4 border-black ${submittedRunRank ? 'ui-card ui-card-highlight' : 'ui-card ui-card-warning'}`}>
+                        {submittedRunRank ? (
+                            <div className="text-sm md:text-base font-bold text-green-200">
+                                LAST RUN RANK: #{submittedRunRank}
+                            </div>
+                        ) : (
+                            <div className="text-sm md:text-base font-bold text-yellow-100">
+                                LAST RUN SUBMITTED: OUTSIDE TOP 50
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="flex-1 overflow-y-auto mb-6 bg-black/40 p-2 ui-card">
                     {isLeaderboardLoading ? (
                         <div className="h-full flex flex-col items-center justify-center gap-3 ui-muted">
@@ -742,15 +815,20 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                                 </tr>
                             </thead>
                             <tbody>
-                                {highScores.map((score, index) => (
-                                    <tr key={index} className={`border-b-2 border-black text-xs md:text-base ${index === 0 ? 'text-yellow-300 font-bold' : 'text-gray-300'}`}>
-                                        <td className="p-3">#{index + 1}</td>
+                                {highScores.map((score, index) => {
+                                    const isSubmittedRun = index === submittedRunRowIndex;
+                                    return (
+                                    <tr key={index} className={`border-b-2 border-black text-xs md:text-base ${isSubmittedRun ? 'bg-yellow-500/20 text-yellow-100 font-bold' : (index === 0 ? 'text-yellow-300 font-bold' : 'text-gray-300')}`}>
+                                        <td className="p-3">
+                                            #{index + 1}
+                                            {isSubmittedRun && <span className="ml-2 text-[10px] uppercase tracking-wide text-yellow-200">Your Run</span>}
+                                        </td>
                                         <td className="p-3">{score.name}</td>
                                         <td className="p-3 text-center">{score.stage}</td>
                                         <td className="p-3 text-right text-green-400">{score.carbonSaved || 0}kg</td>
                                         <td className="p-3 text-right">{(score.damage / 1000).toFixed(1)}k</td>
                                     </tr>
-                                ))}
+                                )})}
                             </tbody>
                         </table>
                     )}
