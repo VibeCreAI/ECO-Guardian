@@ -14,6 +14,12 @@ export const CAMERA_ZOOM_MAX = 2.0;
 const SAVE_KEY = 'pixel_realm_save_v1';
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
 
+const buildMultiplayerQuizSeed = (
+  groupId: string | null,
+  stage: number,
+  round: 'initial' | 'mid'
+) => (groupId ? `mp:${groupId}:stage-${stage}:${round}` : null);
+
 const loadPendingScores = (): HighScore[] => {
   try {
     const saved = localStorage.getItem(PENDING_SCORES_KEY);
@@ -649,14 +655,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       const name = `Player-${state.multiplayer.localPlayerId.slice(0, 4)}`;
       const session = await connectMultiplayer(name, stage);
       if (session) {
+        const groupId = getActiveGroupId() ?? session.groupId;
         set((s) => ({
           multiplayer: {
             ...s.multiplayer,
             joinedAt: session.joinedAt,
-            groupId: getActiveGroupId(),
+            groupId,
             connectionStatus: 'connected',
           },
         }));
+        const quizSeedKey = buildMultiplayerQuizSeed(groupId, stage, 'initial');
+        if (quizSeedKey && stage > 0) {
+          void useAiDirectorStore
+            .getState()
+            .generateNextStage(get().playerStats, stage - 1, 'Group quiz sync', quizSeedKey);
+        }
       } else {
         set((s) => ({ multiplayer: { ...s.multiplayer, connectionStatus: 'idle' } }));
       }
@@ -910,7 +923,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = get();
     if (newStage <= state.activeStage) return;
     set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
-    useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, "Group advanced").then(() => {
+    const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial');
+    useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey).then(() => {
       set((prevState) => ({
         activeStage: newStage,
         portals: generatePortals(newStage),
@@ -1736,7 +1750,8 @@ export const useGameStore = create<GameState>((set, get) => ({
               { id: `p_A_r2`, x: -7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' },
               { id: `p_B_r2`, x:  7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' },
           ];
-          useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty);
+          const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, state.activeStage, 'mid');
+          useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty, quizSeedKey);
 
           return {
               portals: freshPortals,
@@ -1818,7 +1833,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       saveMetaStats(state.playerStats);
       set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
       
-      useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult).then(() => {
+      const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial');
+      useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey).then(() => {
           set((prevState) => ({
             activeStage: nextStage,
             portals: generatePortals(nextStage),

@@ -11,8 +11,8 @@ interface AiDirectorState {
     error: string | null;
     usedQuizQuestions: string[];
     resetQuizHistory: () => void;
-    generateNextStage: (stats: PlayerStats, currentStage: number, lastResult?: string) => Promise<void>;
-    generateMidStageQuiz: (stage: number, availableOptions: string[], difficulty: QuizDifficulty) => Promise<void>;
+    generateNextStage: (stats: PlayerStats, currentStage: number, lastResult?: string, quizSeedKey?: string | null) => Promise<void>;
+    generateMidStageQuiz: (stage: number, availableOptions: string[], difficulty: QuizDifficulty, quizSeedKey?: string | null) => Promise<void>;
     generateUpgradeAdvice: (stats: PlayerStats, options: UpgradeOption[]) => Promise<AdviceResult>;
     generateDeathMessage: (stats: PlayerStats, stage: number, killer: string) => Promise<void>;
 }
@@ -446,7 +446,7 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
 
     resetQuizHistory: () => set({ usedQuizQuestions: [] }),
 
-    generateNextStage: async (stats, currentStage, lastResult) => {
+    generateNextStage: async (stats, currentStage, lastResult, quizSeedKey) => {
         set({ isGenerating: true, error: null });
         const targetStage = currentStage + 1;
         // 1. SELECT FIXED STAGE
@@ -461,13 +461,12 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
         }
         let finalConfig = JSON.parse(JSON.stringify(stageTemplate));
 
-        // 2. GENERATE YES/NO QUESTION DETERMINISTICALLY PER STAGE
-        // This keeps all multiplayer clients aligned even if local quiz histories differ.
-        finalConfig.quiz = selectYesNoQuestionDeterministic(
-            finalConfig.stageName,
-            `stage-${targetStage}-initial`,
-            []
-        );
+        // 2. GENERATE YES/NO QUESTION
+        // Solo runs should feel fresh. Multiplayer passes a shared group seed so
+        // every client gets the same random-looking quiz without using local history.
+        finalConfig.quiz = quizSeedKey
+            ? selectYesNoQuestionDeterministic(finalConfig.stageName, quizSeedKey, [])
+            : selectYesNoQuestion(finalConfig.stageName, get().usedQuizQuestions);
 
         set({
             currentConfig: finalConfig,
@@ -476,19 +475,19 @@ export const useAiDirectorStore = create<AiDirectorState>((set, get) => ({
         });
     },
 
-    generateMidStageQuiz: async (stage, availableOptions, difficulty) => {
+    generateMidStageQuiz: async (stage, availableOptions, difficulty, quizSeedKey) => {
         const state = get();
         if (!state.currentConfig) return;
 
         set({ isGenerating: true });
 
-        // Deterministic per-stage seed so all clients in the same stage get the same round-2 quiz.
-        // Do not depend on local quiz history, which can diverge between peers.
-        const quiz = selectYesNoQuestionDeterministic(
-            state.currentConfig.stageName,
-            `mid-stage-${stage}`,
-            []
-        );
+        const currentQuestion = state.currentConfig.quiz?.question;
+        const syncedExclusions = currentQuestion ? [currentQuestion] : [];
+        const localExclusions = [...state.usedQuizQuestions, ...syncedExclusions];
+
+        const quiz = quizSeedKey
+            ? selectYesNoQuestionDeterministic(state.currentConfig.stageName, quizSeedKey, syncedExclusions)
+            : selectYesNoQuestion(state.currentConfig.stageName, localExclusions);
 
         set((prevState) => {
             if (!prevState.currentConfig) return { isGenerating: false };
