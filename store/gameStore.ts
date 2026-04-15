@@ -79,6 +79,7 @@ interface GameState {
   
   isMuted: boolean; // New state for audio control
   cameraZoom: number;
+  playMode: 'multiplayer' | 'solo';
 
   isPortalEntry: boolean;
   portalRefUrl: string | null;
@@ -135,6 +136,7 @@ interface GameState {
   togglePause: () => void; 
   toggleMute: () => void; // New action
   setCameraZoom: (zoom: number | ((current: number) => number)) => void;
+  setPlayMode: (mode: 'multiplayer' | 'solo') => void;
   setQuizOpen: (isOpen: boolean) => void;
   setImpactOpen: (isOpen: boolean) => void; 
   setOverworldSceneReady: (ready: boolean) => void;
@@ -574,6 +576,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   isMuted: false,
   cameraZoom: 1.0,
+  playMode: 'multiplayer',
 
   isPortalEntry: false,
   portalRefUrl: null,
@@ -971,6 +974,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setCameraZoom: (zoom) => set((state) => ({
     cameraZoom: clampCameraZoom(typeof zoom === 'function' ? zoom(state.cameraZoom) : zoom),
   })),
+  setPlayMode: (mode) => set({ playMode: mode }),
 
   setQuizOpen: (isOpen) => set({ isQuizOpen: isOpen }),
   setImpactOpen: (isOpen) => set({ isImpactOpen: isOpen }),

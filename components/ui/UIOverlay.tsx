@@ -66,7 +66,7 @@ const PauseIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -927,6 +927,24 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                     </span>
                     </button>
 
+                    <div className="ui-chip p-2 border border-black/50 bg-black/25">
+                      <div className="text-[10px] uppercase ui-muted mb-2 text-center">Play Mode</div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setPlayMode('multiplayer')}
+                          className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'multiplayer' ? 'ui-button-warning' : 'ui-button-secondary'}`}
+                        >
+                          Multiplayer
+                        </button>
+                        <button
+                          onClick={() => setPlayMode('solo')}
+                          className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'solo' ? 'ui-button-warning' : 'ui-button-secondary'}`}
+                        >
+                          Solo
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="flex gap-4">
                     <button
                         onClick={() => setMode(GameMode.LIBRARY)}
@@ -1086,6 +1104,24 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                       >
                           GRIMOIRE
                       </button>
+
+                      <div className="ui-chip p-2 border border-black/50 bg-black/25">
+                        <div className="text-[10px] uppercase ui-muted mb-2 text-center">Play Mode</div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setPlayMode('multiplayer')}
+                            className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'multiplayer' ? 'ui-button-warning' : 'ui-button-secondary'}`}
+                          >
+                            Multiplayer
+                          </button>
+                          <button
+                            onClick={() => setPlayMode('solo')}
+                            className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'solo' ? 'ui-button-warning' : 'ui-button-secondary'}`}
+                          >
+                            Solo
+                          </button>
+                        </div>
+                      </div>
 
                       <div className="flex gap-2">
                         <button 

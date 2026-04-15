@@ -23,6 +23,7 @@ const App: React.FC = () => {
   // Auto-join matchmaking when a run begins; auto-leave when returning to menu.
   const gameMode = useGameStore((s) => s.mode);
   const activeStage = useGameStore((s) => s.activeStage);
+  const playMode = useGameStore((s) => s.playMode);
   const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
   const mpStatus = useGameStore((s) => s.multiplayer.connectionStatus);
   useEffect(() => {
@@ -37,12 +38,12 @@ const App: React.FC = () => {
       gameMode === GameMode.SHOP ||
       gameMode === GameMode.STATUS ||
       gameMode === GameMode.LIBRARY;
-    if (inRun && !mpGroupId && mpStatus === 'idle') {
+    if (playMode === 'multiplayer' && inRun && !mpGroupId && mpStatus === 'idle') {
       useGameStore.getState().joinMatchmaking(activeStage);
-    } else if (!inRun && mpGroupId) {
+    } else if ((playMode === 'solo' || !inRun) && mpGroupId) {
       useGameStore.getState().leaveMatchmaking();
     }
-  }, [gameMode, mpGroupId, mpStatus, activeStage]);
+  }, [gameMode, mpGroupId, mpStatus, activeStage, playMode]);
 
   // VibeJam portal entry detection — must run before any other init
   useEffect(() => {
