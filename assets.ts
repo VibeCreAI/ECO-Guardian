@@ -52,6 +52,12 @@ const ENEMY_SPRITE_SHEET_PATHS = {
   STATIC_WASTE: assetPath('images/enemies/stage_8_null_void/void_battery.png'),
   ABYSS_LANDFILL: assetPath('images/enemies/stage_8_null_void/void_drum.png'),
   OBLIVION_SLUDGE: assetPath('images/enemies/stage_8_null_void/void_milk.png'),
+  CLOUD_BAG: assetPath('images/enemies/stage_9_cloud_data_center/cloud_bags.png'),
+  CONTRAIL_SERPENT: assetPath('images/enemies/stage_9_cloud_data_center/cloud_co2.png'),
+  SATELLITE_JUNK: assetPath('images/enemies/stage_9_cloud_data_center/cloud_satellite.png'),
+  DATA_SMOG: assetPath('images/enemies/stage_9_cloud_data_center/cloud_filter.png'),
+  STRATOSPHERE_HEAP: assetPath('images/enemies/stage_9_cloud_data_center/cloud_server.png'),
+  OZONE_EATER: assetPath('images/enemies/stage_9_cloud_data_center/cloud_polluted.png'),
   MISINFORMATION: assetPath('images/enemies/misinformation.png'),
 } as const satisfies Record<string, string>;
 
