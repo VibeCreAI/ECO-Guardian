@@ -101,6 +101,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedRunScore, setSubmittedRunScore] = useState<HighScore | null>(null);
   const [submittedRunRank, setSubmittedRunRank] = useState<number | null>(null);
+  const [scoreSubmitError, setScoreSubmitError] = useState<string | null>(null);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [startupAssetProgress, setStartupAssetProgress] = useState(0);
@@ -154,11 +155,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           setPlayerNameInput('');
           setSubmittedRunScore(null);
           setSubmittedRunRank(null);
+          setScoreSubmitError(null);
       }
 
       if (mode === GameMode.MENU) {
           setSubmittedRunScore(null);
           setSubmittedRunRank(null);
+          setScoreSubmitError(null);
       }
   }, [mode]);
 
@@ -352,12 +355,20 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       if (playerName.trim().length === 0 || isSubmitting) return;
 
       setIsSubmitting(true);
+      setScoreSubmitError(null);
       try {
           const result = await submitScore(playerName.trim().toUpperCase());
-          setScoreSubmitted(true);
-          setSubmittedRunScore(result.score);
-          setSubmittedRunRank(result.rank);
-          setMode(GameMode.LEADERBOARD);
+          if (result.confirmed) {
+              setScoreSubmitted(true);
+              setSubmittedRunScore(result.score);
+              setSubmittedRunRank(result.rank);
+              setMode(GameMode.LEADERBOARD);
+          } else {
+              setScoreSubmitted(false);
+              setSubmittedRunScore(null);
+              setSubmittedRunRank(null);
+              setScoreSubmitError(result.error || 'Score submission failed. Please try again.');
+          }
       } finally {
           setIsSubmitting(false);
       }
@@ -369,6 +380,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
       setPlayerNameInput('');
       setSubmittedRunScore(null);
       setSubmittedRunRank(null);
+      setScoreSubmitError(null);
       resetGame();
   };
 
@@ -537,7 +549,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                               maxLength={10}
                               className="ui-input p-3 text-center font-bold uppercase"
                               value={playerName}
-                              onChange={(e) => setPlayerNameInput(e.target.value.toUpperCase())}
+                              onChange={(e) => {
+                                  setPlayerNameInput(e.target.value.toUpperCase());
+                                  setScoreSubmitError(null);
+                              }}
                           />
                           <button
                               onClick={handleSubmitScore}
@@ -546,6 +561,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                           >
                               {isSubmitting ? 'SUBMITTING...' : 'SUBMIT SCORE'}
                           </button>
+                          {scoreSubmitError && (
+                              <div className="text-red-200 text-xs ui-card ui-card-danger text-left p-2">
+                                  {scoreSubmitError}
+                              </div>
+                          )}
                       </div>
                   ) : (
                       <div className="text-green-300 font-bold py-2 ui-card ui-card-highlight animate-pulse">
@@ -912,7 +932,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                               maxLength={10}
                               className="ui-input p-3 text-center font-bold uppercase"
                               value={playerName}
-                              onChange={(e) => setPlayerNameInput(e.target.value.toUpperCase())}
+                              onChange={(e) => {
+                                  setPlayerNameInput(e.target.value.toUpperCase());
+                                  setScoreSubmitError(null);
+                              }}
                           />
                           <button
                               onClick={handleSubmitScore}
@@ -921,6 +944,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
                           >
                               {isSubmitting ? 'SUBMITTING...' : 'SUBMIT SCORE'}
                           </button>
+                          {scoreSubmitError && (
+                              <div className="text-red-200 text-xs ui-card ui-card-danger text-left p-2">
+                                  {scoreSubmitError}
+                              </div>
+                          )}
                       </div>
                   ) : (
                       <div className="text-green-300 font-bold py-2 ui-card ui-card-highlight animate-pulse">

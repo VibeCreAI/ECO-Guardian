@@ -50,17 +50,29 @@ const checkRateLimit = (ip) => {
 };
 
 // --- SCORE VALIDATION ---
-const MAX_STAGES = 20;
-const MAX_CARBON = 500000;
-const MAX_KILLS = 10000;
-const MAX_DAMAGE = 10000000;
+const MAX_STAGES = 100;
+const MAX_CARBON = 10_000_000;
+const MAX_KILLS = 1_000_000;
+const MAX_DAMAGE = 1_000_000_000;
 
-const isValidScore = (score) =>
-    typeof score.name === 'string' && score.name.trim().length > 0 &&
-    Number.isFinite(score.stage) && score.stage >= 1 && score.stage <= MAX_STAGES &&
-    Number.isFinite(score.carbonSaved) && score.carbonSaved >= 0 && score.carbonSaved <= MAX_CARBON &&
-    Number.isFinite(score.kills) && score.kills >= 0 && score.kills <= MAX_KILLS &&
-    Number.isFinite(score.damage) && score.damage >= 0 && score.damage <= MAX_DAMAGE;
+const validateScore = (score) => {
+    if (!score || typeof score !== 'object') return 'Missing score payload';
+    if (typeof score.name !== 'string' || score.name.trim().length === 0) return 'Name is required';
+
+    const stage = Number(score.stage);
+    if (!Number.isFinite(stage) || stage < 1 || stage > MAX_STAGES) return `Stage must be between 1 and ${MAX_STAGES}`;
+
+    const carbonSaved = Number(score.carbonSaved);
+    if (!Number.isFinite(carbonSaved) || carbonSaved < 0 || carbonSaved > MAX_CARBON) return `Carbon must be between 0 and ${MAX_CARBON}`;
+
+    const kills = Number(score.kills);
+    if (!Number.isFinite(kills) || kills < 0 || kills > MAX_KILLS) return `Kills must be between 0 and ${MAX_KILLS}`;
+
+    const damage = Number(score.damage);
+    if (!Number.isFinite(damage) || damage < 0 || damage > MAX_DAMAGE) return `Damage must be between 0 and ${MAX_DAMAGE}`;
+
+    return null;
+};
 
 // Map Supabase snake_case row to frontend camelCase shape
 const mapRow = (row) => ({
@@ -106,15 +118,15 @@ app.get('/api/leaderboard', async (req, res) => {
 
 // POST Score
 app.post('/api/leaderboard', async (req, res) => {
+    const newScore = req.body;
+    const validationError = validateScore(newScore);
+    if (validationError) {
+        return res.status(400).json({ error: 'Invalid score data', reason: validationError });
+    }
+
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
     if (!checkRateLimit(ip)) {
         return res.status(429).json({ error: 'Too many submissions. Please wait before trying again.' });
-    }
-
-    const newScore = req.body;
-
-    if (!newScore || !isValidScore(newScore)) {
-        return res.status(400).json({ error: 'Invalid score data' });
     }
 
     const entry = {

@@ -34,9 +34,6 @@ const removePendingScore = (score: HighScore) => {
   savePendingScores(pending);
 };
 
-const sortLeaderboardScores = (scores: HighScore[]) =>
-  [...scores].sort((a, b) => b.carbonSaved - a.carbonSaved).slice(0, 50);
-
 const getScoreDate = (score: HighScore) => {
   const value = Number(score.date);
   return Number.isFinite(value) ? value : 0;
@@ -67,6 +64,24 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
 
 const clampCameraZoom = (value: number) =>
   Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, value));
+
+type SubmitScoreResult = {
+  score: HighScore;
+  rank: number | null;
+  confirmed: boolean;
+  error?: string;
+};
+
+const readApiError = async (response: Response): Promise<string> => {
+  try {
+    const data = await response.json();
+    const base = typeof data?.error === 'string' ? data.error : `Request failed (${response.status})`;
+    const reason = typeof data?.reason === 'string' ? data.reason : '';
+    return reason ? `${base}: ${reason}` : base;
+  } catch (e) {
+    return `Request failed (${response.status})`;
+  }
+};
 
 interface GameState {
   mode: GameMode;
@@ -187,7 +202,7 @@ interface GameState {
 
   recordDamage: (amount: number) => void;
   recordKill: () => void;
-  submitScore: (name: string) => Promise<{ score: HighScore; rank: number | null }>;
+  submitScore: (name: string) => Promise<SubmitScoreResult>;
   fetchLeaderboard: () => Promise<void>; 
   checkDbStatus: () => Promise<void>;
 
@@ -1439,7 +1454,19 @@ export const useGameStore = create<GameState>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(score)
         });
-        if (res.ok) removePendingScore(score);
+        if (res.ok) {
+          removePendingScore(score);
+          continue;
+        }
+
+        // Permanent payload issue: don't keep retrying this score forever.
+        if (res.status === 400) {
+          removePendingScore(score);
+          continue;
+        }
+
+        // Temporary issue: keep remaining queue for later.
+        if (res.status === 429 || res.status >= 500) break;
       } catch (e) {
         // Still offline — stop trying, leave remaining scores queued
         break;
@@ -1468,14 +1495,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           date: Date.now()
       };
 
-      // Save to localStorage queue immediately — score is safe even if offline
+      // Save to localStorage queue immediately - score is safe even if offline
       const pending = loadPendingScores();
       savePendingScores([...pending, newScore]);
-
-      // Optimistic update in-memory
-      const optimisticScores = sortLeaderboardScores([...state.highScores, newScore]);
-      set({ highScores: optimisticScores });
-      let rankIndex = findSubmittedScoreIndex(optimisticScores, newScore);
 
       try {
         const res = await fetch('/api/leaderboard', {
@@ -1483,28 +1505,44 @@ export const useGameStore = create<GameState>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newScore)
         });
-        if (res.ok) {
-          // Confirmed by server — remove from pending queue
-          removePendingScore(newScore);
-          try {
-            const scores = await res.json();
-            if (Array.isArray(scores)) {
-              const typedScores = scores as HighScore[];
-              set({ highScores: typedScores });
-              rankIndex = findSubmittedScoreIndex(typedScores, newScore);
-            } else {
-              void get().fetchLeaderboard();
-            }
-          } catch (e) {
-            void get().fetchLeaderboard();
-          }
-        }
-      } catch (e) {
-        // Offline — score stays in localStorage queue, will sync on next fetchLeaderboard()
-        set({ dbStatus: 'offline' });
-      }
 
-      return { score: newScore, rank: rankIndex >= 0 ? rankIndex + 1 : null };
+        if (!res.ok) {
+          const error = await readApiError(res);
+          if (res.status === 400) {
+            // Validation errors won't recover by retrying the same payload.
+            removePendingScore(newScore);
+          }
+          return { score: newScore, rank: null, confirmed: false, error };
+        }
+
+        // Confirmed by server - remove from pending queue
+        removePendingScore(newScore);
+
+        let rankIndex = -1;
+        try {
+          const scores = await res.json();
+          if (Array.isArray(scores)) {
+            const typedScores = scores as HighScore[];
+            set({ highScores: typedScores, dbStatus: 'connected' });
+            rankIndex = findSubmittedScoreIndex(typedScores, newScore);
+          } else {
+            await get().fetchLeaderboard();
+          }
+        } catch (e) {
+          await get().fetchLeaderboard();
+        }
+
+        return { score: newScore, rank: rankIndex >= 0 ? rankIndex + 1 : null, confirmed: true };
+      } catch (e) {
+        // Offline - score stays in localStorage queue, will sync on next fetchLeaderboard()
+        set({ dbStatus: 'offline' });
+        return {
+          score: newScore,
+          rank: null,
+          confirmed: false,
+          error: 'Network issue. Score saved locally and will retry sync later.'
+        };
+      }
   },
 
   selectUpgrade: (option) => set((state) => {
