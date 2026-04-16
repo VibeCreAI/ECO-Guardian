@@ -1521,6 +1521,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
             </div>
           )}
         </div>
+
+        {mpGuideMessage && mode === GameMode.OVERWORLD && (
+          <div className="ui-chip p-1 text-[10px] px-2 text-yellow-100 border border-yellow-500/50 max-w-64">
+            {mpGuideMessage}
+          </div>
+        )}
         
         <div className="w-36 md:w-64 h-6 ui-progress relative">
           <div 

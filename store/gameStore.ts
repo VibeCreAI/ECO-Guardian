@@ -6,19 +6,21 @@ import type { EnemySnapshotEntry, PeerState, MultiplayerMessage } from '../multi
 import { MAX_GROUP_SIZE, type SlotIndex } from '../multiplayer/config';
 import type { PresenceEntry } from '../multiplayer/roomClient';
 import { getOrCreateLocalPlayerId } from '../multiplayer/supabaseClient';
-import { advanceGroupStageIfHost, broadcastMultiplayer, connectMultiplayer, disconnectMultiplayer, getActiveGroupId } from '../multiplayer/service';
+import { advanceGroupStageIfHost, broadcastMultiplayer, connectMultiplayer, disconnectMultiplayer, getActiveGroupId, lockGroupIfHost } from '../multiplayer/service';
 
 export const SHOP_REFRESH_COST = 50;
 export const CAMERA_ZOOM_MIN = 0.5;
 export const CAMERA_ZOOM_MAX = 2.0;
 const SAVE_KEY = 'pixel_realm_save_v1';
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
+const getOverworldSpawn = () => ({ x: 0, z: 6 });
 
 const buildMultiplayerQuizSeed = (
   groupId: string | null,
   stage: number,
-  round: 'initial' | 'mid'
-) => (groupId ? `mp:${groupId}:stage-${stage}:${round}` : null);
+  round: 'initial' | 'mid',
+  stageSeed?: number | null
+) => (groupId ? `mp:${groupId}:stage-${stage}:${round}:seed-${stageSeed ?? 'group'}` : null);
 
 const loadPendingScores = (): HighScore[] => {
   try {
@@ -162,6 +164,7 @@ interface GameState {
     guideMessage: string | null;
     connectionStatus: 'idle' | 'connecting' | 'connected' | 'error';
     livingCount: number;
+    quizStageSeed: number | null;
     stageSync: {
       pendingStage: number | null;
       expectedPlayerIds: string[];
@@ -176,7 +179,7 @@ interface GameState {
   applyPeerSnapshot: (id: string, state: Partial<PeerState>) => void;
   removePeer: (id: string) => void;
   promoteToHost: () => void;
-  onGroupStageAdvance: (newStage: number) => void;
+  onGroupStageAdvance: (newStage: number, seed?: number | null) => void;
   setLocalPortalVote: (portalId: string | null) => void;
   applyPortalVoteState: (votes: Record<string, string[]>, required: number, livingCount: number, countdownPortalId: string | null, countdownEndsAt: number | null) => void;
   setGuideMessage: (msg: string | null) => void;
@@ -594,8 +597,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   previousMode: GameMode.MENU,
   lastGameplayMode: GameMode.OVERWORLD,
   playerStats: getInitialStats(true),
-  worldPosition: { x: 0, z: 0 },
-  savedOverworldPosition: { x: 0, z: 0 },
+  worldPosition: getOverworldSpawn(),
+  savedOverworldPosition: getOverworldSpawn(),
   
   activeStage: 1,
   portals: generatePortals(1),
@@ -645,6 +648,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     guideMessage: null,
     connectionStatus: 'idle',
     livingCount: 1,
+    quizStageSeed: null,
     stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
   },
 
@@ -661,6 +665,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             ...s.multiplayer,
             joinedAt: session.joinedAt,
             groupId,
+            quizStageSeed: null,
             connectionStatus: 'connected',
           },
         }));
@@ -838,7 +843,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return;
       }
       case 'stage_advance': {
-        get().onGroupStageAdvance(msg.newStage);
+        get().onGroupStageAdvance(msg.newStage, msg.seed);
         const local = get().multiplayer.localPlayerId;
         broadcastMultiplayer({ type: 'stage_ack', playerId: local, newStage: msg.newStage, t: Date.now() });
         return;
@@ -919,18 +924,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => ({ multiplayer: { ...state.multiplayer, isHost: true } }));
   },
 
-  onGroupStageAdvance: (newStage) => {
+  onGroupStageAdvance: (newStage, seed) => {
     const state = get();
     if (newStage <= state.activeStage) return;
     set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
-    const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial');
+    const stageSeed = Number.isFinite(seed) ? seed ?? null : null;
+    const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial', stageSeed);
     useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey).then(() => {
       set((prevState) => ({
         activeStage: newStage,
         portals: generatePortals(newStage),
         shopOptions: generateShopOptions(prevState.playerStats),
-        worldPosition: { x: 0, z: 0 },
-        savedOverworldPosition: { x: 0, z: 0 },
+        worldPosition: getOverworldSpawn(),
+        savedOverworldPosition: getOverworldSpawn(),
         mode: GameMode.OVERWORLD,
         lastGameplayMode: GameMode.OVERWORLD,
         isStageReady: true,
@@ -942,6 +948,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         playerStats: {
           ...prevState.playerStats,
           hp: prevState.playerStats.maxHp,
+        },
+        multiplayer: {
+          ...prevState.multiplayer,
+          quizStageSeed: stageSeed,
+          guideMessage: null,
         },
         isQuizOpen: false,
         isImpactOpen: false,
@@ -969,11 +980,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (livingCount > 1) {
         if (countdownPortalId && countdownEndsAt != null) {
           const secs = Math.max(0, Math.ceil((countdownEndsAt - Date.now()) / 1000));
-          guideMessage = `Starting in ${secs}…`;
+          guideMessage = `Starting in ${secs}...`;
         } else if (anyVoters) {
-          const passing = Object.values(votes).find((v) => v.length >= required);
-          if (!passing) {
-            guideMessage = `Stand on the same portal — ${required} of ${livingCount} needed`;
+          const totalVotes = Object.values(votes).reduce((sum, voters) => sum + voters.length, 0);
+          if (totalVotes < required) {
+            guideMessage = `All players must vote - ${totalVotes} of ${required} ready`;
+          } else {
+            guideMessage = 'Tie vote - move to break the tie';
           }
         }
       }
@@ -1009,6 +1022,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         guideMessage: null,
         connectionStatus: 'idle',
         livingCount: 1,
+        quizStageSeed: null,
         stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
       },
     }));
@@ -1056,8 +1070,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           playerStats: freshStats,
           activeStage: 1,
           portals: [], 
-          worldPosition: { x: 0, z: 0 },
-          savedOverworldPosition: { x: 0, z: 0 },
+          worldPosition: getOverworldSpawn(),
+          savedOverworldPosition: getOverworldSpawn(),
           battleWon: false,
           bossStats: null,
           bossNarrativeOpen: false,
@@ -1107,8 +1121,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           playerStats: freshStats,
           activeStage: 1,
           portals: [],
-          worldPosition: { x: 0, z: 0 },
-          savedOverworldPosition: { x: 0, z: 0 },
+          worldPosition: getOverworldSpawn(),
+          savedOverworldPosition: getOverworldSpawn(),
           battleWon: false,
           bossStats: null,
           bossNarrativeOpen: false,
@@ -1158,6 +1172,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       const state = get();
       // Battle can only be entered from overworld; ignore stale/duplicate triggers.
       if (state.mode !== GameMode.OVERWORLD) return;
+      if (state.multiplayer.groupId && state.multiplayer.isHost) {
+          // Once any battle starts, late joiners would be out of quiz/battle sync.
+          // The group is reopened only after the host advances everyone to the next stage.
+          void lockGroupIfHost(true);
+      }
 
       const aiConfig = useAiDirectorStore.getState().currentConfig;
       let isBonus = false;
@@ -1738,19 +1757,27 @@ export const useGameStore = create<GameState>((set, get) => ({
   setBossStats: (stats) => set({ bossStats: stats }),
 
   completePortal: (portalId) => set((state) => {
-      const overworldSpawn = { x: 0, z: 0 };
+      const overworldSpawn = getOverworldSpawn();
       const remainingPortals = state.portals.filter(p => p.id !== portalId);
       // isRound1 = just completed a round-1 portal (p_A or p_B, no _r2 suffix)
       const isRound1 = !portalId.includes('_r2');
 
       if (isRound1) {
+          if (state.multiplayer.groupId && state.multiplayer.isHost) {
+              void lockGroupIfHost(true);
+          }
           // Respawn BOTH YES and NO portals fresh for round 2
           const baseLevel = (state.activeStage - 1) * 5;
           const freshPortals: Portal[] = [
               { id: `p_A_r2`, x: -7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'A', colorOverride: '#22c55e' },
               { id: `p_B_r2`, x:  7, z: 6, level: baseLevel + 1, type: 'NORMAL', quizOption: 'B', colorOverride: '#ef4444' },
           ];
-          const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, state.activeStage, 'mid');
+          const quizSeedKey = buildMultiplayerQuizSeed(
+            state.multiplayer.groupId,
+            state.activeStage,
+            'mid',
+            state.multiplayer.quizStageSeed
+          );
           useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty, quizSeedKey);
 
           return {
@@ -1808,6 +1835,21 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       const nextStage = state.activeStage + 1;
       const lastResult = state.activeBattle.isBonus ? "Ecosystem purged." : "Ecosystem partially restored.";
+      if (state.multiplayer.groupId && !state.multiplayer.isHost) {
+          saveMetaStats(state.playerStats);
+          set((s) => ({
+            mode: GameMode.LOADING_LEVEL,
+            isStageReady: false,
+            isOverworldSceneReady: false,
+            multiplayer: {
+              ...s.multiplayer,
+              guideMessage: 'Waiting for group stage sync...',
+            },
+          }));
+          return;
+      }
+
+      const stageSeed = state.multiplayer.groupId ? Date.now() : null;
       if (state.multiplayer.isHost && state.multiplayer.groupId) {
           const expectedPlayerIds = [state.multiplayer.localPlayerId, ...Object.keys(state.multiplayer.peers)];
           const ackedByPlayerId: Record<string, boolean> = { [state.multiplayer.localPlayerId]: true };
@@ -1817,7 +1859,7 @@ export const useGameStore = create<GameState>((set, get) => ({
               stageSync: { pendingStage: nextStage, expectedPlayerIds, ackedByPlayerId },
             },
           }));
-          broadcastMultiplayer({ type: 'stage_advance', newStage: nextStage, seed: Date.now(), t: Date.now() });
+          broadcastMultiplayer({ type: 'stage_advance', newStage: nextStage, seed: stageSeed!, t: Date.now() });
           // Host acks itself immediately. Group is reopened after all expected acks arrive.
           if (expectedPlayerIds.length <= 1) {
             void advanceGroupStageIfHost(nextStage, true);
@@ -1833,14 +1875,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       saveMetaStats(state.playerStats);
       set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
       
-      const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial');
+      const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial', stageSeed);
       useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey).then(() => {
           set((prevState) => ({
             activeStage: nextStage,
             portals: generatePortals(nextStage),
             shopOptions: generateShopOptions(prevState.playerStats), 
-            worldPosition: { x: 0, z: 0 },
-            savedOverworldPosition: { x: 0, z: 0 },
+            worldPosition: getOverworldSpawn(),
+            savedOverworldPosition: getOverworldSpawn(),
             mode: GameMode.OVERWORLD,
             lastGameplayMode: GameMode.OVERWORLD,
             isStageReady: true,
@@ -1852,6 +1894,11 @@ export const useGameStore = create<GameState>((set, get) => ({
             playerStats: {
                 ...prevState.playerStats,
                 hp: prevState.playerStats.maxHp 
+            },
+            multiplayer: {
+                ...prevState.multiplayer,
+                quizStageSeed: stageSeed,
+                guideMessage: null,
             },
             isQuizOpen: false,
             isImpactOpen: false,
@@ -1872,8 +1919,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       previousMode: GameMode.MENU,
       lastGameplayMode: GameMode.OVERWORLD,
       playerStats: freshStats,
-      worldPosition: { x: 0, z: 0 },
-      savedOverworldPosition: { x: 0, z: 0 },
+      worldPosition: getOverworldSpawn(),
+      savedOverworldPosition: getOverworldSpawn(),
       activeStage: 1,
       portals: generatePortals(1),
       activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
@@ -1902,3 +1949,5 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setHighlightedPortal: (id) => set({ highlightedPortalId: id })
 }));
+
+

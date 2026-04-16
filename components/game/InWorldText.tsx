@@ -3,7 +3,8 @@ import { Billboard, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { AiStageConfig } from '../../types';
-import kenpixelFontUrl from 'three/examples/fonts/ttf/kenpixel.ttf?url';
+
+const groundTextFontUrl = '/assets/font/DungGeunMo.ttf';
 
 interface InWorldTextProps {
   landmarkPos: [number, number, number];
@@ -195,17 +196,17 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
     <>
       {stageConfig && (
         <group position={narrativePosition} rotation={[-Math.PI / 2, 0, 0]}>
-          <GroundTextPanel width={14} height={5} materialRef={narrativeBgRef} opacity={0.32} />
+          <GroundTextPanel width={13.5} height={4.4} materialRef={narrativeBgRef} opacity={0.32} />
 
           <Text
             ref={narrativeTitleRef}
-            font={kenpixelFontUrl}
-            fontSize={0.7}
+            font={groundTextFontUrl}
+            fontSize={1.25}
             color="#a3ff12"
-            position={[0, 1.2, 0.01]}
+            position={[0, 1.08, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={12}
+            maxWidth={12.5}
             textAlign="center"
             outlineWidth={0.05}
             outlineColor="#000000"
@@ -215,16 +216,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
 
           <Text
             ref={narrativeBodyRef}
-            font={kenpixelFontUrl}
-            fontSize={0.35}
+            font={groundTextFontUrl}
+            fontSize={0.72}
             color="#d8ffd0"
-            position={[0, -0.4, 0.01]}
+            position={[0, -0.62, 0.01]}
             anchorX="center"
             anchorY="middle"
             maxWidth={12.5}
             textAlign="center"
-            lineHeight={1.45}
-            outlineWidth={0.04}
+            lineHeight={1.18}
+            outlineWidth={0.055}
             outlineColor="#000000"
           >
             {stageConfig.narrativeIntro}
@@ -234,36 +235,36 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
 
       {quizVisible && stageConfig?.quiz && (
         <group position={quizPosition} rotation={[-Math.PI / 2, 0, 0]}>
-          <GroundTextPanel width={12} height={3.6} materialRef={quizBgRef} opacity={0.3} />
+          <GroundTextPanel width={14.5} height={4.8} materialRef={quizBgRef} opacity={0.3} />
 
           <Text
             ref={quizHeaderRef}
-            font={kenpixelFontUrl}
-            fontSize={0.35}
+            font={groundTextFontUrl}
+            fontSize={1.0}
             color="#a3ff12"
-            position={[0, 1.0, 0.01]}
+            position={[0, 1.28, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={10}
+            maxWidth={12.5}
             textAlign="center"
-            outlineWidth={0.04}
+            outlineWidth={0.08}
             outlineColor="#000000"
           >
-            GAIA ASKS...
+            CHOOSE YES OR NO PORTALS
           </Text>
 
           <Text
             ref={quizQuestionRef}
-            font={kenpixelFontUrl}
-            fontSize={0.42}
+            font={groundTextFontUrl}
+            fontSize={0.78}
             color="#fde047"
-            position={[0, -0.2, 0.01]}
+            position={[0, -0.82, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={10.5}
+            maxWidth={12.3}
             textAlign="center"
-            lineHeight={1.4}
-            outlineWidth={0.04}
+            lineHeight={1.2}
+            outlineWidth={0.06}
             outlineColor="#000000"
           >
             {stageConfig.quiz.question}
@@ -274,21 +275,21 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {hasBossPortal && bossTextPos && stageConfig?.boss && (
         <group position={bossTextPos} rotation={[-Math.PI / 2, 0, 0]}>
           <GroundTextPanel
-            width={12}
-            height={3.4}
+            width={12.8}
+            height={3.8}
             bgColor="#240d0d"
             accentColor="#ef4444"
             opacity={0.34}
           />
 
           <Text
-            font={kenpixelFontUrl}
-            fontSize={0.5}
+            font={groundTextFontUrl}
+            fontSize={0.9}
             color="#f87171"
-            position={[0, 0.8, 0.01]}
+            position={[0, 0.9, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={10}
+            maxWidth={11.5}
             textAlign="center"
             outlineWidth={0.05}
             outlineColor="#000000"
@@ -297,16 +298,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
           </Text>
 
           <Text
-            font={kenpixelFontUrl}
-            fontSize={0.28}
+            font={groundTextFontUrl}
+            fontSize={0.56}
             color="#fca5a5"
-            position={[0, -0.3, 0.01]}
+            position={[0, -0.55, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={10.5}
+            maxWidth={12}
             textAlign="center"
-            lineHeight={1.4}
-            outlineWidth={0.03}
+            lineHeight={1.2}
+            outlineWidth={0.045}
             outlineColor="#000000"
           >
             {stageConfig.boss.narrative}
@@ -315,16 +316,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       )}
 
       <group position={shopTextPos} rotation={[-Math.PI / 2, 0, 0]}>
-        <GroundTextPanel width={10} height={3} opacity={0.28} />
+        <GroundTextPanel width={11.2} height={2.9} opacity={0.28} />
 
         <Text
-          font={kenpixelFontUrl}
-          fontSize={0.55}
+          font={groundTextFontUrl}
+          fontSize={1.18}
           color="#a3ff12"
-          position={[0, 0.65, 0.01]}
+          position={[0, 0.58, 0.01]}
           anchorX="center"
           anchorY="middle"
-          maxWidth={8}
+          maxWidth={10.2}
           textAlign="center"
           outlineWidth={0.04}
           outlineColor="#000000"
@@ -333,16 +334,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
         </Text>
 
         <Text
-          font={kenpixelFontUrl}
-          fontSize={0.26}
+          font={groundTextFontUrl}
+          fontSize={0.62}
           color="#d8ffd0"
-          position={[0, -0.3, 0.01]}
+          position={[0, -0.55, 0.01]}
           anchorX="center"
           anchorY="middle"
-          maxWidth={8.5}
+          maxWidth={10.4}
           textAlign="center"
-          lineHeight={1.4}
-          outlineWidth={0.03}
+          lineHeight={1.08}
+          outlineWidth={0.05}
           outlineColor="#000000"
         >
           Spend carbon to upgrade weapons and unlock eco-abilities
@@ -352,8 +353,8 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {/* ── VibeJam Next Portal ground label ── */}
       <group position={vibeJamNextTextPos} rotation={[-Math.PI / 2, 0, 0]}>
         <GroundTextPanel
-          width={11}
-          height={3.2}
+          width={12}
+          height={3.05}
           bgColor="#0d1f1f"
           borderColor="#050f0f"
           accentColor="#22d3ee"
@@ -361,13 +362,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
         />
 
         <Text
-          font={kenpixelFontUrl}
-          fontSize={0.52}
+          font={groundTextFontUrl}
+          fontSize={1.1}
           color="#22d3ee"
-          position={[0, 0.65, 0.01]}
+          position={[0, 0.6, 0.01]}
           anchorX="center"
           anchorY="middle"
-          maxWidth={9}
+          maxWidth={11}
           textAlign="center"
           outlineWidth={0.04}
           outlineColor="#000000"
@@ -376,16 +377,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
         </Text>
 
         <Text
-          font={kenpixelFontUrl}
-          fontSize={0.26}
+          font={groundTextFontUrl}
+          fontSize={0.62}
           color="#a5f3fc"
-          position={[0, -0.3, 0.01]}
+          position={[0, -0.55, 0.01]}
           anchorX="center"
           anchorY="middle"
-          maxWidth={9.5}
+          maxWidth={11.2}
           textAlign="center"
-          lineHeight={1.4}
-          outlineWidth={0.03}
+          lineHeight={1.08}
+          outlineWidth={0.05}
           outlineColor="#000000"
         >
           Travel to other worlds in the VibeJam universe
@@ -396,8 +397,8 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {isPortalEntry && (
         <group position={vibeJamReturnTextPos} rotation={[-Math.PI / 2, 0, 0]}>
           <GroundTextPanel
-            width={11}
-            height={3.2}
+            width={12}
+            height={3.05}
             bgColor="#1f0d0d"
             borderColor="#0f0505"
             accentColor="#fb923c"
@@ -405,13 +406,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
           />
 
           <Text
-            font={kenpixelFontUrl}
-            fontSize={0.52}
+            font={groundTextFontUrl}
+            fontSize={1.1}
             color="#fb923c"
-            position={[0, 0.65, 0.01]}
+            position={[0, 0.6, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={9}
+            maxWidth={11}
             textAlign="center"
             outlineWidth={0.04}
             outlineColor="#000000"
@@ -420,16 +421,16 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
           </Text>
 
           <Text
-            font={kenpixelFontUrl}
-            fontSize={0.26}
+            font={groundTextFontUrl}
+            fontSize={0.62}
             color="#fde68a"
-            position={[0, -0.3, 0.01]}
+            position={[0, -0.55, 0.01]}
             anchorX="center"
             anchorY="middle"
-            maxWidth={9.5}
+            maxWidth={11.2}
             textAlign="center"
-            lineHeight={1.4}
-            outlineWidth={0.03}
+            lineHeight={1.08}
+            outlineWidth={0.05}
             outlineColor="#000000"
           >
             {`Back to: ${returnDestinationLabel}`}

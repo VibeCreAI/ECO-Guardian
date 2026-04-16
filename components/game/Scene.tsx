@@ -203,6 +203,12 @@ const getPropScale = (type: string) => {
     return 2.0;
 };
 
+const isBattlePresenceMode = (mode: GameMode) =>
+  mode === GameMode.BATTLE ||
+  mode === GameMode.QUIZ_RESULT ||
+  mode === GameMode.REWARD ||
+  mode === GameMode.CHEST_REWARD;
+
 export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
   const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed, cameraZoom, setCameraZoom, isPortalEntry, portalRefUrl } = useGameStore();
@@ -486,7 +492,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     const prev = prevBroadcastModeRef.current;
     prevBroadcastModeRef.current = mode;
 
-    if (mode === GameMode.BATTLE && prev !== GameMode.BATTLE) {
+    if (isBattlePresenceMode(mode) && !isBattlePresenceMode(prev)) {
       broadcastMultiplayer({
         type: 'player_state',
         playerId: localPlayerId,
@@ -681,7 +687,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
                 >
                   {localVoteState?.countdownMs != null
                     ? `STARTING IN ${Math.max(0, Math.ceil(localVoteState.countdownMs / 1000))}`
-                    : 'Stand together on one portal'}
+                    : 'All players vote; top portal wins'}
                 </Text>
               </group>
             )}

@@ -1,6 +1,6 @@
 import { PORTAL_VOTE_COUNTDOWN_MS } from './config';
 
-export const requiredVotes = (livingCount: number): number => Math.floor(livingCount / 2) + 1;
+export const requiredVotes = (livingCount: number): number => Math.max(1, livingCount);
 
 export interface PortalTally {
   votes: Record<string, string[]>;
@@ -20,16 +20,28 @@ export const tallyPortalVotes = (
     if (!livingSet.has(playerId)) continue;
     (votes[portalId] ||= []).push(playerId);
   }
+
   const living = livingPlayerIds.length;
   const required = requiredVotes(Math.max(1, living));
+  const totalVotes = Object.values(votes).reduce((sum, voters) => sum + voters.length, 0);
   let passingPortalId: string | null = null;
-  let bestCount = required - 1;
+  let bestCount = 0;
+  let tiedBest = false;
+
   for (const [portalId, voters] of Object.entries(votes)) {
     if (voters.length > bestCount) {
       bestCount = voters.length;
       passingPortalId = portalId;
+      tiedBest = false;
+    } else if (voters.length === bestCount) {
+      tiedBest = true;
     }
   }
+
+  if (totalVotes < required || tiedBest) {
+    passingPortalId = null;
+  }
+
   return { votes, livingCount: living, required, passingPortalId };
 };
 
@@ -67,12 +79,12 @@ export const guideMessageFor = (tally: PortalTally, countdown: CountdownState, n
   if (tally.livingCount <= 1) return null;
   if (countdown.portalId && countdown.endsAt !== null) {
     const remaining = Math.max(0, Math.ceil((countdown.endsAt - now) / 1000));
-    return `Starting in ${remaining}…`;
+    return `Starting in ${remaining}...`;
   }
   const totalOnPortals = Object.values(tally.votes).reduce((acc, v) => acc + v.length, 0);
   if (totalOnPortals === 0) return null;
-  const portalIds = Object.keys(tally.votes);
-  if (portalIds.length > 1) return 'Split vote — move to one portal to start';
-  const onPortal = tally.votes[portalIds[0]]?.length ?? 0;
-  return `Stand on the same portal — ${onPortal} of ${tally.required} needed`;
+  if (totalOnPortals < tally.required) {
+    return `All players must vote - ${totalOnPortals} of ${tally.required} ready`;
+  }
+  return 'Tie vote - move to break the tie';
 };
