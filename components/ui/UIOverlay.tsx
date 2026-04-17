@@ -188,6 +188,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   const [startupAssetProgress, setStartupAssetProgress] = useState(0);
   const [startupDisplayedProgress, setStartupDisplayedProgress] = useState(0);
   const [startupAssetsReady, setStartupAssetsReady] = useState(false);
+  const [missionStartPending, setMissionStartPending] = useState(false);
   const [menuBackgroundReady, setMenuBackgroundReady] = useState(false);
   const mpPeers = useGameStore((s) => s.multiplayer.peers);
   const mpPortalVotes = useGameStore((s) => s.multiplayer.portalVotes);
@@ -306,6 +307,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   const startupSequenceRef = useRef(0);
   const startupLaunchTimeoutRef = useRef<number | null>(null);
   const startupShownAtRef = useRef<number>(0);
+  const missionStartFrameRef = useRef<number | null>(null);
   const zoomTrackRef = useRef<HTMLDivElement>(null);
   const [startupMinElapsed, setStartupMinElapsed] = useState(false);
 
@@ -373,6 +375,35 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
           active = false;
       };
   }, [mode]);
+
+  useEffect(() => {
+      if (mode === GameMode.MENU) return;
+      setMissionStartPending(false);
+      if (missionStartFrameRef.current !== null) {
+          window.cancelAnimationFrame(missionStartFrameRef.current);
+          missionStartFrameRef.current = null;
+      }
+  }, [mode]);
+
+  useEffect(() => {
+      return () => {
+          if (missionStartFrameRef.current !== null) {
+              window.cancelAnimationFrame(missionStartFrameRef.current);
+          }
+      };
+  }, []);
+
+  const beginMissionStartup = () => {
+      if (missionStartPending || mode !== GameMode.MENU) return;
+      setMissionStartPending(true);
+
+      missionStartFrameRef.current = window.requestAnimationFrame(() => {
+          missionStartFrameRef.current = window.requestAnimationFrame(() => {
+              missionStartFrameRef.current = null;
+              preloadGame('MEDIUM');
+          });
+      });
+  };
 
   const startupTargetProgress = mode === GameMode.INSTRUCTIONS
       ? Math.min(100, Math.round((startupAssetProgress * 0.65 + (isStageReady ? 0.2 : 0) + (isOverworldSceneReady ? 0.1 : 0) + 0.05) * 100))
@@ -1052,6 +1083,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
       <div 
         className="absolute inset-0 flex items-center justify-center z-50 overflow-hidden bg-black"
       >
+        {missionStartPending && (
+          <div className="absolute top-3 left-3 ui-card px-3 py-2 pointer-events-none z-[60]">
+              <p className="text-[10px] uppercase ui-muted">Preparing world</p>
+              <p className="text-[11px] text-green-300 font-bold">ECO GUARDIAN 1%</p>
+          </div>
+        )}
+
         <img
           src={ASSET_PATHS.images.start.background}
           alt=""
@@ -1126,11 +1164,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                 <div className="space-y-4">
                     <button
-                    onClick={() => preloadGame('MEDIUM')}
-                    className="group relative w-full ui-button ui-menu-primary py-5 font-extrabold transition-all overflow-hidden"
+                    onClick={beginMissionStartup}
+                    disabled={missionStartPending}
+                    className={`group relative w-full ui-button ui-menu-primary py-5 font-extrabold transition-all overflow-hidden ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
                     >
                     <span className="flex items-center justify-center gap-3 text-xl">
-                        <span className="animate-pulse"> START MISSION</span>
+                        <span className="animate-pulse">{missionStartPending ? ' STARTING...' : ' START MISSION'}</span>
                     </span>
                     </button>
 

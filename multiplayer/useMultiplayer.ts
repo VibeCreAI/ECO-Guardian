@@ -16,8 +16,9 @@ const computeSlotIndex = (entries: PresenceEntry[], localPlayerId: string): Slot
   return idx as SlotIndex;
 };
 
-export const useMultiplayer = (): void => {
+export const useMultiplayer = (enabled: boolean): void => {
   useEffect(() => {
+    if (!enabled) return;
     if (!isMultiplayerAvailable()) return;
 
     setMultiplayerCallbacks({
@@ -46,5 +47,5 @@ export const useMultiplayer = (): void => {
       window.removeEventListener('pagehide', onPageHide);
       window.removeEventListener('beforeunload', onPageHide);
     };
-  }, []);
+  }, [enabled]);
 };

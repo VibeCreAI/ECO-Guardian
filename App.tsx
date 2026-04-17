@@ -19,27 +19,29 @@ const App: React.FC = () => {
   
   const [isMobile, setIsMobile] = useState(false);
 
-  useMultiplayer();
-  useHostPortalVoteTick();
-
   // Auto-join matchmaking when a run begins; auto-leave when returning to menu.
   const gameMode = useGameStore((s) => s.mode);
   const activeStage = useGameStore((s) => s.activeStage);
   const playMode = useGameStore((s) => s.playMode);
   const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
   const mpStatus = useGameStore((s) => s.multiplayer.connectionStatus);
+  const inRun =
+    gameMode === GameMode.OVERWORLD ||
+    gameMode === GameMode.BATTLE ||
+    gameMode === GameMode.QUIZ_RESULT ||
+    gameMode === GameMode.REWARD ||
+    gameMode === GameMode.CHEST_REWARD ||
+    gameMode === GameMode.LOADING_LEVEL ||
+    gameMode === GameMode.PAUSED ||
+    gameMode === GameMode.SHOP ||
+    gameMode === GameMode.STATUS ||
+    gameMode === GameMode.LIBRARY;
+  const multiplayerRuntimeEnabled = playMode === 'multiplayer' && inRun;
+
+  useMultiplayer(multiplayerRuntimeEnabled);
+  useHostPortalVoteTick();
+
   useEffect(() => {
-    const inRun =
-      gameMode === GameMode.OVERWORLD ||
-      gameMode === GameMode.BATTLE ||
-      gameMode === GameMode.QUIZ_RESULT ||
-      gameMode === GameMode.REWARD ||
-      gameMode === GameMode.CHEST_REWARD ||
-      gameMode === GameMode.LOADING_LEVEL ||
-      gameMode === GameMode.PAUSED ||
-      gameMode === GameMode.SHOP ||
-      gameMode === GameMode.STATUS ||
-      gameMode === GameMode.LIBRARY;
     if (playMode === 'multiplayer' && inRun && !mpGroupId && mpStatus === 'idle') {
       useGameStore.getState().joinMatchmaking(activeStage);
     } else if ((playMode === 'solo' || !inRun) && mpGroupId) {
