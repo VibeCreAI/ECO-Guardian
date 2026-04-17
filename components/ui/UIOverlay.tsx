@@ -1357,7 +1357,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                             className="flex-1 ui-button ui-button-secondary py-3 font-bold text-sm flex flex-col items-center justify-center"
                           >
                               <span className="text-lg">📖</span>
-                              GRIMOIRE
+                              GUIDE
                           </button>
                       </div>
 
@@ -1365,7 +1365,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                         onClick={() => setMode(GameMode.LIBRARY)}
                         className="w-full ui-button ui-button-secondary py-3 font-bold text-sm flex flex-col items-center justify-center"
                       >
-                          GRIMOIRE
+                          GUIDE
                       </button>
 
                       <div className="ui-chip p-2 border border-black/50 bg-black/25">
