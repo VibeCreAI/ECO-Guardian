@@ -68,39 +68,40 @@ const App: React.FC = () => {
 
   // Keyboard controls
   useEffect(() => {
+    // Use e.code (physical key) rather than e.key so movement works regardless
+    // of keyboard layout (AZERTY/QWERTZ/Cyrillic) or active IME (Korean/Japanese/Chinese),
+    // which otherwise translate or delay WASD via composition events.
     const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      switch (key) {
-        case 'w':
-        case 'arrowup': 
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
           inputVector.current.y = -1; break;
-        case 's':
-        case 'arrowdown': 
+        case 'KeyS':
+        case 'ArrowDown':
           inputVector.current.y = 1; break;
-        case 'a':
-        case 'arrowleft': 
+        case 'KeyA':
+        case 'ArrowLeft':
           inputVector.current.x = -1; break;
-        case 'd':
-        case 'arrowright': 
+        case 'KeyD':
+        case 'ArrowRight':
           inputVector.current.x = 1; break;
-        case ' ': dashTrigger.current = true; break;
+        case 'Space': dashTrigger.current = true; break;
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      switch (key) {
-        case 'w':
-        case 'arrowup': 
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
           if (inputVector.current.y < 0) inputVector.current.y = 0; break;
-        case 's':
-        case 'arrowdown': 
+        case 'KeyS':
+        case 'ArrowDown':
           if (inputVector.current.y > 0) inputVector.current.y = 0; break;
-        case 'a':
-        case 'arrowleft': 
+        case 'KeyA':
+        case 'ArrowLeft':
           if (inputVector.current.x < 0) inputVector.current.x = 0; break;
-        case 'd':
-        case 'arrowright': 
+        case 'KeyD':
+        case 'ArrowRight':
           if (inputVector.current.x > 0) inputVector.current.x = 0; break;
       }
     };
