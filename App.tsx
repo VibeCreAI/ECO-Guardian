@@ -68,49 +68,121 @@ const App: React.FC = () => {
 
   // Keyboard controls
   useEffect(() => {
-    // Use e.code (physical key) rather than e.key so movement works regardless
-    // of keyboard layout (AZERTY/QWERTZ/Cyrillic) or active IME (Korean/Japanese/Chinese),
-    // which otherwise translate or delay WASD via composition events.
+    type MoveDirection = 'up' | 'down' | 'left' | 'right';
+
+    const codeToDirection: Record<string, MoveDirection | undefined> = {
+      KeyW: 'up',
+      ArrowUp: 'up',
+      KeyS: 'down',
+      ArrowDown: 'down',
+      KeyA: 'left',
+      ArrowLeft: 'left',
+      KeyD: 'right',
+      ArrowRight: 'right',
+    };
+
+    const keyToDirection: Record<string, MoveDirection | undefined> = {
+      w: 'up',
+      ArrowUp: 'up',
+      s: 'down',
+      ArrowDown: 'down',
+      a: 'left',
+      ArrowLeft: 'left',
+      d: 'right',
+      ArrowRight: 'right',
+    };
+
+    const heldMovementKeys = new Map<string, MoveDirection>();
+
+    const movementKeyFromEvent = (e: KeyboardEvent): { id: string; direction: MoveDirection } | null => {
+      // Prefer e.code so physical WASD keeps working across keyboard layouts and IMEs.
+      const directionFromCode = codeToDirection[e.code];
+      if (directionFromCode) return { id: `code:${e.code}`, direction: directionFromCode };
+
+      // Fallback for browsers/layouts where users press the actual WASD letters.
+      const normalizedKey = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const directionFromKey = keyToDirection[normalizedKey];
+      if (directionFromKey) return { id: `key:${normalizedKey}`, direction: directionFromKey };
+
+      return null;
+    };
+
+    const syncInputVector = () => {
+      let x = 0;
+      let y = 0;
+
+      for (const direction of heldMovementKeys.values()) {
+        if (direction === 'left') x -= 1;
+        else if (direction === 'right') x += 1;
+        else if (direction === 'up') y -= 1;
+        else if (direction === 'down') y += 1;
+      }
+
+      x = Math.max(-1, Math.min(1, x));
+      y = Math.max(-1, Math.min(1, y));
+
+      if (x !== 0 && y !== 0) {
+        const diagonalScale = Math.SQRT1_2;
+        inputVector.current.x = x * diagonalScale;
+        inputVector.current.y = y * diagonalScale;
+      } else {
+        inputVector.current.x = x;
+        inputVector.current.y = y;
+      }
+    };
+
+    const resetKeyboardMovement = () => {
+      heldMovementKeys.clear();
+      inputVector.current.x = 0;
+      inputVector.current.y = 0;
+    };
+
+    const isSpaceKey = (e: KeyboardEvent) => e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar';
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          inputVector.current.y = -1; break;
-        case 'KeyS':
-        case 'ArrowDown':
-          inputVector.current.y = 1; break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          inputVector.current.x = -1; break;
-        case 'KeyD':
-        case 'ArrowRight':
-          inputVector.current.x = 1; break;
-        case 'Space': dashTrigger.current = true; break;
+      if (isEditableTarget(e.target)) return;
+
+      const movementKey = movementKeyFromEvent(e);
+      if (movementKey) {
+        e.preventDefault();
+        heldMovementKeys.set(movementKey.id, movementKey.direction);
+        syncInputVector();
+        return;
+      }
+
+      if (isSpaceKey(e)) {
+        e.preventDefault();
+        if (!e.repeat) dashTrigger.current = true;
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          if (inputVector.current.y < 0) inputVector.current.y = 0; break;
-        case 'KeyS':
-        case 'ArrowDown':
-          if (inputVector.current.y > 0) inputVector.current.y = 0; break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          if (inputVector.current.x < 0) inputVector.current.x = 0; break;
-        case 'KeyD':
-        case 'ArrowRight':
-          if (inputVector.current.x > 0) inputVector.current.x = 0; break;
+      const movementKey = movementKeyFromEvent(e);
+      if (movementKey) {
+        if (!isEditableTarget(e.target)) e.preventDefault();
+        heldMovementKeys.delete(movementKey.id);
+        syncInputVector();
+        return;
+      }
+
+      if (isEditableTarget(e.target)) return;
+
+      if (isSpaceKey(e)) {
+        e.preventDefault();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', resetKeyboardMovement);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', resetKeyboardMovement);
     };
   }, []);
 
