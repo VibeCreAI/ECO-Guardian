@@ -809,7 +809,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             <BattleManager playerPosition={playerRef.current ? playerRef.current.position : new THREE.Vector3(0,0,0)} activeBattle={activeBattle} />
         )}
       </Suspense>
-      <EffectComposer>
+      <EffectComposer multisampling={2} stencilBuffer={false}>
         <Bloom luminanceThreshold={bloomThreshold} intensity={bloomIntensity} />
         <Vignette eskil={false} offset={0.1} darkness={0.5} />
       </EffectComposer>

@@ -1,21 +1,55 @@
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useLayoutEffect, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// Individual Voxel Component
-const Voxel = React.memo(({ position, color, emissive }: { position: [number, number, number], color: string, emissive?: boolean }) => (
-    <mesh position={position} castShadow receiveShadow>
-        <boxGeometry args={[0.25, 0.25, 0.25]} />
-        <meshStandardMaterial 
-            color={color} 
-            emissive={emissive ? color : '#000'}
-            emissiveIntensity={emissive ? 2.0 : 0}
-            roughness={0.4}
-            metalness={0.6}
+type ShopVoxel = {
+    x: number;
+    y: number;
+    z: number;
+    color: string;
+    emissive: boolean;
+};
+
+const shopVoxelGeometry = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+
+const ShopVoxelInstances: React.FC<{ voxels: ShopVoxel[]; color: string; emissive: boolean }> = React.memo(({ voxels, color, emissive }) => {
+    const meshRef = useRef<THREE.InstancedMesh>(null);
+    const tempObject = useMemo(() => new THREE.Object3D(), []);
+    const material = useMemo(() => new THREE.MeshStandardMaterial({
+        color,
+        emissive: emissive ? color : '#000000',
+        emissiveIntensity: emissive ? 2.0 : 0,
+        roughness: 0.4,
+        metalness: 0.6,
+    }), [color, emissive]);
+
+    useEffect(() => () => material.dispose(), [material]);
+
+    useLayoutEffect(() => {
+        const mesh = meshRef.current;
+        if (!mesh) return;
+
+        voxels.forEach((voxel, index) => {
+            tempObject.position.set(voxel.x, voxel.y, voxel.z);
+            tempObject.rotation.set(0, 0, 0);
+            tempObject.scale.set(1, 1, 1);
+            tempObject.updateMatrix();
+            mesh.setMatrixAt(index, tempObject.matrix);
+        });
+
+        mesh.instanceMatrix.needsUpdate = true;
+    }, [voxels, tempObject]);
+
+    return (
+        <instancedMesh
+            ref={meshRef}
+            args={[shopVoxelGeometry, material, voxels.length]}
+            castShadow
+            receiveShadow
         />
-    </mesh>
-));
+    );
+});
 
 // Floating Icon Component
 const ShopIcon = () => {
@@ -61,13 +95,15 @@ const ShopIcon = () => {
 };
 
 export const VoxelShop = ({ position }: { position: [number, number, number] }) => {
-    const voxels = useMemo(() => {
-        const blocks: React.ReactElement[] = [];
-        let keyCounter = 0;
+    const voxelGroups = useMemo(() => {
+        const groups = new Map<string, { color: string; emissive: boolean; voxels: ShopVoxel[] }>();
         const s = 0.25; // Scale unit
 
         const addBlock = (x: number, y: number, z: number, color: string, emissive = false) => {
-            blocks.push(<Voxel key={keyCounter++} position={[x * s, y * s, z * s]} color={color} emissive={emissive} />);
+            const key = `${color}_${emissive ? 'emissive' : 'solid'}`;
+            const group = groups.get(key) ?? { color, emissive, voxels: [] };
+            group.voxels.push({ x: x * s, y: y * s, z: z * s, color, emissive });
+            groups.set(key, group);
         };
 
         // --- 1. FLOOR (12x12 grid) ---
@@ -137,12 +173,21 @@ export const VoxelShop = ({ position }: { position: [number, number, number] }) 
         // Glowing Sign Board area
         for(let x=-2; x<=2; x++) addBlock(x, 12, 5.5, '#4ade80', true);
 
-        return blocks;
+        return Array.from(groups.entries());
     }, []);
 
     return (
         <group position={position}>
-            <group position={[0, 0.125, 0]}>{voxels}</group>
+            <group position={[0, 0.125, 0]}>
+                {voxelGroups.map(([key, group]) => (
+                    <ShopVoxelInstances
+                        key={key}
+                        voxels={group.voxels}
+                        color={group.color}
+                        emissive={group.emissive}
+                    />
+                ))}
+            </group>
             <ShopIcon />
             <pointLight position={[0, 2, 0]} color="#4ade80" intensity={1} distance={8} />
         </group>

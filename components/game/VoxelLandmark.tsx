@@ -24,7 +24,7 @@ const StaticVoxelBatch = ({ voxels, scale = 0.4 }: { voxels: VoxelData[], scale?
         if (!meshRef.current) return;
         const tempObj = new THREE.Object3D();
         voxels.forEach((data, i) => {
-            tempObj.position.set(data.x * scale, data.y * scale, data.z * scale);
+            tempObj.position.set(data.x * scale, (data.y + 0.5) * scale, data.z * scale);
             tempObj.scale.set(scale, scale, scale);
             tempObj.updateMatrix();
             meshRef.current!.setMatrixAt(i, tempObj.matrix);
