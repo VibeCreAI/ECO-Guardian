@@ -65,6 +65,23 @@ const PauseIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
     </svg>
 );
 
+const StatusIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+        aria-hidden="true"
+    >
+        <path d="M20 21a8 8 0 0 0-16 0" />
+        <circle cx="12" cy="8" r="4" />
+    </svg>
+);
+
 const FpsMeter: React.FC<{ isShortHeight: boolean }> = React.memo(({ isShortHeight }) => {
     const [fps, setFps] = useState(0);
 
@@ -1627,8 +1644,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
           <div className="ui-chip p-1 text-white text-xs px-2">LVL {playerStats.level}</div>
           <div className="ui-chip ui-chip-primary p-1 text-xs px-2">STAGE {activeStage}</div>
           {mpGroupId && (
-            <div className="ui-chip p-1 text-xs px-2 text-cyan-200 border border-cyan-500/50">
-              ACTIVE {activePlayers}
+            <div
+              className="ui-chip p-1 text-xs px-1.5 text-cyan-200 border border-cyan-500/50 flex items-center gap-1"
+              aria-label={`${activePlayers} active players`}
+              title={`${activePlayers} active players`}
+            >
+              <StatusIcon className="w-3.5 h-3.5" />
+              <span className="font-bold leading-none">x{activePlayers}</span>
             </div>
           )}
           {playerStats.quizStreak > 0 && (
@@ -1763,19 +1785,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                 className={`flex-1 border-r-4 border-black ${isShortHeight ? 'py-1' : 'py-2'} px-2 hover:bg-green-900/60 active:bg-green-800 flex flex-col items-center justify-center gap-0.5 group bg-black/30 transition-colors`}
               >
                   <span className={`${isShortHeight ? 'text-lg' : 'text-2xl'} text-green-300 group-hover:scale-110 transition-transform leading-none`}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="w-[1em] h-[1em]"
-                      >
-                        <path d="M20 21a8 8 0 0 0-16 0" />
-                        <circle cx="12" cy="8" r="4" />
-                      </svg>
+                      <StatusIcon className="w-[1em] h-[1em]" />
                   </span>
                   <span className={`${isShortHeight ? 'text-[10px]' : 'text-xs'} font-bold text-gray-200`}>
                       STATUS
