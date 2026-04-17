@@ -237,7 +237,10 @@ const App: React.FC = () => {
       <AudioManager />
       {/* Performance Optimization: Removed shadows={true} */}
       <div className="absolute inset-0" onPointerDown={handleCanvasPointerDown}>
-        <Canvas camera={{ position: [0, 10, 10], fov: 45 }}>
+        <Canvas
+          camera={{ position: [0, 10, 10], fov: 45 }}
+          gl={{ powerPreference: 'high-performance' }}
+        >
           <Suspense fallback={null}>
             <Scene inputVector={inputVector} dashTrigger={dashTrigger} />
             <Preload all />

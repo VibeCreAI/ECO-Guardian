@@ -391,7 +391,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const [renderProjectiles, setRenderProjectiles] = useState<Projectile[]>([]);
   const [renderEffects, setRenderEffects] = useState<any[]>([]);
   const [renderOrbs, setRenderOrbs] = useState<XpOrb[]>([]);
-  const [lastPlayerFacing, setLastPlayerFacing] = useState<{x:number, z:number}>({x:0, z:1});
+  const lastPlayerFacing = useRef<{x:number, z:number}>({x:0, z:1});
 
   const spawnTimer = useRef(0);
   const enemiesDefeated = useRef(0);
@@ -676,7 +676,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     (playerStats.modifiers as any).lastZ = playerPosition.z;
     if (Math.abs(moveX) > 0.001 || Math.abs(moveZ) > 0.001) {
         const len = Math.sqrt(moveX*moveX + moveZ*moveZ);
-        setLastPlayerFacing({x: moveX/len, z: moveZ/len});
+        lastPlayerFacing.current.x = moveX / len;
+        lastPlayerFacing.current.z = moveZ / len;
     }
 
     const updateVisuals = (forceMagnet: boolean = false) => {
@@ -1316,7 +1317,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     spawnWeapon('FLAMETHROWER', 'flamethrower', 0.2, () => {
          const count = 2 + projectileCount;
          const enemy = findClosestEnemy(playerPosition);
-         const target = enemy ? enemy : { x: playerPosition.x + lastPlayerFacing.x * 5, z: playerPosition.z + lastPlayerFacing.z * 5 } as any;
+         const target = enemy ? enemy : { x: playerPosition.x + lastPlayerFacing.current.x * 5, z: playerPosition.z + lastPlayerFacing.current.z * 5 } as any;
          for(let i=0; i<count; i++) spawnProjectile(playerPosition, target, 'FLAMETHROWER', (Math.random()-0.5) * 0.5);
          projectilesChanged = true;
     });
@@ -1343,7 +1344,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     spawnWeapon('SPEAR', 'spear', 1.5, () => {
         const count = 1 + Math.floor(projectileCount / 2);
         const closest = findClosestEnemy(playerPosition);
-        const target = closest || { x: playerPosition.x + lastPlayerFacing.x * 5, z: playerPosition.z + lastPlayerFacing.z * 5 } as any;
+        const target = closest || { x: playerPosition.x + lastPlayerFacing.current.x * 5, z: playerPosition.z + lastPlayerFacing.current.z * 5 } as any;
         for (let i=0; i<count; i++) {
             const angleOffset = (i - (count-1)/2) * 0.3;
             spawnProjectile(playerPosition, target, 'SPEAR', angleOffset);
@@ -1386,7 +1387,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     spawnWeapon('KATANA', 'katana', 1.0, () => {
         const count = 1 + projectileCount;
         const closest = findClosestEnemy(playerPosition);
-        const target = closest || { x: playerPosition.x + lastPlayerFacing.x * 5, z: playerPosition.z + lastPlayerFacing.z * 5 };
+        const target = closest || { x: playerPosition.x + lastPlayerFacing.current.x * 5, z: playerPosition.z + lastPlayerFacing.current.z * 5 };
         for (let i=0; i<count; i++) {
             const angleOffset = (i - (count-1)/2) * 0.5;
             spawnProjectile(playerPosition, target as any, 'KATANA', angleOffset);

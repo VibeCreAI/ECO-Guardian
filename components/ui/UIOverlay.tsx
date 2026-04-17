@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, HighScore, UpgradeOption, Vector2 } from '../../types';
@@ -64,6 +65,41 @@ const PauseIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
     </svg>
 );
 
+const FpsMeter: React.FC<{ isShortHeight: boolean }> = React.memo(({ isShortHeight }) => {
+    const [fps, setFps] = useState(0);
+
+    useEffect(() => {
+        let frameCount = 0;
+        let lastSample = performance.now();
+        let rafId = 0;
+
+        const tick = (now: number) => {
+            frameCount += 1;
+            const elapsed = now - lastSample;
+
+            if (elapsed >= 500) {
+                setFps(Math.round((frameCount * 1000) / elapsed));
+                frameCount = 0;
+                lastSample = now;
+            }
+
+            rafId = window.requestAnimationFrame(tick);
+        };
+
+        rafId = window.requestAnimationFrame(tick);
+        return () => window.cancelAnimationFrame(rafId);
+    }, []);
+
+    return (
+        <div
+            className={`absolute right-4 z-[70] w-[108px] h-6 ui-chip flex items-center justify-center font-bold text-[11px] leading-none tracking-normal text-[var(--eco-acid)] pointer-events-none select-none ${isShortHeight ? 'top-1' : 'top-3'}`}
+            aria-label={`FPS ${fps}`}
+        >
+            FPS {fps}
+        </div>
+    );
+});
+
 const getScoreDate = (score: HighScore) => {
     const value = Number(score.date);
     return Number.isFinite(value) ? value : 0;
@@ -94,7 +130,52 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore();
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore(useShallow((s) => ({
+    mode: s.mode,
+    playerStats: s.playerStats,
+    dashCooldownCurrent: s.dashCooldownCurrent,
+    resetGame: s.resetGame,
+    selectUpgrade: s.selectUpgrade,
+    levelUpOptions: s.levelUpOptions,
+    setMode: s.setMode,
+    worldPosition: s.worldPosition,
+    portals: s.portals,
+    battleWon: s.battleWon,
+    activeStage: s.activeStage,
+    highScores: s.highScores,
+    submitScore: s.submitScore,
+    chestReward: s.chestReward,
+    claimChestReward: s.claimChestReward,
+    preloadGame: s.preloadGame,
+    startGame: s.startGame,
+    quizResult: s.quizResult,
+    dismissQuizResult: s.dismissQuizResult,
+    bossNarrativeOpen: s.bossNarrativeOpen,
+    dismissBossNarrative: s.dismissBossNarrative,
+    togglePause: s.togglePause,
+    isImpactOpen: s.isImpactOpen,
+    setImpactOpen: s.setImpactOpen,
+    highlightedPortalId: s.highlightedPortalId,
+    askForUpgradeAdvice: s.askForUpgradeAdvice,
+    adviceLoading: s.adviceLoading,
+    adviceResult: s.adviceResult,
+    rerollLevelUpOptions: s.rerollLevelUpOptions,
+    isMuted: s.isMuted,
+    toggleMute: s.toggleMute,
+    showNarrative: s.showNarrative,
+    setShowNarrative: s.setShowNarrative,
+    narrativeDismissed: s.narrativeDismissed,
+    setNarrativeDismissed: s.setNarrativeDismissed,
+    fetchLeaderboard: s.fetchLeaderboard,
+    dbStatus: s.dbStatus,
+    isStageReady: s.isStageReady,
+    isOverworldSceneReady: s.isOverworldSceneReady,
+    cameraZoom: s.cameraZoom,
+    setCameraZoom: s.setCameraZoom,
+    isPortalEntry: s.isPortalEntry,
+    playMode: s.playMode,
+    setPlayMode: s.setPlayMode,
+  })));
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -1594,6 +1675,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
           </div>
         </div>
       </div>
+
+      {((mode as any) === GameMode.OVERWORLD || (mode as any) === GameMode.BATTLE) && (
+        <FpsMeter isShortHeight={isShortHeight} />
+      )}
 
       {renderMinimap()}
 

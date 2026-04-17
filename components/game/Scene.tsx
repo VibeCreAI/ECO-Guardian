@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, Vector2, AiStageConfig } from '../../types';
-import { SpriteBillboard, PropSprite, PlayerSpriteBillboard } from './SpriteBillboard';
+import { PropSpriteBatch, PlayerSpriteBillboard } from './SpriteBillboard';
 import { RemotePlayer } from './RemotePlayer';
 import { BattleManager } from './BattleManager';
 import { broadcastMultiplayer } from '../../multiplayer/service';
@@ -278,6 +278,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const [facing, setFacing] = useState(1);
   const [isMoving, setIsMoving] = useState(false);
   const [viewDirection, setViewDirection] = useState<'DOWN'|'UP'|'SIDE'>('DOWN');
+  const facingRef = useRef(1);
+  const isMovingRef = useRef(false);
+  const viewDirectionRef = useRef<'DOWN'|'UP'|'SIDE'>('DOWN');
   const battleCooldown = useRef(0);
   const lastMapUpdate = useRef(0);
   const dashTimer = useRef(0);
@@ -330,6 +333,29 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (dist < 6) continue; items.push({ id: i, type, x, z }); }
     return items;
   }, [themeId, aiConfig]);
+
+  const propSprites = React.useMemo(
+    () => props.map((p) => ({ ...p, scale: getPropScale(p.type) })),
+    [props]
+  );
+
+  const updateMovingState = (nextIsMoving: boolean) => {
+    if (isMovingRef.current === nextIsMoving) return;
+    isMovingRef.current = nextIsMoving;
+    setIsMoving(nextIsMoving);
+  };
+
+  const updateFacingState = (nextFacing: number) => {
+    if (facingRef.current === nextFacing) return;
+    facingRef.current = nextFacing;
+    setFacing(nextFacing);
+  };
+
+  const updateViewDirectionState = (nextViewDirection: 'DOWN'|'UP'|'SIDE') => {
+    if (viewDirectionRef.current === nextViewDirection) return;
+    viewDirectionRef.current = nextViewDirection;
+    setViewDirection(nextViewDirection);
+  };
 
   useEffect(() => {
     if (playerRef.current) {
@@ -434,8 +460,18 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
         }
         playerRef.current.position.x = nextX; playerRef.current.position.z = nextZ;
-        const isCurrentlyMoving = Math.abs(moveX) > 0.001 || Math.abs(moveZ) > 0.001; setIsMoving(isCurrentlyMoving);
-        if (isCurrentlyMoving) { if (Math.abs(inputVector.current.y) > Math.abs(inputVector.current.x)) { if (inputVector.current.y > 0.1) setViewDirection('DOWN'); else if (inputVector.current.y < -0.1) setViewDirection('UP'); } else if (Math.abs(inputVector.current.x) > 0.1) { setViewDirection('SIDE'); if (inputVector.current.x > 0) setFacing(1); if (inputVector.current.x < 0) setFacing(-1); } }
+        const isCurrentlyMoving = Math.abs(moveX) > 0.001 || Math.abs(moveZ) > 0.001;
+        updateMovingState(isCurrentlyMoving);
+        if (isCurrentlyMoving) {
+          if (Math.abs(inputVector.current.y) > Math.abs(inputVector.current.x)) {
+            if (inputVector.current.y > 0.1) updateViewDirectionState('DOWN');
+            else if (inputVector.current.y < -0.1) updateViewDirectionState('UP');
+          } else if (Math.abs(inputVector.current.x) > 0.1) {
+            updateViewDirectionState('SIDE');
+            if (inputVector.current.x > 0) updateFacingState(1);
+            if (inputVector.current.x < 0) updateFacingState(-1);
+          }
+        }
         const limit = mode === GameMode.BATTLE ? 24.5 : 30.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
@@ -519,7 +555,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             window.location.href = `${destination}?${params.toString()}`;
           }
         }
-    } else { setIsMoving(false); }
+    } else { updateMovingState(false); }
     const currentStats = useGameStore.getState().playerStats; if (currentStats.lastDamageTime > lastProcessedDamageTime.current) { shakeIntensity.current = 2.5; lastProcessedDamageTime.current = currentStats.lastDamageTime; }
     
     // --- DYNAMIC CAMERA ZOOM LOGIC ---
@@ -700,10 +736,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             {isPortalEntry && (
               <VoxelPortal position={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]} color="#fb923c" innerColor="#a78bfa" tintStructure isBoss={false} label="Return" />
             )}
-            {props.map((p) => {
-                const s = getPropScale(p.type);
-                return <PropSprite key={p.id} position={[p.x, s * 0.5, p.z]} type={p.type as any} scale={s} />;
-            })}
+            <PropSpriteBatch items={propSprites} />
             {portals.map((portal) => ( <VoxelPortal key={portal.id} position={[portal.x, 0, portal.z]} color={getPortalColor(portal)} isBoss={portal.type === 'BOSS'} label={getPortalLabel(portal)} /> ))}
             <InWorldText
               landmarkPos={[LANDMARK_POS.x, 0, LANDMARK_POS.z]}

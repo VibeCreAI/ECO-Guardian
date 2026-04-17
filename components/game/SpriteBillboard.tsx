@@ -27,6 +27,18 @@ interface PropSpriteProps {
     scale?: number;
 }
 
+interface PropSpriteBatchItem {
+    id: string | number;
+    type: string;
+    x: number;
+    z: number;
+    scale: number;
+}
+
+interface PropSpriteBatchProps {
+    items: PropSpriteBatchItem[];
+}
+
 interface PlayerSpriteProps {
     position: [number, number, number];
     scale?: number;
@@ -49,6 +61,7 @@ const textureCache: Record<string, THREE.Texture> = {};
 const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
 const OUTLINE_HEX = '#f8fafc';
+const propPlaneGeometry = new THREE.PlaneGeometry(1, 1);
 
 const bakeAlphaOutline = (ctx: CanvasRenderingContext2D, width: number, height: number, colorHex: string, radius = 2) => {
     const sourceImage = ctx.getImageData(0, 0, width, height);
@@ -656,3 +669,75 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
 export const PropSprite: React.FC<PropSpriteProps> = ({ position, type, scale = 1.0 }) => {
     return <SpriteBillboard position={position} color="#ffffff" scale={scale} type={type} />;
 };
+
+const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchItem[] }> = ({ type, items }) => {
+    const meshRef = useRef<THREE.InstancedMesh>(null);
+    const lastCameraQuaternion = useRef(new THREE.Quaternion());
+    const hasCameraQuaternion = useRef(false);
+    const tempObject = useMemo(() => new THREE.Object3D(), []);
+    const texture = useMemo(() => generateTexture(type, '#ffffff'), [type]);
+    const material = useMemo(() => {
+        texture.repeat.set(1, 1);
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.needsUpdate = true;
+
+        return new THREE.MeshStandardMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.01,
+            side: THREE.DoubleSide,
+        });
+    }, [texture]);
+
+    useEffect(() => () => material.dispose(), [material]);
+
+    useFrame(({ camera }) => {
+        const mesh = meshRef.current;
+        if (!mesh) return;
+        if (hasCameraQuaternion.current && lastCameraQuaternion.current.angleTo(camera.quaternion) < 0.0001) return;
+        hasCameraQuaternion.current = true;
+        lastCameraQuaternion.current.copy(camera.quaternion);
+
+        items.forEach((item, index) => {
+            const scale = item.scale;
+            tempObject.position.set(item.x, scale * 0.5, item.z);
+            tempObject.quaternion.copy(camera.quaternion);
+            tempObject.scale.set(scale, scale, 1);
+            tempObject.updateMatrix();
+            mesh.setMatrixAt(index, tempObject.matrix);
+        });
+
+        mesh.instanceMatrix.needsUpdate = true;
+    });
+
+    return (
+        <instancedMesh
+            ref={meshRef}
+            args={[propPlaneGeometry, material, items.length]}
+            frustumCulled={false}
+        />
+    );
+};
+
+export const PropSpriteBatch: React.FC<PropSpriteBatchProps> = React.memo(({ items }) => {
+    const groups = useMemo(() => {
+        const byType = new Map<string, PropSpriteBatchItem[]>();
+
+        items.forEach((item) => {
+            const list = byType.get(item.type);
+            if (list) list.push(item);
+            else byType.set(item.type, [item]);
+        });
+
+        return Array.from(byType.entries());
+    }, [items]);
+
+    return (
+        <>
+            {groups.map(([type, groupItems]) => (
+                <PropSpriteInstancedGroup key={type} type={type} items={groupItems} />
+            ))}
+        </>
+    );
+});

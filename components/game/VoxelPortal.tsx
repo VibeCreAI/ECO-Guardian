@@ -1,5 +1,5 @@
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useLayoutEffect, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -15,6 +15,63 @@ interface VoxelPortalProps {
 const Box = React.memo(({ position, rotation, scale, color, emissive, opacity }: any) => (
     <mesh position={position} rotation={rotation} scale={scale}><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color={color} emissive={emissive || color} emissiveIntensity={emissive ? 2 : 0} transparent={opacity !== undefined} opacity={opacity || 1} roughness={0.2} metalness={0.8} /></mesh>
 ));
+
+type BoxInstance = {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+};
+
+const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+
+const InstancedBoxes = React.memo(({
+  boxes,
+  color,
+  emissive = false,
+  opacity,
+}: {
+  boxes: BoxInstance[];
+  color: string;
+  emissive?: boolean;
+  opacity?: number;
+}) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const tempObject = useMemo(() => new THREE.Object3D(), []);
+  const material = useMemo(() => new THREE.MeshStandardMaterial({
+    color,
+    emissive: emissive ? color : '#000000',
+    emissiveIntensity: emissive ? 2 : 0,
+    transparent: opacity !== undefined,
+    opacity: opacity ?? 1,
+    roughness: 0.2,
+    metalness: 0.8,
+  }), [color, emissive, opacity]);
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    boxes.forEach((box, index) => {
+      const position = box.position ?? [0, 0, 0];
+      const rotation = box.rotation ?? [0, 0, 0];
+      const scale = box.scale ?? [1, 1, 1];
+
+      tempObject.position.set(position[0], position[1], position[2]);
+      tempObject.rotation.set(rotation[0], rotation[1], rotation[2]);
+      tempObject.scale.set(scale[0], scale[1], scale[2]);
+      tempObject.updateMatrix();
+      mesh.setMatrixAt(index, tempObject.matrix);
+    });
+
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [boxes, tempObject]);
+
+  if (boxes.length === 0) return null;
+
+  return <instancedMesh ref={meshRef} args={[boxGeometry, material, boxes.length]} />;
+});
 
 export const VoxelPortal: React.FC<VoxelPortalProps> = ({ position, color, innerColor, tintStructure = false, isBoss, label }) => {
   const resolvedInnerColor = innerColor ?? color;
@@ -80,6 +137,48 @@ export const VoxelPortal: React.FC<VoxelPortalProps> = ({ position, color, inner
       return new Array(isBoss ? 12 : 6).fill(0).map((_, i) => ({ offset: Math.random() * Math.PI * 2, speed: 0.5 + Math.random(), dist: (Math.random() * 2) + config.radius, size: 0.1 + Math.random() * 0.2 }));
   }, [isBoss, config.radius]);
 
+  const outerMidBoxes = useMemo(() => outerBlocks
+    .filter((b) => !b.isChevron)
+    .map((b) => ({
+      position: [b.x, b.y, 0] as [number, number, number],
+      rotation: [0, 0, b.rotZ] as [number, number, number],
+      scale: [config.thickness, 1.2, config.thickness] as [number, number, number],
+    })), [outerBlocks, config.thickness]);
+
+  const outerChevronBlocks = useMemo(() => outerBlocks
+    .filter((b) => b.isChevron)
+    .map((b) => ({
+      position: [b.x, b.y, 0] as [number, number, number],
+      rotation: [0, 0, b.rotZ] as [number, number, number],
+      scale: [config.thickness, 1.2, config.thickness] as [number, number, number],
+    })), [outerBlocks, config.thickness]);
+
+  const outerChevronPanels = useMemo(() => outerBlocks
+    .filter((b) => b.isChevron)
+    .map((b) => ({
+      position: [b.x, b.y, config.thickness / 2 + 0.1] as [number, number, number],
+      rotation: [0, 0, b.rotZ] as [number, number, number],
+      scale: [config.thickness * 0.8, 0.4, 0.1] as [number, number, number],
+    })), [outerBlocks, config.thickness]);
+
+  const innerBlockBoxes = useMemo(() => innerBlocks.map((b) => ({
+    position: [b.x, b.y, 0] as [number, number, number],
+    rotation: [0, 0, b.rotZ] as [number, number, number],
+    scale: [config.thickness * 0.6, 0.6, config.thickness * 0.6] as [number, number, number],
+  })), [innerBlocks, config.thickness]);
+
+  const particleBoxes = useMemo(() => particles.map((p, i) => {
+    const angle = (i / particles.length) * Math.PI * 2;
+    return {
+      position: [
+        Math.cos(angle) * config.radius * 1.2,
+        0,
+        Math.sin(angle) * config.radius * 1.2,
+      ] as [number, number, number],
+      scale: [p.size, p.size, p.size] as [number, number, number],
+    };
+  }), [particles, config.radius]);
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
     if (innerRingRef.current) innerRingRef.current.rotation.z -= delta * (isBoss ? 1.0 : 0.5);
@@ -98,19 +197,12 @@ export const VoxelPortal: React.FC<VoxelPortalProps> = ({ position, color, inner
       </group>
       <group position={[0, config.radius + 1.0, 0]}>
         <group ref={outerRingRef}>
-          {outerBlocks.map((b, i) => (
-            <group key={i} position={[b.x, b.y, 0]} rotation={[0, 0, b.rotZ]}>
-              <Box scale={[config.thickness, 1.2, config.thickness]} color={b.isChevron ? structColors.ringDark : structColors.ringMid} />
-              {b.isChevron && <Box position={[0, 0, config.thickness/2 + 0.1]} scale={[config.thickness * 0.8, 0.4, 0.1]} color={color} emissive={true} />}
-            </group>
-          ))}
+          <InstancedBoxes boxes={outerMidBoxes} color={structColors.ringMid} />
+          <InstancedBoxes boxes={outerChevronBlocks} color={structColors.ringDark} />
+          <InstancedBoxes boxes={outerChevronPanels} color={color} emissive />
         </group>
         <group ref={innerRingRef}>
-          {innerBlocks.map((b, i) => (
-            <group key={i} position={[b.x, b.y, 0]} rotation={[0, 0, b.rotZ]}>
-              <Box scale={[config.thickness * 0.6, 0.6, config.thickness * 0.6]} color={structColors.innerRing} />
-            </group>
-          ))}
+          <InstancedBoxes boxes={innerBlockBoxes} color={structColors.innerRing} />
         </group>
         <group ref={eventHorizonRef}>
           <mesh><circleGeometry args={[config.innerRadius - 0.2, 32]} /><meshBasicMaterial color="#000000" /></mesh>
@@ -126,30 +218,25 @@ export const VoxelPortal: React.FC<VoxelPortalProps> = ({ position, color, inner
         </group>
       </group>
       <group ref={particlesRef} position={[0, config.radius, 0]}>
-        {particles.map((p, i) => {
+        {tintStructure && particles.map((p, i) => {
           const angle = (i / particles.length) * Math.PI * 2;
           const px = Math.cos(angle) * config.radius * 1.2;
           const pz = Math.sin(angle) * config.radius * 1.2;
           return (
             <group key={i} position={[px, 0, pz]}>
-              {tintStructure ? (
-                <>
-                  {/* Bright orb: octahedron with high emissiveIntensity to trigger Bloom post-processing like landmark fireflies */}
-                  <mesh scale={[p.size * 2.2, p.size * 2.2, p.size * 2.2]}>
-                    <octahedronGeometry args={[1, 0]} />
-                    <meshStandardMaterial color={color} emissive={color} emissiveIntensity={4} />
-                  </mesh>
-                  {/* Every other orb emits a small point light onto surrounding geometry */}
-                  {i % 2 === 0 && (
-                    <pointLight color={color} intensity={1.8} distance={3.5} decay={2} />
-                  )}
-                </>
-              ) : (
-                <Box scale={[p.size, p.size, p.size]} color={color} emissive={true} />
+              {/* Bright orb: octahedron with high emissiveIntensity to trigger Bloom post-processing like landmark fireflies */}
+              <mesh scale={[p.size * 2.2, p.size * 2.2, p.size * 2.2]}>
+                <octahedronGeometry args={[1, 0]} />
+                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={4} />
+              </mesh>
+              {/* Every other orb emits a small point light onto surrounding geometry */}
+              {i % 2 === 0 && (
+                <pointLight color={color} intensity={1.8} distance={3.5} decay={2} />
               )}
             </group>
           );
         })}
+        {!tintStructure && <InstancedBoxes boxes={particleBoxes} color={color} emissive />}
       </group>
       <pointLight position={[0, config.radius + 1, 1]} color={color} intensity={isBoss ? 5 : 3} distance={isBoss ? 12 : 8} decay={2}/>
       <pointLight position={[0, 1, 0]} color={color} intensity={1} distance={4}/>
