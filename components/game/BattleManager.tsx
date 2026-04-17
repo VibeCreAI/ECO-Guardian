@@ -202,10 +202,21 @@ const TeslaCoil: React.FC<{ radius: number, position: THREE.Vector3 }> = ({ radi
     );
 };
 
-interface LightningBoltProps { 
-    path: {x: number, y?: number, z: number}[];
-    life: number; 
-    initialLife: number;
+interface VisualEffect {
+  id: string;
+  x: number;
+  z: number;
+  life: number;
+  initialLife?: number;
+  type: 'THUNDER' | 'DASH_TRAIL' | 'BOSS_DEATH' | 'CHAIN_LIGHTNING';
+  path?: { x: number; y?: number; z: number }[];
+}
+
+interface LightningBoltProps {
+    // Stable effect object ref — life is mutated in place each frame so we can animate
+    // opacity via our own useFrame without triggering a parent re-render.
+    effect: VisualEffect;
+    defaultInitialLife: number;
     color?: string;
     glowColor?: string;
 }
@@ -220,7 +231,8 @@ const _tempDir = new THREE.Vector3();
 const _tempQuat = new THREE.Quaternion();
 const _xAxis = new THREE.Vector3(1, 0, 0);
 
-const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, color="#ffffff", glowColor="#0ea5e9" }) => {
+const LightningBolt: React.FC<LightningBoltProps> = ({ effect, defaultInitialLife, color="#ffffff", glowColor="#0ea5e9" }) => {
+    const path = effect.path || [];
     const segments = useMemo(() => {
         const segs = [];
         if (!path || path.length < 2) return [];
@@ -258,10 +270,15 @@ const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, 
     const glowMat = useMemo(() => new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, blending: THREE.AdditiveBlending }), [glowColor]);
     const nodeMat = useMemo(() => new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, blending: THREE.AdditiveBlending }), [glowColor]);
 
-    const opacity = Math.min(1, life / (initialLife * 0.5));
-    coreMat.opacity = opacity;
-    glowMat.opacity = opacity * 0.6;
-    nodeMat.opacity = opacity;
+    // Self-animate opacity from the mutable effect object so the parent no longer
+    // needs to setRenderEffects each frame just to drive this fade.
+    useFrame(() => {
+        const initialLife = effect.initialLife ?? defaultInitialLife;
+        const opacity = Math.min(1, effect.life / (initialLife * 0.5));
+        coreMat.opacity = opacity;
+        glowMat.opacity = opacity * 0.6;
+        nodeMat.opacity = opacity;
+    });
 
     return (
         <group>
@@ -278,8 +295,77 @@ const LightningBolt: React.FC<LightningBoltProps> = ({ path, life, initialLife, 
     );
 };
 
+// Self-animating boss death effect — reads effect.life via useFrame so parent
+// doesn't need to re-render every frame.
+const BossDeathEffect: React.FC<{ effect: VisualEffect }> = ({ effect }) => {
+    const ringRef = useRef<THREE.Mesh>(null);
+    const ringMatRef = useRef<THREE.MeshBasicMaterial>(null);
+    const beamRef = useRef<THREE.Mesh>(null);
+    const beamMatRef = useRef<THREE.MeshBasicMaterial>(null);
+    const sphereRef = useRef<THREE.Mesh>(null);
+    const sphereMatRef = useRef<THREE.MeshBasicMaterial>(null);
+    const lightRef = useRef<THREE.PointLight>(null);
+    useFrame(() => {
+        const progress = 1 - (effect.life / 3.5);
+        const scale = 1 + (progress * 10);
+        const alpha = Math.max(0, 1 - progress);
+        if (ringRef.current) { ringRef.current.scale.set(scale, scale, scale); }
+        if (ringMatRef.current) { ringMatRef.current.opacity = alpha; }
+        if (beamMatRef.current) { beamMatRef.current.opacity = alpha * 0.8; }
+        if (beamRef.current) { const r = 2 * (1 - progress); beamRef.current.scale.set(r, 1, r); }
+        if (sphereRef.current) { const s = 1 + progress * 2; sphereRef.current.scale.set(s, s, s); }
+        if (sphereMatRef.current) { sphereMatRef.current.opacity = alpha; }
+        if (lightRef.current) { lightRef.current.intensity = 5 * alpha; }
+    });
+    return (
+        <group position={[effect.x, 0, effect.z]}>
+            <mesh ref={ringRef} rotation={[-Math.PI/2, 0, 0]} position={[0, 0.1, 0]}>
+                <ringGeometry args={[0.5, 1.0, 32]} />
+                <meshBasicMaterial ref={ringMatRef} color="#e879f9" transparent opacity={1} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh ref={beamRef} position={[0, 10, 0]}>
+                <cylinderGeometry args={[1, 1, 50, 16, 1, true]} />
+                <meshBasicMaterial ref={beamMatRef} color="white" transparent opacity={0.8} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh ref={sphereRef} position={[0, 2, 0]}>
+                <sphereGeometry args={[1, 16, 16]} />
+                <meshBasicMaterial ref={sphereMatRef} color="#a855f7" wireframe transparent opacity={1} />
+            </mesh>
+            <pointLight ref={lightRef} position={[0, 5, 0]} color="#d946ef" intensity={5} distance={15} />
+        </group>
+    );
+};
+
+// Self-animating default sphere fade (fallback effect type).
+const DefaultFadeEffect: React.FC<{ effect: VisualEffect }> = ({ effect }) => {
+    const matRef = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame(() => { if (matRef.current) matRef.current.opacity = Math.max(0, effect.life); });
+    return (
+        <mesh position={[effect.x, 1, effect.z]}>
+            <sphereGeometry args={[0.5, 8, 8]} />
+            <meshBasicMaterial ref={matRef} color="#ff00ff" transparent opacity={1} />
+        </mesh>
+    );
+};
+
 export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, activeBattle }) => {
-  const { mode, collectCo2Orb, takeDamage, playerStats, setBattleWon, activeStage, completePortal, completeStage, recordDamage, recordKill, openChest, gainXp, showQueuedLevelUp, battleWon, isQuizOpen, isImpactOpen } = useGameStore();
+  // Per-field selectors so HP/XP/score ticks don't re-render this 1700-line tree on unrelated store changes.
+  const mode = useGameStore(s => s.mode);
+  const playerStats = useGameStore(s => s.playerStats);
+  const activeStage = useGameStore(s => s.activeStage);
+  const battleWon = useGameStore(s => s.battleWon);
+  const isQuizOpen = useGameStore(s => s.isQuizOpen);
+  const isImpactOpen = useGameStore(s => s.isImpactOpen);
+  const collectCo2Orb = useGameStore(s => s.collectCo2Orb);
+  const takeDamage = useGameStore(s => s.takeDamage);
+  const setBattleWon = useGameStore(s => s.setBattleWon);
+  const completePortal = useGameStore(s => s.completePortal);
+  const completeStage = useGameStore(s => s.completeStage);
+  const recordDamage = useGameStore(s => s.recordDamage);
+  const recordKill = useGameStore(s => s.recordKill);
+  const openChest = useGameStore(s => s.openChest);
+  const gainXp = useGameStore(s => s.gainXp);
+  const showQueuedLevelUp = useGameStore(s => s.showQueuedLevelUp);
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   
   const enemiesRef = useRef<Enemy[]>([]);
@@ -596,34 +682,40 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     const updateVisuals = (forceMagnet: boolean = false) => {
         if (visualEffectsRef.current.length > 0) {
             const prevLen = visualEffectsRef.current.length;
+            // Mutate .life in place; each effect's own useFrame reads .life to drive
+            // its opacity/scale animation, so we only need to tell React about
+            // *list membership* changes (add/remove), not per-frame ticks.
             visualEffectsRef.current = visualEffectsRef.current.filter(ef => { ef.life -= delta; return ef.life > 0; });
-            if (visualEffectsRef.current.length !== prevLen || visualEffectsRef.current.length > 0) setRenderEffects([...visualEffectsRef.current]);
+            if (visualEffectsRef.current.length !== prevLen) setRenderEffects([...visualEffectsRef.current]);
         }
         
+        // Positions are mutated in place on the orb objects; SpriteBillboard reads
+        // entity.x/z in its own useFrame via the stable object ref, so movement does
+        // not require a React re-render. Only re-render when an orb is collected
+        // (list membership changes).
         const activeOrbs: XpOrb[] = [];
-        let orbsChanged = false;
-        
+        let orbsListChanged = false;
+
         xpOrbsRef.current.forEach(orb => {
             const dx = playerPosition.x - orb.x; const dz = playerPosition.z - orb.z; const dist = Math.sqrt(dx*dx + dz*dz);
             const shouldPull = forceMagnet || dist < 5.0;
             const magnetSpeed = forceMagnet ? 20 : 8;
             const collectRadius = forceMagnet ? 1.5 : 1.0;
 
-            if (shouldPull) { 
-                orb.x += (dx/dist) * magnetSpeed * delta; 
-                orb.z += (dz/dist) * magnetSpeed * delta; 
-                orbsChanged = true; 
+            if (shouldPull && dist > 0.0001) {
+                orb.x += (dx/dist) * magnetSpeed * delta;
+                orb.z += (dz/dist) * magnetSpeed * delta;
             }
-            
-            if (dist < collectRadius) { 
-                collectCo2Orb(orb.value); 
-                orbsChanged = true; 
+
+            if (dist < collectRadius) {
+                collectCo2Orb(orb.value);
+                orbsListChanged = true;
             } else {
                 activeOrbs.push(orb);
             }
         });
-        
-        if (orbsChanged) { xpOrbsRef.current = activeOrbs; setRenderOrbs([...activeOrbs]); }
+
+        if (orbsListChanged) { xpOrbsRef.current = activeOrbs; setRenderOrbs([...activeOrbs]); }
     };
 
     if (victoryTriggered.current) {
@@ -1658,22 +1750,15 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
           return <SpriteBillboard key={e.id} color={getEnemyColor(e.type, activeStage)} scale={eType === 'BOSS' ? 4.5 : eType === 'MISINFORMATION' ? 4.0 : 1.8} entity={e} type={e.type} variant={e.visualVariant || e.name} />;
       })}
       {renderProjectiles.map(p => <ProjectileRender key={p.id} projectile={p} />)}
-      {renderEffects.map(ef => {
+      {renderEffects.map((ef: VisualEffect) => {
           if (ef.type === 'BOSS_DEATH') {
-             const progress = 1 - (ef.life / 3.5); const scale = 1 + (progress * 10); const alpha = Math.max(0, 1 - progress);
-             return (
-                <group key={ef.id} position={[ef.x, 0, ef.z]}><mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.1, 0]}><ringGeometry args={[scale - 0.5, scale, 32]} /><meshBasicMaterial color="#e879f9" transparent opacity={alpha} side={THREE.DoubleSide} /></mesh><mesh position={[0, 10, 0]}><cylinderGeometry args={[2 * (1-progress), 2 * (1-progress), 50, 16, 1, true]} /><meshBasicMaterial color="white" transparent opacity={alpha * 0.8} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} /></mesh><mesh position={[0, 2, 0]} scale={[1 + progress*2, 1 + progress*2, 1 + progress*2]}><sphereGeometry args={[1, 16, 16]} /><meshBasicMaterial color="#a855f7" wireframe transparent opacity={alpha} /></mesh><pointLight position={[0, 5, 0]} color="#d946ef" intensity={5 * alpha} distance={15} /></group>
-             );
+              return <BossDeathEffect key={ef.id} effect={ef} />;
           } else if (ef.type === 'CHAIN_LIGHTNING') {
-              return (
-                  <LightningBolt key={ef.id} path={ef.path || []} life={ef.life} initialLife={ef.initialLife || 0.35} />
-              );
+              return <LightningBolt key={ef.id} effect={ef} defaultInitialLife={0.35} />;
           } else if (ef.type === 'THUNDER') {
-              return (
-                  <LightningBolt key={ef.id} path={ef.path || []} life={ef.life} initialLife={ef.initialLife || 0.3} color="#00ffff" glowColor="#ffffff" />
-              );
+              return <LightningBolt key={ef.id} effect={ef} defaultInitialLife={0.3} color="#00ffff" glowColor="#ffffff" />;
           }
-          return <mesh key={ef.id} position={[ef.x, 1, ef.z]}><sphereGeometry args={[0.5, 8, 8]} /><meshBasicMaterial color="#ff00ff" transparent opacity={ef.life} /></mesh>;
+          return <DefaultFadeEffect key={ef.id} effect={ef} />;
       })}
       {renderOrbs.map(orb => <SpriteBillboard key={orb.id} entity={orb} color={orb.value > 20 ? '#a855f7' : (orb.value > 10 ? '#eab308' : '#22c55e')} scale={0.8} type={orb.type || 'XP_ORB'} />)}
       {chest && !chest.isOpen && ( 

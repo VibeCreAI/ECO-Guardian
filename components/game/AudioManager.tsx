@@ -5,7 +5,12 @@ import { GameMode } from '../../types';
 import { ASSET_PATHS } from '../../assets';
 
 export const AudioManager: React.FC = () => {
-  const { mode, previousMode, activeStage, activeBattle, lastGameplayMode, isMuted } = useGameStore();
+  const mode = useGameStore(s => s.mode);
+  const previousMode = useGameStore(s => s.previousMode);
+  const activeStage = useGameStore(s => s.activeStage);
+  const activeBattle = useGameStore(s => s.activeBattle);
+  const lastGameplayMode = useGameStore(s => s.lastGameplayMode);
+  const isMuted = useGameStore(s => s.isMuted);
   const audioRef = useRef<HTMLAudioElement>(null);
   const hasInteracted = useRef(false);
   

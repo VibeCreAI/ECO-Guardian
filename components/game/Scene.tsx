@@ -211,7 +211,34 @@ const isBattlePresenceMode = (mode: GameMode) =>
 
 export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const playerRef = useRef<THREE.Group>(null);
-  const { mode, playerStats, enterBattle, dashCooldownCurrent, setDashCooldown, worldPosition, portals, activeBattle, updatePosition, activeStage, isQuizOpen, isImpactOpen, isStageReady, isOverworldSceneReady, setOverworldSceneReady, enterShop, lastGameplayMode, highlightedPortalId, showNarrative, narrativeDismissed, setShowNarrative, setNarrativeDismissed, cameraZoom, setCameraZoom, isPortalEntry, portalRefUrl } = useGameStore();
+  // Per-field selectors: only re-render on changes to fields Scene actually reads.
+  // Previously, destructuring `useGameStore()` subscribed to the whole store, so
+  // any mutation (XP ticks, HP, peers, dash cooldown, etc.) re-rendered this 700+ line tree.
+  const mode = useGameStore(s => s.mode);
+  const playerStats = useGameStore(s => s.playerStats);
+  const worldPosition = useGameStore(s => s.worldPosition);
+  const portals = useGameStore(s => s.portals);
+  const activeBattle = useGameStore(s => s.activeBattle);
+  const activeStage = useGameStore(s => s.activeStage);
+  const isQuizOpen = useGameStore(s => s.isQuizOpen);
+  const isImpactOpen = useGameStore(s => s.isImpactOpen);
+  const isStageReady = useGameStore(s => s.isStageReady);
+  const isOverworldSceneReady = useGameStore(s => s.isOverworldSceneReady);
+  const lastGameplayMode = useGameStore(s => s.lastGameplayMode);
+  const highlightedPortalId = useGameStore(s => s.highlightedPortalId);
+  const showNarrative = useGameStore(s => s.showNarrative);
+  const narrativeDismissed = useGameStore(s => s.narrativeDismissed);
+  const cameraZoom = useGameStore(s => s.cameraZoom);
+  const isPortalEntry = useGameStore(s => s.isPortalEntry);
+  const portalRefUrl = useGameStore(s => s.portalRefUrl);
+  const enterBattle = useGameStore(s => s.enterBattle);
+  const setDashCooldown = useGameStore(s => s.setDashCooldown);
+  const updatePosition = useGameStore(s => s.updatePosition);
+  const setOverworldSceneReady = useGameStore(s => s.setOverworldSceneReady);
+  const enterShop = useGameStore(s => s.enterShop);
+  const setShowNarrative = useGameStore(s => s.setShowNarrative);
+  const setNarrativeDismissed = useGameStore(s => s.setNarrativeDismissed);
+  const setCameraZoom = useGameStore(s => s.setCameraZoom);
   const localSlotIndex = useGameStore((s) => s.multiplayer.slotIndex);
   const mpJoinedAt = useGameStore((s) => s.multiplayer.joinedAt);
   const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
@@ -235,6 +262,11 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const battleCooldown = useRef(0);
   const lastMapUpdate = useRef(0);
   const dashTimer = useRef(0);
+  // Local source of truth for dash cooldown — previously this was read from the store,
+  // which meant every frame of cooldown setDashCooldown() re-rendered the whole Scene tree.
+  // We decrement this ref locally and only sync to the store at ~10Hz for the UI display.
+  const dashCooldownRef = useRef(0);
+  const dashCooldownStoreSync = useRef(0);
   const dashDirection = useRef(new THREE.Vector2(0, 0));
   const lastMoveDir = useRef(new THREE.Vector2(1, 0));
   const shakeIntensity = useRef(0);
@@ -315,6 +347,18 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (isPortalEntry) { portalGraceTimer.current = 5.0; }
   }, [isPortalEntry]);
 
+  // Keep dashCooldownRef in sync with external store resets (stage change etc.)
+  // Subscribe side-effect-only so this doesn't cause Scene re-renders.
+  useEffect(() => {
+    dashCooldownRef.current = useGameStore.getState().dashCooldownCurrent;
+    return useGameStore.subscribe((state, prevState) => {
+      if (state.dashCooldownCurrent !== prevState.dashCooldownCurrent &&
+          Math.abs(state.dashCooldownCurrent - dashCooldownRef.current) > 0.15) {
+        dashCooldownRef.current = state.dashCooldownCurrent;
+      }
+    });
+  }, []);
+
   useFrame((state, delta) => {
     if (showOverworldScene && !isOverworldSceneReady) {
       overworldWarmupFrames.current += 1;
@@ -328,12 +372,20 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (!playerRef.current) return;
     if (mode === GameMode.PAUSED || isQuizOpen || isImpactOpen || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) return;
     if (battleCooldown.current > 0) battleCooldown.current -= delta;
-    if (dashCooldownCurrent > 0) { const next = dashCooldownCurrent - delta; setDashCooldown(next > 0 ? next : 0); }
+    if (dashCooldownRef.current > 0) {
+      dashCooldownRef.current = Math.max(0, dashCooldownRef.current - delta);
+      // Sync to store only at ~10Hz for the UI readout, or immediately on 0-crossing.
+      const elapsed = state.clock.elapsedTime;
+      if (dashCooldownRef.current === 0 || elapsed - dashCooldownStoreSync.current > 0.1) {
+        dashCooldownStoreSync.current = elapsed;
+        setDashCooldown(dashCooldownRef.current);
+      }
+    }
     if (dashTimer.current > 0) dashTimer.current -= delta;
     if ((mode === GameMode.OVERWORLD || mode === GameMode.BATTLE)) {
         let moveX = 0; let moveZ = 0;
         if (Math.abs(inputVector.current.x) > 0.1 || Math.abs(inputVector.current.y) > 0.1) { const len = Math.sqrt(inputVector.current.x**2 + inputVector.current.y**2); lastMoveDir.current.set(inputVector.current.x / len, inputVector.current.y / len); }
-        if ((mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) && dashTrigger.current && dashCooldownCurrent <= 0) { setDashCooldown(playerStats.dashCooldownTime); dashTimer.current = 0.25; if (Math.abs(inputVector.current.x) > 0.1 || Math.abs(inputVector.current.y) > 0.1) { const len = Math.sqrt(inputVector.current.x**2 + inputVector.current.y**2); dashDirection.current.set(inputVector.current.x / len, inputVector.current.y / len); } else dashDirection.current.set(lastMoveDir.current.x, lastMoveDir.current.y); dashTrigger.current = false; }
+        if ((mode === GameMode.BATTLE || mode === GameMode.OVERWORLD) && dashTrigger.current && dashCooldownRef.current <= 0) { dashCooldownRef.current = playerStats.dashCooldownTime; setDashCooldown(playerStats.dashCooldownTime); dashTimer.current = 0.25; if (Math.abs(inputVector.current.x) > 0.1 || Math.abs(inputVector.current.y) > 0.1) { const len = Math.sqrt(inputVector.current.x**2 + inputVector.current.y**2); dashDirection.current.set(inputVector.current.x / len, inputVector.current.y / len); } else dashDirection.current.set(lastMoveDir.current.x, lastMoveDir.current.y); dashTrigger.current = false; }
         if (dashTimer.current > 0) { const dashSpeed = playerStats.moveSpeed * 3.5; moveX = dashDirection.current.x * dashSpeed * delta; moveZ = dashDirection.current.y * dashSpeed * delta; } else { const speed = playerStats.moveSpeed; moveX = inputVector.current.x * speed * delta; moveZ = inputVector.current.y * speed * delta; }
         let nextX = playerRef.current.position.x + moveX; let nextZ = playerRef.current.position.z + moveZ;
         
