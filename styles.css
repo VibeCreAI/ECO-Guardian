@@ -198,6 +198,28 @@ input {
   color: var(--eco-mint);
 }
 
+.ui-button-secondary-cyan {
+  background: var(--eco-ink);
+  border-color: var(--eco-cyan);
+  color: #cffafe;
+}
+
+.ui-button-secondary-cyan:hover:not(:disabled) {
+  background: #0d3440;
+  color: #f0fdff;
+}
+
+.ui-button-secondary-mint {
+  background: var(--eco-ink);
+  border-color: var(--eco-leaf);
+  color: var(--eco-mint);
+}
+
+.ui-button-secondary-mint:hover:not(:disabled) {
+  background: #12351d;
+  color: #f0fff0;
+}
+
 .ui-button-warning {
   background: var(--eco-yellow);
   color: var(--eco-line);

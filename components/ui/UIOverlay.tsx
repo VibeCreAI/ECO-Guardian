@@ -482,7 +482,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
       setIsSubmitting(true);
       setScoreSubmitError(null);
       try {
-          const result = await submitScore(playerName.trim().toUpperCase());
+          const result = await submitScore(playerName.trim());
           if (result.confirmed) {
               setScoreSubmitted(true);
               setSubmittedRunScore(result.score);
@@ -672,10 +672,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                               type="text"
                               placeholder="ENTER HERO NAME"
                               maxLength={10}
-                              className="ui-input p-3 text-center font-bold uppercase"
+                              className="ui-input p-3 text-center font-bold"
                               value={playerName}
                               onChange={(e) => {
-                                  setPlayerNameInput(e.target.value.toUpperCase());
+                                  setPlayerNameInput(e.target.value);
                                   setScoreSubmitError(null);
                               }}
                           />
@@ -1055,10 +1055,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                               type="text" 
                               placeholder="ENTER HERO NAME" 
                               maxLength={10}
-                              className="ui-input p-3 text-center font-bold uppercase"
+                              className="ui-input p-3 text-center font-bold"
                               value={playerName}
                               onChange={(e) => {
-                                  setPlayerNameInput(e.target.value.toUpperCase());
+                                  setPlayerNameInput(e.target.value);
                                   setScoreSubmitError(null);
                               }}
                           />
@@ -1197,7 +1197,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                           onClick={() => setPlayMode('multiplayer')}
                           className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'multiplayer' ? 'ui-button-warning' : 'ui-button-secondary'}`}
                         >
-                          Multiplayer
+                          CO-OP
                         </button>
                         <button
                           onClick={() => setPlayMode('solo')}
@@ -1211,19 +1211,19 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                     <div className="flex gap-4">
                     <button
                         onClick={() => setMode(GameMode.LIBRARY)}
-                        className="flex-1 ui-button ui-button-secondary py-3 font-bold transition-all"
+                        className="flex-1 ui-button ui-button-secondary ui-button-secondary-mint py-3 font-bold transition-all"
                     >
                         <span className="text-sm flex items-center justify-center gap-2">
-                        <span className="text-green-200"> GRIMOIRE</span>
+                        <span> GUIDE</span>
                         </span>
                     </button>
 
                     <button
                         onClick={() => setMode(GameMode.LEADERBOARD)}
-                        className="flex-1 ui-button ui-button-warning py-3 font-bold transition-all"
+                        className="flex-1 ui-button ui-button-secondary ui-button-secondary-cyan py-3 font-bold transition-all"
                     >
                         <span className="text-sm flex items-center justify-center gap-2">
-                        <span className="text-yellow-100"> LEADERBOARD</span>
+                        <span> RANKS</span>
                         </span>
                     </button>
                     </div>
@@ -1375,7 +1375,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                             onClick={() => setPlayMode('multiplayer')}
                             className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'multiplayer' ? 'ui-button-warning' : 'ui-button-secondary'}`}
                           >
-                            Multiplayer
+                            CO-OP
                           </button>
                           <button
                             onClick={() => setPlayMode('solo')}
