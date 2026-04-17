@@ -231,7 +231,8 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="relative bg-neutral-900 overflow-hidden pixel-art"
+      className="relative bg-neutral-900 overflow-hidden pixel-art notranslate"
+      translate="no"
       style={{ width: '100vw', height: '100dvh', minHeight: '100dvh' }}
     >
       <AudioManager />
