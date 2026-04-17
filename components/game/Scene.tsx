@@ -174,18 +174,37 @@ const AnimatedClouds = ({ hideLowerClouds = false }: { hideLowerClouds?: boolean
   );
 };
 
+type TrailData = { id: string; x: number; z: number; life: number };
+
+// Self-animating trail particle — reads t.life via useFrame so the parent only
+// re-renders on add/remove, not every frame while a dash trail fades.
+const TrailParticle: React.FC<{ trail: TrailData }> = ({ trail }) => {
+    const matRef = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame(() => { if (matRef.current) matRef.current.opacity = Math.max(0, trail.life); });
+    return (
+        <mesh position={[trail.x, 0.8, trail.z]}>
+            <sphereGeometry args={[0.4, 8, 8]} />
+            <meshBasicMaterial ref={matRef} color="#bae6fd" transparent opacity={trail.life} />
+        </mesh>
+    );
+};
+
 const PlayerTrailRenderer = ({ playerRef, dashTimer }: { playerRef: React.RefObject<THREE.Group>, dashTimer: React.MutableRefObject<number> }) => {
-    const trails = useRef<{id: string, x: number, z: number, life: number}[]>([]);
-    const [renderTrails, setRenderTrails] = useState<any[]>([]);
+    const trails = useRef<TrailData[]>([]);
+    const [renderTrails, setRenderTrails] = useState<TrailData[]>([]);
     useFrame((state, delta) => {
         if (useGameStore.getState().mode === GameMode.PAUSED) return;
-        let needsUpdate = false;
-        if (dashTimer.current > 0 && playerRef.current) { if (Math.random() < 0.6) { trails.current.push({ id: Math.random().toString(), x: playerRef.current.position.x, z: playerRef.current.position.z, life: 0.3 }); needsUpdate = true; } }
-        if (trails.current.length > 0) { trails.current = trails.current.filter(t => { t.life -= delta; return t.life > 0; }); needsUpdate = true; }
-        if (needsUpdate) setRenderTrails([...trails.current]);
+        const prevLen = trails.current.length;
+        if (dashTimer.current > 0 && playerRef.current && Math.random() < 0.6) {
+            trails.current.push({ id: Math.random().toString(), x: playerRef.current.position.x, z: playerRef.current.position.z, life: 0.3 });
+        }
+        if (trails.current.length > 0) {
+            trails.current = trails.current.filter(t => { t.life -= delta; return t.life > 0; });
+        }
+        if (trails.current.length !== prevLen) setRenderTrails([...trails.current]);
     });
     return (
-        <group>{renderTrails.map(t => (<mesh key={t.id} position={[t.x, 0.8, t.z]}><sphereGeometry args={[0.4, 8, 8]} /><meshBasicMaterial color="#bae6fd" transparent opacity={t.life} /></mesh>))}</group>
+        <group>{renderTrails.map(t => <TrailParticle key={t.id} trail={t} />)}</group>
     );
 };
 

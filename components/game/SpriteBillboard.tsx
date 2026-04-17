@@ -578,54 +578,54 @@ export const SpriteBillboard: React.FC<SpriteBillboardProps> = ({ position, colo
   useFrame(({ camera, clock }) => {
     if (!meshRef.current) return;
     meshRef.current.quaternion.copy(camera.quaternion);
-    if (entity) {
-        const yPos = (entity.type === 'BOSS') ? 2.25 : 0.9; let x = entity.x; let z = entity.z;
-        if (entity.dashTime && entity.dashTime > 0.3) { x += (Math.random() - 0.5) * 0.2; z += (Math.random() - 0.5) * 0.2; }
-        meshRef.current.position.set(x, yPos, z); 
-        if (shadowRef.current) shadowRef.current.position.set(x, 0.04, z);
-        const currentFacing = entity.facing || 1; 
-        
-        let s = scale;
-        // Pulse animation for XP_ORB and CO2_ORB to increase visibility
-        if (type === 'XP_ORB' || type === 'CO2_ORB') {
-            s = scale * (1.0 + Math.sin(clock.elapsedTime * 4) * 0.15);
-        }
+    // Static sprites (props, chest) have no entity — position/opacity/frame-offset
+    // are set once at mount and never change, so skip the rest of the per-frame work.
+    if (!entity) return;
 
-        meshRef.current.scale.set(s * Math.sign(currentFacing), s, 1);
-    } 
-    else if (shadowRef.current) {
-        const basePos = position || [0, 0, 0];
-        shadowRef.current.position.set(basePos[0], 0.04, basePos[2]);
+    const yPos = (entity.type === 'BOSS') ? 2.25 : 0.9;
+    let x = entity.x; let z = entity.z;
+    if (entity.dashTime && entity.dashTime > 0.3) { x += (Math.random() - 0.5) * 0.2; z += (Math.random() - 0.5) * 0.2; }
+    meshRef.current.position.set(x, yPos, z);
+    if (shadowRef.current) shadowRef.current.position.set(x, 0.04, z);
+    const currentFacing = entity.facing || 1;
+
+    let s = scale;
+    if (type === 'XP_ORB' || type === 'CO2_ORB') {
+        s = scale * (1.0 + Math.sin(clock.elapsedTime * 4) * 0.15);
     }
+    meshRef.current.scale.set(s * Math.sign(currentFacing), s, 1);
+
     if (materialRef.current) {
-        // Priority to explicit opacity (Boss Fading)
-        if (entity && entity.opacity !== undefined) {
+        if (entity.opacity !== undefined) {
             materialRef.current.opacity = entity.opacity;
             materialRef.current.transparent = true;
+        } else if (type && isGhostEnemyType(type)) {
+            materialRef.current.transparent = true;
+            materialRef.current.opacity = 0.7 + Math.sin(clock.elapsedTime * 3) * 0.1;
         } else {
-            // Standard Mobs logic
-            if (type && isGhostEnemyType(type)) { 
-                materialRef.current.transparent = true; 
-                materialRef.current.opacity = 0.7 + Math.sin(clock.elapsedTime * 3) * 0.1; 
-            } else { 
-                materialRef.current.transparent = true; 
-                materialRef.current.opacity = 1.0; 
-            }
+            materialRef.current.transparent = true;
+            materialRef.current.opacity = 1.0;
         }
 
-        let hit = isHit; if (entity && entity.lastHit) hit = (clock.elapsedTime - entity.lastHit < 0.1);
-        if (hit) { 
-            materialRef.current.color.setHex(0xffffff); 
-            materialRef.current.emissive.setHex(0xffffff); 
-            materialRef.current.emissiveIntensity = 1.0; 
-        } else { 
-            materialRef.current.color.setHex(0xffffff); 
-            materialRef.current.emissive.setHex(0x000000); 
-            materialRef.current.emissiveIntensity = 0; 
+        const hit = entity.lastHit ? (clock.elapsedTime - entity.lastHit < 0.1) : isHit;
+        if (hit) {
+            materialRef.current.color.setHex(0xffffff);
+            materialRef.current.emissive.setHex(0xffffff);
+            materialRef.current.emissiveIntensity = 1.0;
+        } else {
+            materialRef.current.color.setHex(0xffffff);
+            materialRef.current.emissive.setHex(0x000000);
+            materialRef.current.emissiveIntensity = 0;
         }
     }
-    const t = clock.elapsedTime;
-    if (type === 'BOSS' || (type && MOBS.includes(type))) { const speed = (type?.includes('BOSS')) ? 5 : 4; const frame = Math.floor(t * speed) % 2; texture.offset.x = frame * 0.5; texture.offset.y = 0; } else { texture.offset.x = 0; texture.offset.y = 0; }
+
+    if (type === 'BOSS' || (type && MOBS.includes(type))) {
+        const t = clock.elapsedTime;
+        const speed = (type?.includes('BOSS')) ? 5 : 4;
+        const frame = Math.floor(t * speed) % 2;
+        texture.offset.x = frame * 0.5;
+        texture.offset.y = 0;
+    }
   });
 
   const initPos = position || [0, 0, 0]; const isBoss = type === 'BOSS';
