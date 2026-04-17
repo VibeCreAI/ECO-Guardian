@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
-import { GameMode, HighScore, UpgradeOption } from '../../types';
+import { GameMode, HighScore, UpgradeOption, Vector2 } from '../../types';
 import { VirtualJoystick } from './VirtualJoystick';
 import { StatusModal } from './StatusModal';
 import { LibraryModal } from './LibraryModal';
@@ -12,7 +12,7 @@ import { ASSET_PATHS, preloadStartupAssets } from '../../assets';
 import { PortalVoteBadge } from './PortalVoteBadge';
 
 interface UIOverlayProps {
-  inputVector: React.MutableRefObject<{x: number, y: number}>;
+  onJoystickMove: (vector: Vector2) => void;
   onDash: () => void;
   isMobile: boolean;
 }
@@ -93,7 +93,7 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
 };
 
 
-export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMobile }) => {
+export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
   const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore();
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
@@ -341,10 +341,6 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
           }
       };
   }, [mode, isStageReady, isOverworldSceneReady, startupAssetsReady, startupDisplayedProgress, startupMinElapsed, startGame]);
-
-  const handleJoystick = (vec: { x: number, y: number }) => {
-    inputVector.current = vec;
-  };
 
   const handleDashAction = (e: React.TouchEvent | React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -1696,7 +1692,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ inputVector, onDash, isMob
         className="absolute inset-0 z-50 pointer-events-none"
         style={{ marginBottom: gameplayOverlayMarginBottom }}
       >
-        {isMobile && <VirtualJoystick onMove={handleJoystick} />}
+        {isMobile && <VirtualJoystick onMove={onJoystickMove} />}
         
         {/* Fix: cast mode to any to prevent narrowing error due to early returns */}
         {((mode as any) === GameMode.BATTLE || (mode as any) === GameMode.OVERWORLD) && !battleWon && (

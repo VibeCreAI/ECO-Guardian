@@ -1,5 +1,5 @@
 
-import React, { Suspense, useRef, useEffect, useState } from 'react';
+import React, { Suspense, useRef, useEffect, useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Preload } from '@react-three/drei';
 import { UIOverlay } from './components/ui/UIOverlay';
@@ -13,6 +13,8 @@ import { useHostPortalVoteTick } from './multiplayer/useHostPortalVoteTick';
 const App: React.FC = () => {
   // Input References (mutable ref to avoid re-renders on every frame input)
   const inputVector = useRef<Vector2>({ x: 0, y: 0 });
+  const keyboardVector = useRef<Vector2>({ x: 0, y: 0 });
+  const joystickVector = useRef<Vector2>({ x: 0, y: 0 });
   const dashTrigger = useRef<boolean>(false);
   
   const [isMobile, setIsMobile] = useState(false);
@@ -59,12 +61,37 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkMobile = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-      // Robust mobile detection
-      return /android|ipad|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && /Macintosh/i.test(userAgent) === false);
+      const isMobileUserAgent = /android|ipad|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+      const isIpadDesktopMode = /Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1;
+      const isTouchFirstDevice =
+        window.matchMedia?.('(pointer: coarse)').matches === true &&
+        window.matchMedia?.('(hover: none)').matches === true;
+
+      return isMobileUserAgent || isIpadDesktopMode || isTouchFirstDevice;
     };
 
     setIsMobile(checkMobile());
   }, []);
+
+  const syncInputVector = useCallback(() => {
+    const x = keyboardVector.current.x + joystickVector.current.x;
+    const y = keyboardVector.current.y + joystickVector.current.y;
+    const length = Math.hypot(x, y);
+
+    if (length > 1) {
+      inputVector.current.x = x / length;
+      inputVector.current.y = y / length;
+    } else {
+      inputVector.current.x = x;
+      inputVector.current.y = y;
+    }
+  }, []);
+
+  const handleJoystickMove = useCallback((vector: Vector2) => {
+    joystickVector.current.x = vector.x;
+    joystickVector.current.y = vector.y;
+    syncInputVector();
+  }, [syncInputVector]);
 
   // Keyboard controls
   useEffect(() => {
@@ -107,7 +134,7 @@ const App: React.FC = () => {
       return null;
     };
 
-    const syncInputVector = () => {
+    const syncKeyboardVector = () => {
       let x = 0;
       let y = 0;
 
@@ -123,18 +150,21 @@ const App: React.FC = () => {
 
       if (x !== 0 && y !== 0) {
         const diagonalScale = Math.SQRT1_2;
-        inputVector.current.x = x * diagonalScale;
-        inputVector.current.y = y * diagonalScale;
+        keyboardVector.current.x = x * diagonalScale;
+        keyboardVector.current.y = y * diagonalScale;
       } else {
-        inputVector.current.x = x;
-        inputVector.current.y = y;
+        keyboardVector.current.x = x;
+        keyboardVector.current.y = y;
       }
+
+      syncInputVector();
     };
 
     const resetKeyboardMovement = () => {
       heldMovementKeys.clear();
-      inputVector.current.x = 0;
-      inputVector.current.y = 0;
+      keyboardVector.current.x = 0;
+      keyboardVector.current.y = 0;
+      syncInputVector();
     };
 
     const isSpaceKey = (e: KeyboardEvent) => e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar';
@@ -150,7 +180,7 @@ const App: React.FC = () => {
       if (movementKey) {
         e.preventDefault();
         heldMovementKeys.set(movementKey.id, movementKey.direction);
-        syncInputVector();
+        syncKeyboardVector();
         return;
       }
 
@@ -165,7 +195,7 @@ const App: React.FC = () => {
       if (movementKey) {
         if (!isEditableTarget(e.target)) e.preventDefault();
         heldMovementKeys.delete(movementKey.id);
-        syncInputVector();
+        syncKeyboardVector();
         return;
       }
 
@@ -184,7 +214,7 @@ const App: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', resetKeyboardMovement);
     };
-  }, []);
+  }, [syncInputVector]);
 
   const handleDash = () => {
     dashTrigger.current = true;
@@ -216,7 +246,7 @@ const App: React.FC = () => {
       </div>
       
       <UIOverlay
-        inputVector={inputVector}
+        onJoystickMove={handleJoystickMove}
         onDash={handleDash}
         isMobile={isMobile}
       />

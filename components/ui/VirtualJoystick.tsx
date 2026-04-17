@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Vector2 } from '../../types';
 
 interface VirtualJoystickProps {
@@ -18,12 +18,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
     setCurrentPos({ x: 0, y: 0 });
     onMove({ x: 0, y: 0 });
   };
-
-  useEffect(() => {
-    if (!active) {
-      onMove({ x: 0, y: 0 });
-    }
-  }, [active, onMove]);
 
   const handleStart = (e: React.TouchEvent) => {
     // Already tracking a joystick touch — ignore new touches (e.g. dash button)
