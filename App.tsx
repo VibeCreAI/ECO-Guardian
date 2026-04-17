@@ -242,6 +242,7 @@ const App: React.FC = () => {
       <div className="absolute inset-0" onPointerDown={handleCanvasPointerDown}>
         <Canvas
           camera={{ position: [0, 10, 10], fov: 45 }}
+          dpr={[1, 1.5]}
           gl={{ powerPreference: 'high-performance' }}
         >
           <Suspense fallback={null}>
