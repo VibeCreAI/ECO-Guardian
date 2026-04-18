@@ -1885,7 +1885,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                battleWon: false,
                bossStats: null,
                quizResult: null,
-               bossNarrativeOpen: true,
+               bossNarrativeOpen: false,
                queuedLevelUp: false,
                highlightedPortalId: null
            };

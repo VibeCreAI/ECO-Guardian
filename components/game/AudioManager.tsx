@@ -1,20 +1,33 @@
-
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { GameMode } from '../../types';
 import { ASSET_PATHS } from '../../assets';
 
-const QUIZ_NARRATION_EVENT = 'eco-guardian:quiz-narration';
+const GAIA_NARRATION_EVENT = 'eco-guardian:gaia-narration';
 
-type QuizNarrationDetail = {
+type GaiaNarrationClip = {
   src: string;
   key: string;
+};
+
+type GaiaNarrationClipInput = {
+  src?: string;
+  key?: string;
+} | null | undefined;
+
+type GaiaNarrationDetail = {
+  clips: GaiaNarrationClip[];
 };
 
 type AudioContextConstructor = typeof AudioContext;
 
 const getAudioContextConstructor = (): AudioContextConstructor | undefined =>
   window.AudioContext ?? (window as Window & { webkitAudioContext?: AudioContextConstructor }).webkitAudioContext;
+
+const normalizeNarrationClips = (clips: GaiaNarrationClipInput[]): GaiaNarrationClip[] =>
+  clips.flatMap((clip) => (clip?.src && clip.key ? [{ src: clip.src, key: clip.key }] : []));
+
+const clampStageNumber = (stageNumber: number) => Math.min(10, Math.max(1, stageNumber));
 
 const getMusicVolumeForMode = (mode: GameMode) =>
   mode === GameMode.PAUSED ||
@@ -25,12 +38,21 @@ const getMusicVolumeForMode = (mode: GameMode) =>
     ? 0.15
     : 0.4;
 
-export const requestQuizNarration = (src: string | undefined, key: string | undefined) => {
-  if (!src || !key || typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent<QuizNarrationDetail>(QUIZ_NARRATION_EVENT, {
-    detail: { src, key },
+export const requestGaiaNarrationSequence = (clips: GaiaNarrationClipInput[]) => {
+  if (typeof window === 'undefined') return;
+  const normalizedClips = normalizeNarrationClips(clips);
+  if (normalizedClips.length === 0) return;
+
+  window.dispatchEvent(new CustomEvent<GaiaNarrationDetail>(GAIA_NARRATION_EVENT, {
+    detail: { clips: normalizedClips },
   }));
 };
+
+export const requestGaiaNarration = (src: string | undefined, key: string | undefined) => {
+  requestGaiaNarrationSequence([{ src, key }]);
+};
+
+export const requestQuizNarration = requestGaiaNarration;
 
 export const AudioManager: React.FC = () => {
   const mode = useGameStore(s => s.mode);
@@ -43,12 +65,16 @@ export const AudioManager: React.FC = () => {
   const musicVolume = useGameStore(s => s.musicVolume);
   const sfxVolume = useGameStore(s => s.sfxVolume);
   const quizResult = useGameStore(s => s.quizResult);
+  const isOverworldSceneReady = useGameStore(s => s.isOverworldSceneReady);
   const audioRef = useRef<HTMLAudioElement>(null);
   const narrationRef = useRef<HTMLAudioElement | null>(null);
   const narrationKeyRef = useRef<string | null>(null);
+  const narrationQueueRef = useRef<GaiaNarrationClip[]>([]);
+  const pendingNarrationQueueRef = useRef<GaiaNarrationClip[]>([]);
+  const playNextNarrationRef = useRef<() => void>(() => {});
   const narrationAudioContextRef = useRef<AudioContext | null>(null);
   const narrationNodesRef = useRef<AudioNode[]>([]);
-  const pendingNarrationRef = useRef<QuizNarrationDetail | null>(null);
+  const introPlayedStagesRef = useRef<Set<number>>(new Set());
   const hasInteracted = useRef(false);
 
   const applyMusicVolume = useCallback((narrationActive = Boolean(narrationRef.current)) => {
@@ -78,10 +104,16 @@ export const AudioManager: React.FC = () => {
 
   const stopNarration = useCallback(() => {
     const narration = narrationRef.current;
-    pendingNarrationRef.current = null;
+    pendingNarrationQueueRef.current = [];
+    narrationQueueRef.current = [];
     narrationKeyRef.current = null;
     disconnectNarrationNodes();
-    if (!narration) return;
+
+    if (!narration) {
+      applyMusicVolume(false);
+      return;
+    }
+
     narration.pause();
     narration.removeAttribute('src');
     narration.load();
@@ -122,18 +154,33 @@ export const AudioManager: React.FC = () => {
     narrationNodesRef.current = [source, dryGain, delay, echoFilter, wetGain];
   }, []);
 
-  const playNarration = useCallback((detail: QuizNarrationDetail) => {
-    const { sfxMuted, sfxVolume } = useGameStore.getState();
-    if (!detail.src || sfxMuted || sfxVolume <= 0) return;
-    const activeNarration = narrationRef.current;
-    if (narrationKeyRef.current === detail.key && activeNarration && !activeNarration.ended) return;
+  const playNextNarration = useCallback(() => {
+    if (narrationRef.current) return;
 
-    if (!hasInteracted.current) {
-      pendingNarrationRef.current = detail;
+    const { sfxMuted, sfxVolume } = useGameStore.getState();
+    if (sfxMuted || sfxVolume <= 0) {
+      narrationQueueRef.current = [];
+      pendingNarrationQueueRef.current = [];
+      applyMusicVolume(false);
       return;
     }
 
-    stopNarration();
+    if (!hasInteracted.current) {
+      if (narrationQueueRef.current.length > 0) {
+        pendingNarrationQueueRef.current = [
+          ...pendingNarrationQueueRef.current,
+          ...narrationQueueRef.current,
+        ];
+        narrationQueueRef.current = [];
+      }
+      return;
+    }
+
+    const detail = narrationQueueRef.current.shift();
+    if (!detail) {
+      applyMusicVolume(false);
+      return;
+    }
 
     const narration = new Audio(detail.src);
     narration.preload = 'auto';
@@ -149,10 +196,19 @@ export const AudioManager: React.FC = () => {
     }
 
     const cleanup = () => {
-      if (narrationRef.current === narration) {
-        disconnectNarrationNodes();
-        narrationRef.current = null;
-        narrationKeyRef.current = null;
+      if (narrationRef.current !== narration) return;
+
+      disconnectNarrationNodes();
+      narrationRef.current = null;
+      narrationKeyRef.current = null;
+
+      if (
+        narrationQueueRef.current.length > 0 &&
+        !useGameStore.getState().sfxMuted &&
+        useGameStore.getState().sfxVolume > 0
+      ) {
+        window.setTimeout(() => playNextNarrationRef.current(), 0);
+      } else {
         applyMusicVolume(false);
       }
     };
@@ -161,12 +217,42 @@ export const AudioManager: React.FC = () => {
     narration.addEventListener('error', cleanup, { once: true });
 
     narration.play().catch(() => {
-      if (narrationRef.current === narration) {
-        pendingNarrationRef.current = detail;
-        cleanup();
-      }
+      cleanup();
     });
-  }, [connectNarrationEcho, disconnectNarrationNodes, stopNarration]);
+  }, [applyMusicVolume, connectNarrationEcho, disconnectNarrationNodes]);
+
+  playNextNarrationRef.current = playNextNarration;
+
+  const enqueueNarration = useCallback((clips: GaiaNarrationClipInput[]) => {
+    const playableClips = normalizeNarrationClips(clips);
+    if (playableClips.length === 0) return;
+
+    const { sfxMuted, sfxVolume } = useGameStore.getState();
+    if (sfxMuted || sfxVolume <= 0) return;
+
+    const activeKey = narrationKeyRef.current;
+    const queuedKeys = new Set([
+      ...narrationQueueRef.current.map((clip) => clip.key),
+      ...pendingNarrationQueueRef.current.map((clip) => clip.key),
+    ]);
+    const dedupedClips: GaiaNarrationClip[] = [];
+
+    playableClips.forEach((clip) => {
+      if (clip.key === activeKey || queuedKeys.has(clip.key)) return;
+      queuedKeys.add(clip.key);
+      dedupedClips.push(clip);
+    });
+
+    if (dedupedClips.length === 0) return;
+
+    if (!hasInteracted.current) {
+      pendingNarrationQueueRef.current.push(...dedupedClips);
+      return;
+    }
+
+    narrationQueueRef.current.push(...dedupedClips);
+    playNextNarrationRef.current();
+  }, []);
   
   // Map game state to audio file
   const getTrackForState = () => {
@@ -200,10 +286,10 @@ export const AudioManager: React.FC = () => {
   useEffect(() => {
     const handleInteraction = () => {
       hasInteracted.current = true;
-      const pendingNarration = pendingNarrationRef.current;
-      if (pendingNarration) {
-        pendingNarrationRef.current = null;
-        playNarration(pendingNarration);
+      if (pendingNarrationQueueRef.current.length > 0) {
+        narrationQueueRef.current.push(...pendingNarrationQueueRef.current);
+        pendingNarrationQueueRef.current = [];
+        playNextNarrationRef.current();
       }
 
       const audio = audioRef.current;
@@ -221,18 +307,23 @@ export const AudioManager: React.FC = () => {
       window.removeEventListener('touchstart', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
     };
-  }, [musicMuted, musicVolume, playNarration]); // Re-bind if mute state changes
+  }, [musicMuted, musicVolume]);
 
   useEffect(() => {
     const handleNarrationRequest = (event: Event) => {
-      const detail = (event as CustomEvent<QuizNarrationDetail>).detail;
-      if (!detail?.src || !detail?.key) return;
-      playNarration(detail);
+      const detail = (event as CustomEvent<GaiaNarrationDetail>).detail;
+      enqueueNarration(detail?.clips ?? []);
     };
 
-    window.addEventListener(QUIZ_NARRATION_EVENT, handleNarrationRequest);
-    return () => window.removeEventListener(QUIZ_NARRATION_EVENT, handleNarrationRequest);
-  }, [playNarration]);
+    window.addEventListener(GAIA_NARRATION_EVENT, handleNarrationRequest);
+    return () => window.removeEventListener(GAIA_NARRATION_EVENT, handleNarrationRequest);
+  }, [enqueueNarration]);
+
+  useEffect(() => {
+    if (mode === GameMode.MENU) {
+      introPlayedStagesRef.current.clear();
+    }
+  }, [mode]);
 
   useEffect(() => {
     if (!sfxMuted && sfxVolume > 0) return;
@@ -246,12 +337,44 @@ export const AudioManager: React.FC = () => {
   }, [sfxMuted, sfxVolume]);
 
   useEffect(() => {
-    if (!quizResult?.explanationAudioSrc) return;
-    requestQuizNarration(
-      quizResult.explanationAudioSrc,
-      quizResult.explanationAudioKey ?? `quiz-explanation:${quizResult.explanationAudioSrc}`,
-    );
-  }, [quizResult?.explanationAudioSrc, quizResult?.explanationAudioKey]);
+    if (!quizResult) return;
+
+    const resultKey = quizResult.explanationAudioKey ??
+      quizResult.explanationAudioSrc ??
+      `${activeStage}:${quizResult.correct ? 'correct' : 'wrong'}:${quizResult.explanation}`;
+    const feedbackType = quizResult.correct ? 'correct' : 'wrong';
+
+    enqueueNarration([
+      {
+        src: quizResult.correct ? ASSET_PATHS.audio.gaia.quizCorrect : ASSET_PATHS.audio.gaia.quizWrong,
+        key: `gaia:quiz-feedback:${feedbackType}:${resultKey}`,
+      },
+      {
+        src: quizResult.explanationAudioSrc,
+        key: quizResult.explanationAudioKey ?? `quiz-explanation:${quizResult.explanationAudioSrc}`,
+      },
+    ]);
+  }, [
+    activeStage,
+    enqueueNarration,
+    quizResult?.correct,
+    quizResult?.explanation,
+    quizResult?.explanationAudioSrc,
+    quizResult?.explanationAudioKey,
+  ]);
+
+  useEffect(() => {
+    if (mode !== GameMode.OVERWORLD || !isOverworldSceneReady) return;
+
+    const stageNumber = clampStageNumber(activeStage);
+    if (introPlayedStagesRef.current.has(stageNumber)) return;
+
+    introPlayedStagesRef.current.add(stageNumber);
+    enqueueNarration([{
+      src: ASSET_PATHS.audio.gaia.stageIntro(stageNumber),
+      key: `gaia:stage-intro:${stageNumber}`,
+    }]);
+  }, [activeStage, enqueueNarration, isOverworldSceneReady, mode]);
 
   // Handle Track Switching
   useEffect(() => {

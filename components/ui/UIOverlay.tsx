@@ -11,6 +11,7 @@ import { ShopModal } from './ShopModal';
 import { WEAPONS_DATA, EVOLUTION_RECIPES, PASSIVES_DATA } from '../../constants';
 import { ASSET_PATHS, preloadStartupAssets } from '../../assets';
 import { PortalVoteBadge } from './PortalVoteBadge';
+import { requestGaiaNarration } from '../game/AudioManager';
 
 interface UIOverlayProps {
   onJoystickMove: (vector: Vector2) => void;
@@ -428,6 +429,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   const beginMissionStartup = () => {
       if (missionStartPending || mode !== GameMode.MENU) return;
       setMissionStartPending(true);
+      requestGaiaNarration(ASSET_PATHS.audio.gaia.missionStart, 'gaia:mission-start');
 
       missionStartFrameRef.current = window.requestAnimationFrame(() => {
           missionStartFrameRef.current = window.requestAnimationFrame(() => {

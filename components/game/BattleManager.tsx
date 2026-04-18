@@ -12,6 +12,7 @@ import { ASSET_PATHS } from '../../assets';
 import * as THREE from 'three';
 import { QuestArrow } from './QuestArrow';
 import { getEnemyCombatProfile, isKnockbackResistantEnemyType, isLargeEnemyType, STAGE_ENEMY_POOLS } from './enemyDrawing';
+import { requestGaiaNarration } from './AudioManager';
 
 interface BattleManagerProps {
   playerPosition: THREE.Vector3;
@@ -398,6 +399,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const bossSpawned = useRef(false);
   const bossPhaseTimer = useRef(0);
   const bossDeathTimer = useRef(0);
+  const bossDefeatNarrationTriggered = useRef(false);
   const victoryTriggered = useRef(false);
   const victoryTimer = useRef(0);
   const completionHandled = useRef(false);
@@ -407,6 +409,22 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const weaponTimers = useRef({ magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 });
   
   const isPaused = (mode as any) === GameMode.REWARD || (mode as any) === GameMode.CHEST_REWARD || mode === GameMode.LOADING_LEVEL || mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || isQuizOpen || isImpactOpen;
+
+  const requestBossDefeatNarration = () => {
+      if (bossDefeatNarrationTriggered.current) return;
+      bossDefeatNarrationTriggered.current = true;
+
+      const stageNumber = Math.min(10, Math.max(1, activeStage));
+      if (stageNumber >= 10) {
+          requestGaiaNarration(ASSET_PATHS.audio.gaia.finalEnding, 'gaia:final-ending');
+          return;
+      }
+
+      requestGaiaNarration(
+          ASSET_PATHS.audio.gaia.stageSaved(stageNumber),
+          `gaia:stage-saved:${stageNumber}`,
+      );
+  };
 
   const themeId = React.useMemo(() => {
      const cycle = ((activeStage - 1) % 10) + 1;
@@ -460,6 +478,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                visualEffectsRef.current = visualEffectsRef.current.filter(ef => ef.type !== 'THUNDER');
                setRenderEffects([...visualEffectsRef.current]);
                bossDeathTimer.current = 3.5; projectilesRef.current = []; setRenderProjectiles([]);
+               requestBossDefeatNarration();
                enemiesRef.current = enemiesRef.current.filter(en => en.id !== e.id); setRenderEnemies([...enemiesRef.current]);
            }
            
@@ -633,7 +652,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     enemiesRef.current = []; projectilesRef.current = []; xpOrbsRef.current = []; visualEffectsRef.current = [];
     enemiesDefeated.current = 0; spawnTimer.current = 0; bossSpawned.current = false;
     victoryTriggered.current = false; victoryTimer.current = 0; bossPhaseTimer.current = 0; bossDeathTimer.current = 0;
-    completionHandled.current = false; setChest(null); lootCollected.current = false;
+    bossDefeatNarrationTriggered.current = false; completionHandled.current = false; setChest(null); lootCollected.current = false;
     weaponTimers.current = { magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 };
     battleDifficultyRef.current = activeBattle.level;
     setRenderProjectiles([]); setRenderEffects([]); setRenderOrbs([]);

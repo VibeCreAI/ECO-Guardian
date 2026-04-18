@@ -75,6 +75,18 @@ export const ASSET_PATHS = {
       boss: assetPath('audio/music/boss.mp3'),
       stage: (stageNumber: number) => assetPath(`audio/music/stage_${stageNumber}.mp3`),
     },
+    gaia: {
+      missionStart: assetPath('audio/gaia/mission_start.mp3'),
+      quizCorrect: assetPath('audio/gaia/quiz_correct.mp3'),
+      quizWrong: assetPath('audio/gaia/quiz_wrong.mp3'),
+      stageIntro: (stageNumber: number) =>
+        assetPath(`audio/gaia/stage_${String(stageNumber).padStart(2, '0')}_intro.mp3`),
+      bossPrompt: (stageNumber: number) =>
+        assetPath(`audio/gaia/stage_${String(stageNumber).padStart(2, '0')}_boss_prompt.mp3`),
+      stageSaved: (stageNumber: number) =>
+        assetPath(`audio/gaia/stage_${String(stageNumber).padStart(2, '0')}_saved.mp3`),
+      finalEnding: assetPath('audio/gaia/final_ending.mp3'),
+    },
     quiz: {
       question: (stageSlug: string, questionNumber: number) =>
         assetPath(`audio/quiz/${stageSlug}_q${String(questionNumber).padStart(2, '0')}.mp3`),

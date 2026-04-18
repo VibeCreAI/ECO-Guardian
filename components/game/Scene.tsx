@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, Vector2, AiStageConfig } from '../../types';
+import { ASSET_PATHS } from '../../assets';
 import { PropSpriteBatch, PlayerSpriteBillboard } from './SpriteBillboard';
 import { RemotePlayer } from './RemotePlayer';
 import { BattleManager } from './BattleManager';
@@ -18,8 +19,16 @@ import { VoxelPortal } from './VoxelPortal';
 import { VoxelLandmark } from './VoxelLandmark';
 import { VoxelShop } from './VoxelShop';
 import { QuestArrow } from './QuestArrow';
-import { InWorldText, QUIZ_GROUND_TEXT_PANEL } from './InWorldText';
-import { requestQuizNarration } from './AudioManager';
+import {
+  InWorldText,
+  BOSS_GROUND_TEXT_PANEL,
+  QUIZ_GROUND_TEXT_PANEL,
+  SHOP_GROUND_TEXT_PANEL,
+  STAGE_INTRO_GROUND_TEXT_PANEL,
+  VIBEJAM_GROUND_TEXT_PANEL,
+} from './InWorldText';
+import type { GroundTextHighlights } from './InWorldText';
+import { requestGaiaNarration, requestQuizNarration } from './AudioManager';
 import kenpixelFontUrl from 'three/examples/fonts/ttf/kenpixel.ttf?url';
 
 interface SceneProps {
@@ -28,6 +37,23 @@ interface SceneProps {
 }
 
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
+
+const isInsideGroundTextPanel = (
+  x: number,
+  z: number,
+  center: { x: number; z: number },
+  panel: { width: number; height: number },
+) =>
+  Math.abs(x - center.x) <= panel.width / 2 &&
+  Math.abs(z - center.z) <= panel.height / 2;
+
+const areGroundTextHighlightsEqual = (a: GroundTextHighlights, b: GroundTextHighlights) =>
+  Boolean(a.stageIntro) === Boolean(b.stageIntro) &&
+  Boolean(a.quiz) === Boolean(b.quiz) &&
+  Boolean(a.boss) === Boolean(b.boss) &&
+  Boolean(a.shop) === Boolean(b.shop) &&
+  Boolean(a.vibeJamNext) === Boolean(b.vibeJamNext) &&
+  Boolean(a.vibeJamReturn) === Boolean(b.vibeJamReturn);
 
 const THEME_FOG_COLORS: Record<ThemeName, string> = {
   FOREST: '#87CEEB',
@@ -300,6 +326,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const [facing, setFacing] = useState(1);
   const [isMoving, setIsMoving] = useState(false);
   const [viewDirection, setViewDirection] = useState<'DOWN'|'UP'|'SIDE'>('DOWN');
+  const [groundTextHighlights, setGroundTextHighlights] = useState<GroundTextHighlights>({});
   const facingRef = useRef(1);
   const isMovingRef = useRef(false);
   const viewDirectionRef = useRef<'DOWN'|'UP'|'SIDE'>('DOWN');
@@ -318,7 +345,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const prevModeRef = useRef<GameMode>(mode);
   const prevBroadcastModeRef = useRef<GameMode>(mode);
   const overworldWarmupFrames = useRef(0);
+  const groundTextHighlightsRef = useRef<GroundTextHighlights>({});
+  const stageIntroGroundInsideRef = useRef(false);
   const quizGroundInsideRef = useRef(false);
+  const bossGroundInsideRef = useRef(false);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
   const _camTarget = useRef(new THREE.Vector3());
@@ -343,14 +373,33 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const LANDMARK_POS = { x: 0, z: -10 };
   const SHOP_POS = { x: 15, z: -5 };
   const QUIZ_PORTAL_CENTER_POS = { x: 0, z: 6 };
+  const stageIntroGroundTextCenter = {
+    x: LANDMARK_POS.x,
+    z: LANDMARK_POS.z + STAGE_INTRO_GROUND_TEXT_PANEL.offsetZ,
+  };
   const quizGroundTextCenter = {
     x: QUIZ_PORTAL_CENTER_POS.x,
     z: QUIZ_PORTAL_CENTER_POS.z + QUIZ_GROUND_TEXT_PANEL.offsetZ,
   };
+  const shopGroundTextCenter = {
+    x: SHOP_POS.x,
+    z: SHOP_POS.z + SHOP_GROUND_TEXT_PANEL.offsetZ,
+  };
   const VIBEJAM_NEXT_POS = { x: -13, z: -5 };   // VibeJam exit portal — always present
   const VIBEJAM_RETURN_POS = { x: -25, z: -5 };  // VibeJam return portal — portal entry only
 
-  const hasBossPortal = useMemo(() => portals.some(p => p.type === 'BOSS'), [portals]);
+  const vibeJamNextGroundTextCenter = {
+    x: VIBEJAM_NEXT_POS.x,
+    z: VIBEJAM_NEXT_POS.z + VIBEJAM_GROUND_TEXT_PANEL.offsetZ,
+  };
+  const vibeJamReturnGroundTextCenter = {
+    x: VIBEJAM_RETURN_POS.x,
+    z: VIBEJAM_RETURN_POS.z + VIBEJAM_GROUND_TEXT_PANEL.offsetZ,
+  };
+
+  const gaiaStageNumber = React.useMemo(() => Math.min(10, Math.max(1, activeStage)), [activeStage]);
+  const bossPortal = useMemo(() => portals.find(p => p.type === 'BOSS') ?? null, [portals]);
+  const hasBossPortal = Boolean(bossPortal);
   const quizPortalSignature = useMemo(
     () => portals.filter(p => p.quizOption).map(p => p.id).sort().join('|'),
     [portals]
@@ -362,6 +411,16 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       ? `quiz-question:${activeStage}:${quizPortalSignature}:${aiConfig.quiz.question}`
       : undefined;
   const isQuizGroundTextVisible = Boolean((showNarrative || narrativeDismissed) && aiConfig?.quiz?.question && !hasBossPortal);
+  const stageIntroAudioSrc = aiConfig ? ASSET_PATHS.audio.gaia.stageIntro(gaiaStageNumber) : undefined;
+  const stageIntroAudioKey = aiConfig ? `gaia:stage-intro:${gaiaStageNumber}` : undefined;
+  const bossGroundTextCenter = bossPortal
+    ? {
+        x: bossPortal.x,
+        z: bossPortal.z + BOSS_GROUND_TEXT_PANEL.offsetZ,
+      }
+    : null;
+  const bossPromptAudioSrc = bossPortal ? ASSET_PATHS.audio.gaia.bossPrompt(gaiaStageNumber) : undefined;
+  const bossPromptAudioKey = bossPortal ? `gaia:boss-prompt:${gaiaStageNumber}:${bossPortal.id}` : undefined;
 
   const props = React.useMemo(() => {
     let possibleTypes: string[] = ['TREE', 'STONE', 'MUSHROOM']; 
@@ -396,6 +455,12 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (viewDirectionRef.current === nextViewDirection) return;
     viewDirectionRef.current = nextViewDirection;
     setViewDirection(nextViewDirection);
+  };
+
+  const updateGroundTextHighlights = (nextHighlights: GroundTextHighlights) => {
+    if (areGroundTextHighlightsEqual(groundTextHighlightsRef.current, nextHighlights)) return;
+    groundTextHighlightsRef.current = nextHighlights;
+    setGroundTextHighlights(nextHighlights);
   };
 
   useEffect(() => {
@@ -434,12 +499,23 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   }, [isPortalEntry]);
 
   useEffect(() => {
+    stageIntroGroundInsideRef.current = false;
+  }, [stageIntroAudioKey]);
+
+  useEffect(() => {
     quizGroundInsideRef.current = false;
   }, [quizQuestionAudioKey]);
 
   useEffect(() => {
+    bossGroundInsideRef.current = false;
+  }, [bossPromptAudioKey]);
+
+  useEffect(() => {
     if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.LOADING_LEVEL) {
+      stageIntroGroundInsideRef.current = false;
       quizGroundInsideRef.current = false;
+      bossGroundInsideRef.current = false;
+      updateGroundTextHighlights({});
     }
   }, [mode]);
 
@@ -525,6 +601,31 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         }
         const limit = mode === GameMode.BATTLE ? 24.5 : 30.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
+        const playerX = playerRef.current.position.x;
+        const playerZ = playerRef.current.position.z;
+        const isOverworldMode = mode === GameMode.OVERWORLD;
+        const nextGroundTextHighlights: GroundTextHighlights = {
+          stageIntro: isOverworldMode && Boolean(aiConfig) && isInsideGroundTextPanel(playerX, playerZ, stageIntroGroundTextCenter, STAGE_INTRO_GROUND_TEXT_PANEL),
+          quiz: isOverworldMode && isQuizGroundTextVisible && isInsideGroundTextPanel(playerX, playerZ, quizGroundTextCenter, QUIZ_GROUND_TEXT_PANEL),
+          boss: isOverworldMode && Boolean(bossGroundTextCenter) && isInsideGroundTextPanel(playerX, playerZ, bossGroundTextCenter ?? stageIntroGroundTextCenter, BOSS_GROUND_TEXT_PANEL),
+          shop: isOverworldMode && isInsideGroundTextPanel(playerX, playerZ, shopGroundTextCenter, SHOP_GROUND_TEXT_PANEL),
+          vibeJamNext: isOverworldMode && isInsideGroundTextPanel(playerX, playerZ, vibeJamNextGroundTextCenter, VIBEJAM_GROUND_TEXT_PANEL),
+          vibeJamReturn: isOverworldMode && isPortalEntry && isInsideGroundTextPanel(playerX, playerZ, vibeJamReturnGroundTextCenter, VIBEJAM_GROUND_TEXT_PANEL),
+        };
+        updateGroundTextHighlights(nextGroundTextHighlights);
+        if (mode === GameMode.OVERWORLD && stageIntroAudioSrc && stageIntroAudioKey) {
+          const insideStageIntroText =
+            Math.abs(playerRef.current.position.x - stageIntroGroundTextCenter.x) <= STAGE_INTRO_GROUND_TEXT_PANEL.width / 2 &&
+            Math.abs(playerRef.current.position.z - stageIntroGroundTextCenter.z) <= STAGE_INTRO_GROUND_TEXT_PANEL.height / 2;
+
+          if (insideStageIntroText && !stageIntroGroundInsideRef.current) {
+            requestGaiaNarration(stageIntroAudioSrc, stageIntroAudioKey);
+          }
+
+          stageIntroGroundInsideRef.current = insideStageIntroText;
+        } else {
+          stageIntroGroundInsideRef.current = false;
+        }
         if (mode === GameMode.OVERWORLD && isQuizGroundTextVisible && quizQuestionAudioSrc && quizQuestionAudioKey) {
           const insideQuizText =
             Math.abs(playerRef.current.position.x - quizGroundTextCenter.x) <= QUIZ_GROUND_TEXT_PANEL.width / 2 &&
@@ -537,6 +638,19 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
           quizGroundInsideRef.current = insideQuizText;
         } else {
           quizGroundInsideRef.current = false;
+        }
+        if (mode === GameMode.OVERWORLD && bossGroundTextCenter && bossPromptAudioSrc && bossPromptAudioKey) {
+          const insideBossText =
+            Math.abs(playerRef.current.position.x - bossGroundTextCenter.x) <= BOSS_GROUND_TEXT_PANEL.width / 2 &&
+            Math.abs(playerRef.current.position.z - bossGroundTextCenter.z) <= BOSS_GROUND_TEXT_PANEL.height / 2;
+
+          if (insideBossText && !bossGroundInsideRef.current) {
+            requestGaiaNarration(bossPromptAudioSrc, bossPromptAudioKey);
+          }
+
+          bossGroundInsideRef.current = insideBossText;
+        } else {
+          bossGroundInsideRef.current = false;
         }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
         if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) {
@@ -684,10 +798,12 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
   const getPortalColor = (portal: any) => { if (portal.colorOverride) return portal.colorOverride; if (portal.type === 'BOSS') return '#aa00ff'; return '#00ffff'; };
   // Map quizOption key to display label for portals
-  const getPortalLabel = (portal: any): string | undefined => { if (!portal.quizOption) return undefined; if (portal.quizOption === 'A') return 'YES'; if (portal.quizOption === 'B') return 'NO'; return portal.quizOption; };
+  const getPortalLabel = (portal: any): string | undefined => { if (portal.type === 'BOSS') return 'BOSS'; if (!portal.quizOption) return undefined; if (portal.quizOption === 'A') return 'YES'; if (portal.quizOption === 'B') return 'NO'; return portal.quizOption; };
   const isPlayerHit = (Date.now() - playerStats.lastDamageTime) < 200;
-  const arrowTarget = useMemo(() => { if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } const bossPortal = portals.find(p => p.type === 'BOSS'); if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [portals, highlightedPortalId]);
+  const arrowTarget = useMemo(() => { if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [portals, highlightedPortalId, bossPortal]);
   const showStars = sceneTheme === 'VOID' || sceneTheme === 'HELL' || sceneTheme === 'SKULL';
+  const showGameplayStars = sceneTheme === 'SKULL';
+  const showClouds = !showStars || sceneTheme === 'SKULL';
   const showDefaultSky = !showStars && sceneTheme !== 'CYBER' && sceneTheme !== 'SKY';
   const showOverworldScene = (
     mode === GameMode.OVERWORLD ||
@@ -772,8 +888,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       <color attach="background" args={[backgroundColor]} />
       {showDefaultSky && !useMutedGameplayBackdrop && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
       {sceneTheme === 'SKY' && !useMutedGameplayBackdrop && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
-      {showStars && !useMutedGameplayBackdrop && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
-      {!showStars && <AnimatedClouds hideLowerClouds={showBattleScene} />}
+      {showStars && (!useMutedGameplayBackdrop || showGameplayStars) && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
+      {showClouds && <AnimatedClouds hideLowerClouds={showBattleScene} />}
       <hemisphereLight args={[hemisphereColors.sky, hemisphereColors.ground, 0.75]} />
       <directionalLight
         position={[10, 20, 10]}
@@ -814,11 +930,12 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
                 setNarrativeDismissed(true);
               }}
               hasBossPortal={hasBossPortal}
-              bossPortalPos={(() => { const bp = portals.find(p => p.type === 'BOSS'); return bp ? [bp.x, 0, bp.z] as [number, number, number] : null; })()}
+              bossPortalPos={bossPortal ? [bossPortal.x, 0, bossPortal.z] as [number, number, number] : null}
               vibeJamNextPos={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]}
               isPortalEntry={isPortalEntry}
               vibeJamReturnPos={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]}
               portalRefUrl={portalRefUrl}
+              highlights={groundTextHighlights}
             />
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}
             {hasPeers && localVotedPortal && (

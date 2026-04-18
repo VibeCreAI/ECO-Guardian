@@ -12,6 +12,35 @@ export const QUIZ_GROUND_TEXT_PANEL = {
   offsetZ: 6,
 } as const;
 
+export const BOSS_GROUND_TEXT_PANEL = {
+  width: 12.8,
+  height: 3.8,
+  offsetZ: 5,
+} as const;
+
+export const STAGE_INTRO_GROUND_TEXT_PANEL = {
+  width: 13.5,
+  height: 4.4,
+  offsetZ: 8,
+} as const;
+
+export const SHOP_GROUND_TEXT_PANEL = {
+  width: 11.2,
+  height: 2.9,
+  offsetZ: 4,
+} as const;
+
+export const VIBEJAM_GROUND_TEXT_PANEL = {
+  width: 12,
+  height: 3.05,
+  offsetZ: 4.5,
+} as const;
+
+export type GroundTextHighlights = Partial<Record<
+  'stageIntro' | 'quiz' | 'boss' | 'shop' | 'vibeJamNext' | 'vibeJamReturn',
+  boolean
+>>;
+
 interface InWorldTextProps {
   landmarkPos: [number, number, number];
   portalCenterPos: [number, number, number];
@@ -26,6 +55,7 @@ interface InWorldTextProps {
   isPortalEntry: boolean;
   vibeJamReturnPos: [number, number, number];
   portalRefUrl: string | null;
+  highlights?: GroundTextHighlights;
 }
 
 const applyTextOpacity = (text: any, opacity: number) => {
@@ -50,6 +80,7 @@ interface GroundTextPanelProps {
   borderColor?: string;
   accentColor?: string;
   materialRef?: React.Ref<THREE.MeshBasicMaterial>;
+  highlighted?: boolean;
 }
 
 const GroundTextPanel: React.FC<GroundTextPanelProps> = ({
@@ -60,21 +91,38 @@ const GroundTextPanel: React.FC<GroundTextPanelProps> = ({
   borderColor = '#020805',
   accentColor = '#4ade80',
   materialRef,
+  highlighted = false,
 }) => {
   const edge = 0.08;
   const corner = 0.26;
   const halfW = width / 2;
   const halfH = height / 2;
+  const bgOpacity = highlighted ? Math.min(opacity + 0.12, 0.5) : opacity;
+  const borderOpacity = highlighted ? 0.92 : 0.68;
+  const accentOpacity = highlighted ? 0.96 : 0.72;
 
   return (
     <>
+      {highlighted && (
+        <mesh position={[0, 0, -0.065]} renderOrder={-1}>
+          <planeGeometry args={[width + 0.55, height + 0.55]} />
+          <meshBasicMaterial
+            color={accentColor}
+            transparent
+            opacity={0.13}
+            toneMapped={false}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
       <mesh position={[0, 0, -0.03]} renderOrder={0}>
         <planeGeometry args={[width, height]} />
         <meshBasicMaterial
           ref={materialRef}
           color={bgColor}
           transparent
-          opacity={opacity}
+          opacity={bgOpacity}
           toneMapped={false}
           depthWrite={false}
         />
@@ -82,19 +130,19 @@ const GroundTextPanel: React.FC<GroundTextPanelProps> = ({
 
       <mesh position={[0, halfH - edge / 2, -0.015]} renderOrder={1}>
         <planeGeometry args={[width, edge]} />
-        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+        <meshBasicMaterial color={highlighted ? accentColor : borderColor} transparent opacity={borderOpacity} toneMapped={false} depthWrite={false} />
       </mesh>
       <mesh position={[0, -halfH + edge / 2, -0.015]} renderOrder={1}>
         <planeGeometry args={[width, edge]} />
-        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+        <meshBasicMaterial color={highlighted ? accentColor : borderColor} transparent opacity={borderOpacity} toneMapped={false} depthWrite={false} />
       </mesh>
       <mesh position={[-halfW + edge / 2, 0, -0.015]} renderOrder={1}>
         <planeGeometry args={[edge, height]} />
-        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+        <meshBasicMaterial color={highlighted ? accentColor : borderColor} transparent opacity={borderOpacity} toneMapped={false} depthWrite={false} />
       </mesh>
       <mesh position={[halfW - edge / 2, 0, -0.015]} renderOrder={1}>
         <planeGeometry args={[edge, height]} />
-        <meshBasicMaterial color={borderColor} transparent opacity={0.68} toneMapped={false} depthWrite={false} />
+        <meshBasicMaterial color={highlighted ? accentColor : borderColor} transparent opacity={borderOpacity} toneMapped={false} depthWrite={false} />
       </mesh>
 
       {[
@@ -105,7 +153,7 @@ const GroundTextPanel: React.FC<GroundTextPanelProps> = ({
       ].map((position, idx) => (
         <mesh key={idx} position={position as [number, number, number]} renderOrder={2}>
           <planeGeometry args={[corner, corner]} />
-          <meshBasicMaterial color={accentColor} transparent opacity={0.72} toneMapped={false} depthWrite={false} />
+          <meshBasicMaterial color={accentColor} transparent opacity={accentOpacity} toneMapped={false} depthWrite={false} />
         </mesh>
       ))}
     </>
@@ -126,6 +174,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   isPortalEntry,
   vibeJamReturnPos,
   portalRefUrl,
+  highlights,
 }) => {
   const narrativeDoneRef = useRef(false);
 
@@ -138,7 +187,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   const quizBgRef = useRef<THREE.MeshBasicMaterial>(null);
 
   const narrativePosition = useMemo<[number, number, number]>(
-    () => [landmarkPos[0], 0.08, landmarkPos[2] + 8],
+    () => [landmarkPos[0], 0.08, landmarkPos[2] + STAGE_INTRO_GROUND_TEXT_PANEL.offsetZ],
     [landmarkPos],
   );
 
@@ -148,22 +197,22 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   );
 
   const shopTextPos = useMemo<[number, number, number]>(
-    () => [shopPos[0], 0.08, shopPos[2] + 4],
+    () => [shopPos[0], 0.08, shopPos[2] + SHOP_GROUND_TEXT_PANEL.offsetZ],
     [shopPos],
   );
 
   const bossTextPos = useMemo<[number, number, number] | null>(
-    () => bossPortalPos ? [bossPortalPos[0], 0.08, bossPortalPos[2] + 5] : null,
+    () => bossPortalPos ? [bossPortalPos[0], 0.08, bossPortalPos[2] + BOSS_GROUND_TEXT_PANEL.offsetZ] : null,
     [bossPortalPos],
   );
 
   const vibeJamNextTextPos = useMemo<[number, number, number]>(
-    () => [vibeJamNextPos[0], 0.08, vibeJamNextPos[2] + 4.5],
+    () => [vibeJamNextPos[0], 0.08, vibeJamNextPos[2] + VIBEJAM_GROUND_TEXT_PANEL.offsetZ],
     [vibeJamNextPos],
   );
 
   const vibeJamReturnTextPos = useMemo<[number, number, number]>(
-    () => [vibeJamReturnPos[0], 0.08, vibeJamReturnPos[2] + 4.5],
+    () => [vibeJamReturnPos[0], 0.08, vibeJamReturnPos[2] + VIBEJAM_GROUND_TEXT_PANEL.offsetZ],
     [vibeJamReturnPos],
   );
   const returnDestinationLabel = useMemo(() => {
@@ -202,7 +251,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
     <>
       {stageConfig && (
         <group position={narrativePosition} rotation={[-Math.PI / 2, 0, 0]}>
-          <GroundTextPanel width={13.5} height={4.4} materialRef={narrativeBgRef} opacity={0.32} />
+          <GroundTextPanel
+            width={STAGE_INTRO_GROUND_TEXT_PANEL.width}
+            height={STAGE_INTRO_GROUND_TEXT_PANEL.height}
+            materialRef={narrativeBgRef}
+            opacity={0.32}
+            highlighted={Boolean(highlights?.stageIntro)}
+          />
 
           <Text
             ref={narrativeTitleRef}
@@ -246,6 +301,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
             height={QUIZ_GROUND_TEXT_PANEL.height}
             materialRef={quizBgRef}
             opacity={0.3}
+            highlighted={Boolean(highlights?.quiz)}
           />
 
           <Text
@@ -286,11 +342,12 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {hasBossPortal && bossTextPos && stageConfig?.boss && (
         <group position={bossTextPos} rotation={[-Math.PI / 2, 0, 0]}>
           <GroundTextPanel
-            width={12.8}
-            height={3.8}
+            width={BOSS_GROUND_TEXT_PANEL.width}
+            height={BOSS_GROUND_TEXT_PANEL.height}
             bgColor="#240d0d"
             accentColor="#ef4444"
             opacity={0.34}
+            highlighted={Boolean(highlights?.boss)}
           />
 
           <Text
@@ -327,7 +384,12 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       )}
 
       <group position={shopTextPos} rotation={[-Math.PI / 2, 0, 0]}>
-        <GroundTextPanel width={11.2} height={2.9} opacity={0.28} />
+        <GroundTextPanel
+          width={SHOP_GROUND_TEXT_PANEL.width}
+          height={SHOP_GROUND_TEXT_PANEL.height}
+          opacity={0.28}
+          highlighted={Boolean(highlights?.shop)}
+        />
 
         <Text
           font={groundTextFontUrl}
@@ -364,12 +426,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {/* ── VibeJam Next Portal ground label ── */}
       <group position={vibeJamNextTextPos} rotation={[-Math.PI / 2, 0, 0]}>
         <GroundTextPanel
-          width={12}
-          height={3.05}
+          width={VIBEJAM_GROUND_TEXT_PANEL.width}
+          height={VIBEJAM_GROUND_TEXT_PANEL.height}
           bgColor="#0d1f1f"
           borderColor="#050f0f"
           accentColor="#22d3ee"
           opacity={0.32}
+          highlighted={Boolean(highlights?.vibeJamNext)}
         />
 
         <Text
@@ -408,12 +471,13 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {isPortalEntry && (
         <group position={vibeJamReturnTextPos} rotation={[-Math.PI / 2, 0, 0]}>
           <GroundTextPanel
-            width={12}
-            height={3.05}
+            width={VIBEJAM_GROUND_TEXT_PANEL.width}
+            height={VIBEJAM_GROUND_TEXT_PANEL.height}
             bgColor="#1f0d0d"
             borderColor="#0f0505"
             accentColor="#fb923c"
             opacity={0.32}
+            highlighted={Boolean(highlights?.vibeJamReturn)}
           />
 
           <Text

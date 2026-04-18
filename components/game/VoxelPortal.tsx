@@ -167,24 +167,39 @@ export const VoxelPortal: React.FC<VoxelPortalProps> = ({ position, color, inner
     scale: [config.thickness * 0.6, 0.6, config.thickness * 0.6] as [number, number, number],
   })), [innerBlocks, config.thickness]);
 
-  const particleBoxes = useMemo(() => particles.map((p, i) => {
+  const particleOrbiters = useMemo(() => particles.map((p, i) => {
     const angle = (i / particles.length) * Math.PI * 2;
+    const scale = p.size * (tintStructure ? 2.2 : isBoss ? 1.9 : 1.7);
     return {
       position: [
         Math.cos(angle) * config.radius * 1.2,
         0,
         Math.sin(angle) * config.radius * 1.2,
       ] as [number, number, number],
-      scale: [p.size, p.size, p.size] as [number, number, number],
+      scale: [scale, scale, scale] as [number, number, number],
     };
-  }), [particles, config.radius]);
+  }), [particles, config.radius, tintStructure, isBoss]);
+
+  const particleStyle = useMemo(() => ({
+    emissiveIntensity: tintStructure ? 4 : isBoss ? 3.2 : 2.6,
+    lightIntensity: tintStructure ? 1.8 : isBoss ? 1.35 : 0.85,
+    lightDistance: tintStructure ? 3.5 : isBoss ? 3.2 : 2.4,
+    orbitSpeed: tintStructure ? 0.5 : isBoss ? 0.42 : 0.36,
+  }), [tintStructure, isBoss]);
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
     if (innerRingRef.current) innerRingRef.current.rotation.z -= delta * (isBoss ? 1.0 : 0.5);
     if (eventHorizonRef.current) { const scale = 1 + Math.sin(t * 3) * 0.05; eventHorizonRef.current.scale.set(scale, scale, 1); eventHorizonRef.current.rotation.z += delta * 0.2; }
     if (groupRef.current) groupRef.current.position.y = position[1] + Math.sin(t) * 0.2;
-    if (particlesRef.current) { particlesRef.current.rotation.y += delta * 0.5; particlesRef.current.children.forEach((child, i) => { child.position.y = Math.sin(t * particles[i].speed + particles[i].offset) * particles[i].dist; }); }
+    if (particlesRef.current) {
+      particlesRef.current.rotation.y += delta * particleStyle.orbitSpeed;
+      particlesRef.current.children.forEach((child, i) => {
+        const particle = particles[i];
+        if (!particle) return;
+        child.position.y = Math.sin(t * particle.speed + particle.offset) * particle.dist;
+      });
+    }
   });
 
   return (
@@ -218,25 +233,21 @@ export const VoxelPortal: React.FC<VoxelPortalProps> = ({ position, color, inner
         </group>
       </group>
       <group ref={particlesRef} position={[0, config.radius, 0]}>
-        {tintStructure && particles.map((p, i) => {
-          const angle = (i / particles.length) * Math.PI * 2;
-          const px = Math.cos(angle) * config.radius * 1.2;
-          const pz = Math.sin(angle) * config.radius * 1.2;
+        {particleOrbiters.map((particle, i) => {
           return (
-            <group key={i} position={[px, 0, pz]}>
+            <group key={i} position={particle.position}>
               {/* Bright orb: octahedron with high emissiveIntensity to trigger Bloom post-processing like landmark fireflies */}
-              <mesh scale={[p.size * 2.2, p.size * 2.2, p.size * 2.2]}>
+              <mesh scale={particle.scale}>
                 <octahedronGeometry args={[1, 0]} />
-                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={4} />
+                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={particleStyle.emissiveIntensity} />
               </mesh>
               {/* Every other orb emits a small point light onto surrounding geometry */}
               {i % 2 === 0 && (
-                <pointLight color={color} intensity={1.8} distance={3.5} decay={2} />
+                <pointLight color={color} intensity={particleStyle.lightIntensity} distance={particleStyle.lightDistance} decay={2} />
               )}
             </group>
           );
         })}
-        {!tintStructure && <InstancedBoxes boxes={particleBoxes} color={color} emissive />}
       </group>
       <pointLight position={[0, config.radius + 1, 1]} color={color} intensity={isBoss ? 5 : 3} distance={isBoss ? 12 : 8} decay={2}/>
       <pointLight position={[0, 1, 0]} color={color} intensity={1} distance={4}/>
