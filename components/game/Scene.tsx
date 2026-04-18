@@ -18,7 +18,8 @@ import { VoxelPortal } from './VoxelPortal';
 import { VoxelLandmark } from './VoxelLandmark';
 import { VoxelShop } from './VoxelShop';
 import { QuestArrow } from './QuestArrow';
-import { InWorldText } from './InWorldText';
+import { InWorldText, QUIZ_GROUND_TEXT_PANEL } from './InWorldText';
+import { requestQuizNarration } from './AudioManager';
 import kenpixelFontUrl from 'three/examples/fonts/ttf/kenpixel.ttf?url';
 
 interface SceneProps {
@@ -317,6 +318,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const prevModeRef = useRef<GameMode>(mode);
   const prevBroadcastModeRef = useRef<GameMode>(mode);
   const overworldWarmupFrames = useRef(0);
+  const quizGroundInsideRef = useRef(false);
   const zoomCurrent = useRef(1.0);
   const fogRef = useRef<THREE.Fog>(null);
   const _camTarget = useRef(new THREE.Vector3());
@@ -340,8 +342,26 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   
   const LANDMARK_POS = { x: 0, z: -10 };
   const SHOP_POS = { x: 15, z: -5 };
+  const QUIZ_PORTAL_CENTER_POS = { x: 0, z: 6 };
+  const quizGroundTextCenter = {
+    x: QUIZ_PORTAL_CENTER_POS.x,
+    z: QUIZ_PORTAL_CENTER_POS.z + QUIZ_GROUND_TEXT_PANEL.offsetZ,
+  };
   const VIBEJAM_NEXT_POS = { x: -13, z: -5 };   // VibeJam exit portal — always present
   const VIBEJAM_RETURN_POS = { x: -25, z: -5 };  // VibeJam return portal — portal entry only
+
+  const hasBossPortal = useMemo(() => portals.some(p => p.type === 'BOSS'), [portals]);
+  const quizPortalSignature = useMemo(
+    () => portals.filter(p => p.quizOption).map(p => p.id).sort().join('|'),
+    [portals]
+  );
+  const quizQuestionAudioSrc = aiConfig?.quiz?.audioQuestionSrc;
+  const quizQuestionAudioKey = aiConfig?.quiz?.audioId
+    ? `quiz-question:${activeStage}:${quizPortalSignature}:${aiConfig.quiz.audioId}`
+    : aiConfig?.quiz?.question
+      ? `quiz-question:${activeStage}:${quizPortalSignature}:${aiConfig.quiz.question}`
+      : undefined;
+  const isQuizGroundTextVisible = Boolean((showNarrative || narrativeDismissed) && aiConfig?.quiz?.question && !hasBossPortal);
 
   const props = React.useMemo(() => {
     let possibleTypes: string[] = ['TREE', 'STONE', 'MUSHROOM']; 
@@ -412,6 +432,16 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   useEffect(() => {
     if (isPortalEntry) { portalGraceTimer.current = 5.0; }
   }, [isPortalEntry]);
+
+  useEffect(() => {
+    quizGroundInsideRef.current = false;
+  }, [quizQuestionAudioKey]);
+
+  useEffect(() => {
+    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.LOADING_LEVEL) {
+      quizGroundInsideRef.current = false;
+    }
+  }, [mode]);
 
   // Keep dashCooldownRef in sync with external store resets (stage change etc.)
   // Subscribe side-effect-only so this doesn't cause Scene re-renders.
@@ -495,6 +525,19 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         }
         const limit = mode === GameMode.BATTLE ? 24.5 : 30.0; if (playerRef.current.position.x > limit) playerRef.current.position.x = limit; if (playerRef.current.position.x < -limit) playerRef.current.position.x = -limit; if (playerRef.current.position.z > limit) playerRef.current.position.z = limit; if (playerRef.current.position.z < -limit) playerRef.current.position.z = -limit;
         if (state.clock.elapsedTime - lastMapUpdate.current > 0.1) { lastMapUpdate.current = state.clock.elapsedTime; updatePosition(playerRef.current.position.x, playerRef.current.position.z); }
+        if (mode === GameMode.OVERWORLD && isQuizGroundTextVisible && quizQuestionAudioSrc && quizQuestionAudioKey) {
+          const insideQuizText =
+            Math.abs(playerRef.current.position.x - quizGroundTextCenter.x) <= QUIZ_GROUND_TEXT_PANEL.width / 2 &&
+            Math.abs(playerRef.current.position.z - quizGroundTextCenter.z) <= QUIZ_GROUND_TEXT_PANEL.height / 2;
+
+          if (insideQuizText && !quizGroundInsideRef.current) {
+            requestQuizNarration(quizQuestionAudioSrc, quizQuestionAudioKey);
+          }
+
+          quizGroundInsideRef.current = insideQuizText;
+        } else {
+          quizGroundInsideRef.current = false;
+        }
         const isGenerating = useAiDirectorStore.getState().isGenerating;
         if (mode === GameMode.OVERWORLD && battleCooldown.current <= 0) {
           let nearestPortalId: string | null = null;
@@ -761,7 +804,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             {portals.map((portal) => ( <VoxelPortal key={portal.id} position={[portal.x, 0, portal.z]} color={getPortalColor(portal)} isBoss={portal.type === 'BOSS'} label={getPortalLabel(portal)} /> ))}
             <InWorldText
               landmarkPos={[LANDMARK_POS.x, 0, LANDMARK_POS.z]}
-              portalCenterPos={[0, 0, 6]}
+              portalCenterPos={[QUIZ_PORTAL_CENTER_POS.x, 0, QUIZ_PORTAL_CENTER_POS.z]}
               shopPos={[SHOP_POS.x, 0, SHOP_POS.z]}
               showNarrative={showNarrative}
               narrativeDismissed={narrativeDismissed}
@@ -770,7 +813,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
                 setShowNarrative(false);
                 setNarrativeDismissed(true);
               }}
-              hasBossPortal={portals.some(p => p.type === 'BOSS')}
+              hasBossPortal={hasBossPortal}
               bossPortalPos={(() => { const bp = portals.find(p => p.type === 'BOSS'); return bp ? [bp.x, 0, bp.z] as [number, number, number] : null; })()}
               vibeJamNextPos={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]}
               isPortalEntry={isPortalEntry}

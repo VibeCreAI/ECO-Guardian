@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { PlayerStats, AiStageConfig, UpgradeOption, AdviceResult, QuizDifficulty, EnemyMobType } from '../types';
 import { EVOLUTION_RECIPES } from '../constants';
 import { ALL_ENEMY_TYPES, STAGE_ENEMY_POOLS } from '../components/game/enemyDrawing';
+import { ASSET_PATHS } from '../assets';
 
 interface AiDirectorState {
     currentConfig: AiStageConfig | null;
@@ -265,6 +266,42 @@ const YES_NO_POOLS: Record<string, YesNoTemplate[]> = {
 
 // --- YES/NO SELECTION HELPER ---
 
+const QUIZ_AUDIO_STAGE_SLUGS: Record<string, string> = {
+    "The Plastic Woods": "plastic_woods",
+    "E-Waste Graveyard": "e_waste_graveyard",
+    "Frozen Server Farm": "frozen_server_farm",
+    "Magma Refinery": "magma_refinery",
+    "Silicon Dunes": "silicon_dunes",
+    "Toxic Swamp": "toxic_swamp",
+    "Cyber City Ruins": "cyber_city_ruins",
+    "The Null Void": "null_void",
+    "Cloud Data Center": "cloud_data_center",
+    "Digital Hell": "digital_hell",
+};
+
+const buildYesNoQuiz = (
+    stageName: string,
+    stagePool: YesNoTemplate[],
+    template: YesNoTemplate,
+): AiStageConfig['quiz'] => {
+    const correctOption = template.a === 'YES' ? 'A' : 'B';
+    const questionIndex = stagePool.findIndex(item => item.q === template.q);
+    const questionNumber = Math.max(1, questionIndex + 1);
+    const audioSlug = QUIZ_AUDIO_STAGE_SLUGS[stageName];
+    const audioId = audioSlug ? `${audioSlug}_${String(questionNumber).padStart(2, '0')}` : undefined;
+
+    return {
+        question: template.q,
+        options: { A: 'YES', B: 'NO' },
+        correctOption,
+        explanation: template.e,
+        impactValue: 100,
+        audioId,
+        audioQuestionSrc: audioSlug ? ASSET_PATHS.audio.quiz.question(audioSlug, questionNumber) : undefined,
+        audioExplanationSrc: audioSlug ? ASSET_PATHS.audio.quiz.explanation(audioSlug, questionNumber) : undefined,
+    };
+};
+
 function selectYesNoQuestion(
     stageName: string,
     excludedQuestions: string[] = []
@@ -280,16 +317,7 @@ function selectYesNoQuestion(
 
     const template = finalPool[Math.floor(Math.random() * finalPool.length)];
 
-    // A = YES portal (green), B = NO portal (red)
-    const correctOption = template.a === 'YES' ? 'A' : 'B';
-
-    return {
-        question: template.q,
-        options: { A: 'YES', B: 'NO' },
-        correctOption,
-        explanation: template.e,
-        impactValue: 100
-    };
+    return buildYesNoQuiz(stageName, stagePool, template);
 }
 
 const stableHash = (input: string): number => {
@@ -323,14 +351,7 @@ function selectYesNoQuestionDeterministic(
         }
     }
 
-    const correctOption = template.a === 'YES' ? 'A' : 'B';
-    return {
-        question: template.q,
-        options: { A: 'YES', B: 'NO' },
-        correctOption,
-        explanation: template.e,
-        impactValue: 100,
-    };
+    return buildYesNoQuiz(stageName, stagePool, template);
 }
 
 // --- DEATH MESSAGES ---

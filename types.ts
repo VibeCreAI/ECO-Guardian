@@ -130,6 +130,9 @@ export interface AiStageConfig {
     correctOption: 'A' | 'B' | 'C'; 
     explanation: string;
     impactValue: number; // Estimated kg of CO2 saved
+    audioId?: string;
+    audioQuestionSrc?: string;
+    audioExplanationSrc?: string;
   }
 }
 

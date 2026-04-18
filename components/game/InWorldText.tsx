@@ -6,6 +6,12 @@ import type { AiStageConfig } from '../../types';
 
 const groundTextFontUrl = '/assets/font/DungGeunMo.ttf';
 
+export const QUIZ_GROUND_TEXT_PANEL = {
+  width: 14.5,
+  height: 4.8,
+  offsetZ: 6,
+} as const;
+
 interface InWorldTextProps {
   landmarkPos: [number, number, number];
   portalCenterPos: [number, number, number];
@@ -137,7 +143,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   );
 
   const quizPosition = useMemo<[number, number, number]>(
-    () => [portalCenterPos[0], 0.08, portalCenterPos[2] + 6],
+    () => [portalCenterPos[0], 0.08, portalCenterPos[2] + QUIZ_GROUND_TEXT_PANEL.offsetZ],
     [portalCenterPos],
   );
 
@@ -235,7 +241,12 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
 
       {quizVisible && stageConfig?.quiz && (
         <group position={quizPosition} rotation={[-Math.PI / 2, 0, 0]}>
-          <GroundTextPanel width={14.5} height={4.8} materialRef={quizBgRef} opacity={0.3} />
+          <GroundTextPanel
+            width={QUIZ_GROUND_TEXT_PANEL.width}
+            height={QUIZ_GROUND_TEXT_PANEL.height}
+            materialRef={quizBgRef}
+            opacity={0.3}
+          />
 
           <Text
             ref={quizHeaderRef}

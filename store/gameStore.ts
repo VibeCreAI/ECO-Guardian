@@ -104,7 +104,17 @@ interface GameState {
   activeBattle: ActiveBattleState;
   battleWon: boolean;
   
-  quizResult: { correct: boolean; explanation: string; answerLabel: string; bonus: boolean; carbonValue: number; streak: number; lostStreak: number } | null;
+  quizResult: {
+    correct: boolean;
+    explanation: string;
+    answerLabel: string;
+    bonus: boolean;
+    carbonValue: number;
+    streak: number;
+    lostStreak: number;
+    explanationAudioSrc?: string;
+    explanationAudioKey?: string;
+  } | null;
   
   bossStats: { currentHp: number; maxHp: number; name: string } | null;
   bossNarrativeOpen: boolean; 
@@ -1218,7 +1228,9 @@ export const useGameStore = create<GameState>((set, get) => ({
                  bonus: isBonus,
                  carbonValue: isCorrect ? impact : 0,
                  streak: newStreak,
-                 lostStreak: comboLostStreak
+                 lostStreak: comboLostStreak,
+                 explanationAudioSrc: aiConfig.quiz.audioExplanationSrc,
+                 explanationAudioKey: aiConfig.quiz.audioId ? `quiz-explanation:${aiConfig.quiz.audioId}` : undefined
              };
              nextMode = GameMode.QUIZ_RESULT;
 

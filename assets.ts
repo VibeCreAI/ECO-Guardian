@@ -75,6 +75,12 @@ export const ASSET_PATHS = {
       boss: assetPath('audio/music/boss.mp3'),
       stage: (stageNumber: number) => assetPath(`audio/music/stage_${stageNumber}.mp3`),
     },
+    quiz: {
+      question: (stageSlug: string, questionNumber: number) =>
+        assetPath(`audio/quiz/${stageSlug}_q${String(questionNumber).padStart(2, '0')}.mp3`),
+      explanation: (stageSlug: string, questionNumber: number) =>
+        assetPath(`audio/quiz/${stageSlug}_ex${String(questionNumber).padStart(2, '0')}.mp3`),
+    },
   },
   images: {
     bosses: {
