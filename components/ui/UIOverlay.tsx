@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, useGameStore } from '../../store/gameStore';
-import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
+import { useAiDirectorStore } from '../../store/aiDirectorStore';
 import { GameMode, HighScore, UpgradeOption, Vector2 } from '../../types';
+import { useModalKeyboard } from '../../hooks/useModalKeyboard';
 import { VirtualJoystick } from './VirtualJoystick';
 import { StatusModal } from './StatusModal';
 import { LibraryModal } from './LibraryModal';
@@ -375,6 +376,19 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     return () => window.removeEventListener('keydown', handleScrollKey);
   }, [mode]);
 
+  useModalKeyboard({
+    onEscapeOverworld: togglePause,
+    onEscapePaused: togglePause,
+    onEscapeLibrary: () => {
+      const prev = useGameStore.getState().previousMode;
+      if (prev === GameMode.MENU) setMode(GameMode.MENU);
+      else togglePause();
+    },
+    onEscapeStatus: togglePause,
+    onEscapeLeaderboard: () => setMode(GameMode.MENU),
+    onEscapeShop: () => setMode(GameMode.OVERWORLD),
+  });
+
   useEffect(() => {
       if (mode !== GameMode.INSTRUCTIONS) {
           startupSequenceRef.current += 1;
@@ -695,8 +709,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                   setPlayerNameInput(e.target.value);
                                   setScoreSubmitError(null);
                               }}
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && playerName.trim().length > 0 && !isSubmitting && !scoreSubmitted) {
+                                      e.preventDefault();
+                                      handleSubmitScore();
+                                  }
+                              }}
                           />
                           <button
+                              data-modal-btn=""
                               onClick={handleSubmitScore}
                               disabled={playerName.length === 0 || isSubmitting}
                               className={`w-full py-3 font-bold text-lg transition-all ui-button ${playerName.length > 0 && !isSubmitting ? 'ui-button-warning' : 'ui-button-disabled'}`}
@@ -715,7 +736,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       </div>
                   )}
 
-                  <button 
+                  <button
+                      data-modal-btn=""
                       onClick={() => setMode(GameMode.MENU)}
                       className="w-full ui-button ui-button-warning py-4 font-bold text-xl mt-4"
                   >
@@ -753,7 +775,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                             <div className="ui-muted text-xs md:text-sm mt-1">Select an enhancement for your Eco-Guardian</div>
                         </div>
                         <div className="flex gap-2">
-                             <button 
+                             <button
+                                data-modal-btn=""
                                 onClick={rerollLevelUpOptions}
                                 disabled={!canReroll}
                                 className={`px-4 py-2 font-bold flex flex-col items-center justify-center text-xs ui-button ${canReroll ? 'ui-button-warning' : 'ui-button-disabled'}`}
@@ -761,7 +784,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                 <span className="text-lg">🎲</span>
                                 <span>REROLL {rerollCost}kg</span>
                             </button>
-                            <button 
+                            <button
+                                data-modal-btn=""
                                 onClick={askForUpgradeAdvice}
                                 disabled={adviceLoading}
                                 className={`px-4 py-2 font-bold flex flex-col items-center justify-center text-xs ui-button ${adviceLoading ? 'ui-button-disabled' : 'ui-button-primary'}`}
@@ -818,6 +842,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                           return (
                               <button
                                   key={option.id}
+                                  data-modal-btn=""
                                   onClick={() => selectUpgrade(option)}
                                   className={`relative ui-card ${cardClass} p-4 transition-all group flex flex-col items-start text-left gap-2 h-full`}
                               >
@@ -936,7 +961,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       </div>
                   </div>
 
-                  <button 
+                  <button
+                      data-modal-btn=""
+                      autoFocus
                       onClick={claimChestReward}
                       className="w-full ui-button ui-button-warning py-4 font-bold text-xl z-10"
                   >
@@ -1022,13 +1049,14 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                 
                 <div className="flex gap-4">
                     <button
+                        data-modal-btn=""
                         onClick={() => { setIsLeaderboardLoading(true); fetchLeaderboard().finally(() => setIsLeaderboardLoading(false)); }}
                         disabled={isLeaderboardLoading}
                         className={`flex-1 ui-button py-4 font-bold text-lg ${isLeaderboardLoading ? 'ui-button-disabled' : 'ui-button-cyan'}`}
                     >
                         {isLeaderboardLoading ? 'LOADING...' : 'REFRESH'}
                     </button>
-                    <button onClick={() => setMode(GameMode.MENU)} className="flex-1 ui-button ui-button-secondary py-4 font-bold text-lg">
+                    <button data-modal-btn="" onClick={() => setMode(GameMode.MENU)} className="flex-1 ui-button ui-button-secondary py-4 font-bold text-lg">
                         BACK TO MENU
                     </button>
                 </div>
@@ -1068,9 +1096,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                   {!scoreSubmitted ? (
                       <div className="flex flex-col gap-2">
-                          <input 
-                              type="text" 
-                              placeholder="ENTER HERO NAME" 
+                          <input
+                              type="text"
+                              placeholder="ENTER HERO NAME"
                               maxLength={10}
                               className="ui-input p-3 text-center font-bold"
                               value={playerName}
@@ -1078,8 +1106,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                   setPlayerNameInput(e.target.value);
                                   setScoreSubmitError(null);
                               }}
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && playerName.trim().length > 0 && !isSubmitting && !scoreSubmitted) {
+                                      e.preventDefault();
+                                      handleSubmitScore();
+                                  }
+                              }}
                           />
                           <button
+                              data-modal-btn=""
                               onClick={handleSubmitScore}
                               disabled={playerName.length === 0 || isSubmitting}
                               className={`w-full py-3 font-bold text-lg transition-all ui-button ${playerName.length > 0 && !isSubmitting ? 'ui-button-warning' : 'ui-button-disabled'}`}
@@ -1098,7 +1133,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       </div>
                   )}
 
-                  <button 
+                  <button
+                      data-modal-btn=""
                       onClick={handleReset}
                       className="w-full ui-button ui-button-secondary py-4 font-bold text-xl mt-2"
                   >
@@ -1198,6 +1234,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                 <div className="space-y-4">
                     <button
+                    data-modal-btn=""
+                    autoFocus
                     onClick={beginMissionStartup}
                     disabled={missionStartPending}
                     className={`group relative w-full ui-button ui-menu-primary py-5 font-extrabold transition-all overflow-hidden ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
@@ -1211,12 +1249,14 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       <div className="text-[10px] uppercase ui-muted mb-2 text-center">Play Mode</div>
                       <div className="flex gap-2">
                         <button
+                          data-modal-btn=""
                           onClick={() => setPlayMode('multiplayer')}
                           className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'multiplayer' ? 'ui-button-warning' : 'ui-button-secondary'}`}
                         >
                           CO-OP
                         </button>
                         <button
+                          data-modal-btn=""
                           onClick={() => setPlayMode('solo')}
                           className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'solo' ? 'ui-button-warning' : 'ui-button-secondary'}`}
                         >
@@ -1227,6 +1267,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                     <div className="flex gap-4">
                     <button
+                        data-modal-btn=""
                         onClick={() => setMode(GameMode.LIBRARY)}
                         className="flex-1 ui-button ui-button-secondary ui-button-secondary-mint py-3 font-bold transition-all"
                     >
@@ -1236,6 +1277,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                     </button>
 
                     <button
+                        data-modal-btn=""
                         onClick={() => setMode(GameMode.LEADERBOARD)}
                         className="flex-1 ui-button ui-button-secondary ui-button-secondary-cyan py-3 font-bold transition-all"
                     >
@@ -1283,7 +1325,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
               <div className="ui-panel w-full max-w-2xl h-[90vh] flex flex-col relative">
                   <div className="p-4 flex justify-between items-center ui-panel-header">
                       <h2 className="text-xl md:text-2xl ui-title font-bold">IMPACT REPORT</h2>
-                      <button onClick={() => setImpactOpen(false)} className="ui-modal-close text-xl px-3 py-1">✕</button>
+                      <button data-modal-btn="" autoFocus onClick={() => setImpactOpen(false)} className="ui-modal-close text-xl px-3 py-1">✕</button>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 bg-black/30 p-4 border-b-4 border-black text-center">
@@ -1359,18 +1401,18 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
               <div className="ui-panel p-6 md:p-8 text-center max-w-sm w-full max-h-[92vh] overflow-y-auto">
                   <h2 className="text-3xl md:text-4xl ui-title font-bold mb-8">PAUSED</h2>
                   <div className="space-y-4">
-                      <button onClick={togglePause} className="w-full ui-button ui-button-primary py-4 font-bold text-xl">RESUME</button>
-                      
+                      <button data-modal-btn="" autoFocus onClick={togglePause} className="w-full ui-button ui-button-primary py-4 font-bold text-xl">RESUME</button>
+
                       <div className="hidden">
-                          <button 
-                            onClick={() => setMode(GameMode.STATUS)} 
+                          <button
+                            onClick={() => setMode(GameMode.STATUS)}
                             className="flex-1 ui-button ui-button-primary py-3 font-bold text-sm flex flex-col items-center justify-center"
                           >
                               <span className="text-lg">👷</span>
                               STATUS
                           </button>
-                          <button 
-                            onClick={() => setMode(GameMode.LIBRARY)} 
+                          <button
+                            onClick={() => setMode(GameMode.LIBRARY)}
                             className="flex-1 ui-button ui-button-secondary py-3 font-bold text-sm flex flex-col items-center justify-center"
                           >
                               <span className="text-lg">📖</span>
@@ -1379,6 +1421,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       </div>
 
                       <button
+                        data-modal-btn=""
                         onClick={() => setMode(GameMode.LIBRARY)}
                         className="w-full ui-button ui-button-secondary py-3 font-bold text-sm flex flex-col items-center justify-center"
                       >
@@ -1389,12 +1432,14 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                         <div className="text-[10px] uppercase ui-muted mb-2 text-center">Play Mode</div>
                         <div className="flex gap-2">
                           <button
+                            data-modal-btn=""
                             onClick={() => setPlayMode('multiplayer')}
                             className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'multiplayer' ? 'ui-button-warning' : 'ui-button-secondary'}`}
                           >
                             CO-OP
                           </button>
                           <button
+                            data-modal-btn=""
                             onClick={() => setPlayMode('solo')}
                             className={`flex-1 ui-button py-2 font-bold text-xs ${playMode === 'solo' ? 'ui-button-warning' : 'ui-button-secondary'}`}
                           >
@@ -1407,6 +1452,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                         <div className="flex items-center justify-between mb-3">
                           <div className="text-[10px] uppercase ui-muted">Audio</div>
                           <button
+                            data-modal-btn=""
                             onClick={toggleMute}
                             className={`ui-button px-3 py-1 text-[10px] font-bold flex items-center gap-1 ${isMuted ? 'ui-button-disabled' : 'ui-button-warning'}`}
                           >
@@ -1423,6 +1469,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                             </div>
                             <div className="flex items-center gap-2">
                               <input
+                                data-modal-btn=""
                                 type="range"
                                 min="0"
                                 max="100"
@@ -1432,6 +1479,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                 aria-label="Music volume"
                               />
                               <button
+                                data-modal-btn=""
                                 onClick={toggleMusicMute}
                                 className={`ui-button px-2 py-1 text-[10px] font-bold min-w-[64px] ${musicMuted ? 'ui-button-disabled' : 'ui-button-secondary'}`}
                               >
@@ -1447,6 +1495,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                             </div>
                             <div className="flex items-center gap-2">
                               <input
+                                data-modal-btn=""
                                 type="range"
                                 min="0"
                                 max="100"
@@ -1456,6 +1505,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                 aria-label="Voice SFX volume"
                               />
                               <button
+                                data-modal-btn=""
                                 onClick={toggleSfxMute}
                                 className={`ui-button px-2 py-1 text-[10px] font-bold min-w-[64px] ${sfxMuted ? 'ui-button-disabled' : 'ui-button-secondary'}`}
                               >
@@ -1467,6 +1517,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       </div>
 
                       <button
+                          data-modal-btn=""
                           onClick={toggleFullScreen}
                           className="w-full py-3 font-bold text-sm flex items-center justify-center gap-2 ui-button ui-button-secondary"
                       >
@@ -1478,7 +1529,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                           <span>{isFullScreen ? 'EXIT FS' : 'FULL SCR'}</span>
                       </button>
 
-                      <button onClick={() => setMode(GameMode.MENU)} className="w-full ui-button ui-button-danger py-4 font-bold text-xl">QUIT TO MENU</button>
+                      <button data-modal-btn="" onClick={() => setMode(GameMode.MENU)} className="w-full ui-button ui-button-danger py-4 font-bold text-xl">QUIT TO MENU</button>
                   </div>
               </div>
           </div>
@@ -1561,7 +1612,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                   {/* Footer */}
                   <div className="p-6 pt-4 shrink-0">
-                    <button 
+                    <button
+                        data-modal-btn=""
+                        autoFocus
                         onClick={dismissQuizResult}
                         className="w-full py-3 ui-button ui-button-primary font-bold text-lg"
                     >
@@ -1594,7 +1647,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       </p>
                   </div>
 
-                  <button 
+                  <button
+                      data-modal-btn=""
+                      autoFocus
                       onClick={dismissBossNarrative}
                       className="w-full ui-button ui-button-danger py-4 font-bold text-xl animate-bounce shrink-0"
                   >
@@ -1821,12 +1876,23 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
             onWheel={handleZoomWheel}
             ref={zoomTrackRef}
             role="slider"
+            tabIndex={0}
             aria-label="Camera zoom"
             aria-orientation="vertical"
             aria-valuemin={CAMERA_ZOOM_MIN}
             aria-valuemax={CAMERA_ZOOM_MAX}
             aria-valuenow={cameraZoom}
             style={{ touchAction: 'none' }}
+            onKeyDown={(e) => {
+              const STEP = (CAMERA_ZOOM_MAX - CAMERA_ZOOM_MIN) / 20;
+              if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                e.preventDefault();
+                setCameraZoom((z) => Math.max(CAMERA_ZOOM_MIN, z - STEP));
+              } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                setCameraZoom((z) => Math.min(CAMERA_ZOOM_MAX, z + STEP));
+              }
+            }}
           >
               <div className={`${isShortHeight ? 'h-28' : 'h-40'} w-8 ui-card flex items-center justify-center relative`}>
                   <div className="absolute top-2 text-[8px] leading-none font-bold text-cyan-200/70">IN</div>

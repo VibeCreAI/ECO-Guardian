@@ -55,7 +55,7 @@ export const StatusModal: React.FC = () => {
                 {/* Header */}
                 <div className="p-4 flex justify-between items-center ui-panel-header">
                     <h2 className="text-xl md:text-2xl font-bold ui-title">STATUS SCREEN</h2>
-                    <button onClick={togglePause} className="ui-modal-close text-xl px-3 py-1">✕</button>
+                    <button data-modal-btn="" autoFocus onClick={togglePause} className="ui-modal-close text-xl px-3 py-1">✕</button>
                 </div>
 
                 <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
@@ -114,7 +114,8 @@ export const StatusModal: React.FC = () => {
                                     const data = WEAPONS_DATA[key];
                                     if(!data) return null;
                                     return (
-                                        <button 
+                                        <button
+                                            data-modal-btn=""
                                             key={key}
                                             onClick={() => setSelectedItem({key, type: 'WEAPON'})}
                                             className={`w-16 h-16 ui-slot ${selectedItem?.key === key ? 'ui-slot-active' : (data.isEvolution ? 'border-yellow-400' : 'border-black')} relative group`}
@@ -140,7 +141,8 @@ export const StatusModal: React.FC = () => {
                                     const data = PASSIVES_DATA[key];
                                     if(!data) return null;
                                     return (
-                                        <button 
+                                        <button
+                                            data-modal-btn=""
                                             key={key}
                                             onClick={() => setSelectedItem({key, type: 'PASSIVE'})}
                                             className={`w-12 h-12 ui-slot ${selectedItem?.key === key ? 'ui-slot-active' : ''} relative`}

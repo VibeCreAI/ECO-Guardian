@@ -44,6 +44,19 @@ input {
   --eco-white: #f7fff0;
 }
 
+/* Keyboard navigation focus ring for modal buttons */
+[data-modal-btn]:focus {
+  outline: 3px solid var(--eco-acid);
+  outline-offset: 2px;
+}
+[data-modal-btn]:focus:not(:focus-visible) {
+  outline: none;
+}
+[data-modal-btn]:focus-visible {
+  outline: 3px solid var(--eco-acid);
+  outline-offset: 2px;
+}
+
 .retro-border {
   border-color: var(--eco-line);
   box-shadow: 4px 4px 0 0 var(--eco-line);

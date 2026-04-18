@@ -26,18 +26,20 @@ export const LibraryModal: React.FC = () => {
                     <h2 className="text-xl md:text-3xl font-bold ui-title flex items-center gap-3">
                         <span>📖</span> GRIMOIRE
                     </h2>
-                    <button onClick={handleClose} className="ui-modal-close text-xl px-3 py-1">✕</button>
+                    <button data-modal-btn="" onClick={handleClose} className="ui-modal-close text-xl px-3 py-1">✕</button>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex border-b-4 border-black bg-black/40">
-                    <button 
+                    <button
+                        data-modal-btn=""
                         onClick={() => setTab('TREE')}
                         className={`flex-1 py-3 font-bold text-sm md:text-base ui-tab ${tab === 'TREE' ? 'ui-tab-active' : ''}`}
                     >
                         EVOLUTION TREE
                     </button>
-                    <button 
+                    <button
+                        data-modal-btn=""
                         onClick={() => setTab('PASSIVES')}
                         className={`flex-1 py-3 font-bold text-sm md:text-base ui-tab ${tab === 'PASSIVES' ? 'ui-tab-active' : ''}`}
                     >

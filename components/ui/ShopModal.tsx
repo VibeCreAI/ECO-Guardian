@@ -50,7 +50,8 @@ export const ShopModal: React.FC = () => {
                         {equippedWeaponsArr.map(([key, level]) => {
                             const weaponData = WEAPONS_DATA[key];
                             return (
-                                <button 
+                                <button
+                                    data-modal-btn=""
                                     key={key}
                                     onClick={() => handleReplace(key)}
                                     className="ui-card ui-card-danger p-3 transition-all text-left group flex items-center gap-3"
@@ -69,7 +70,8 @@ export const ShopModal: React.FC = () => {
                         })}
                     </div>
                     
-                    <button 
+                    <button
+                        data-modal-btn=""
                         onClick={() => setReplaceMode(null)}
                         className="w-full ui-button ui-button-secondary py-4 font-bold"
                     >
@@ -103,8 +105,9 @@ export const ShopModal: React.FC = () => {
                         </div>
 
                         {/* Mobile Close Button */}
-                        <button 
-                            onClick={handleClose} 
+                        <button
+                            data-modal-btn=""
+                            onClick={handleClose}
                             className="md:hidden w-10 h-10 ui-modal-close font-bold flex items-center justify-center"
                         >
                             ✕
@@ -129,6 +132,7 @@ export const ShopModal: React.FC = () => {
                         <div className="flex items-center gap-2">
                             {/* Ask Gaia Button */}
                             <button
+                                data-modal-btn=""
                                 onClick={askForUpgradeAdvice}
                                 disabled={adviceLoading || !!adviceResult}
                                 className={`hidden md:flex items-center gap-2 px-4 py-2 font-bold text-xs ui-button ${adviceLoading ? 'ui-button-disabled' : 'ui-button-primary'}`}
@@ -146,7 +150,8 @@ export const ShopModal: React.FC = () => {
                                 )}
                             </button>
 
-                            <button 
+                            <button
+                                data-modal-btn=""
                                 onClick={refreshShop}
                                 disabled={playerStats.carbonSaved < SHOP_REFRESH_COST}
                                 className={`group px-3 py-2 md:py-3 transition-all flex items-center gap-2 ui-button ${playerStats.carbonSaved >= SHOP_REFRESH_COST ? 'ui-button-cyan' : 'ui-button-disabled opacity-60'}`}
@@ -160,8 +165,9 @@ export const ShopModal: React.FC = () => {
                             </button>
 
                             {/* Desktop Close Button */}
-                            <button 
-                                onClick={handleClose} 
+                            <button
+                                data-modal-btn=""
+                                onClick={handleClose}
                                 className="hidden md:flex px-6 py-2 ui-button ui-button-danger font-bold items-center justify-center h-full transition-all"
                             >
                                 LEAVE
@@ -196,6 +202,7 @@ export const ShopModal: React.FC = () => {
                     <div className="md:hidden">
                         {!adviceResult && (
                             <button
+                                data-modal-btn=""
                                 onClick={askForUpgradeAdvice}
                                 disabled={adviceLoading}
                                 className={`w-full flex items-center justify-center gap-2 px-4 py-3 transition-all font-bold text-sm ui-button ${adviceLoading ? 'ui-button-disabled' : 'ui-button-primary'}`}
@@ -312,7 +319,8 @@ export const ShopModal: React.FC = () => {
                                         </div>
                                     )}
 
-                                    <button 
+                                    <button
+                                        data-modal-btn=""
                                         onClick={() => handleBuy(option)}
                                         disabled={!canAfford}
                                         className={`w-full py-3 font-bold flex items-center justify-center px-4 transition-all ui-button ${canAfford ? 'ui-button-primary' : 'ui-button-disabled grayscale'}`}
