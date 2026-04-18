@@ -73,6 +73,9 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
 const clampCameraZoom = (value: number) =>
   Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, value));
 
+const clampUnitVolume = (value: number) =>
+  Math.min(1, Math.max(0, value));
+
 type SubmitScoreResult = {
   score: HighScore;
   rank: number | null;
@@ -141,7 +144,11 @@ interface GameState {
   adviceLoading: boolean;
   adviceResult: AdviceResult | null;
   
-  isMuted: boolean; // New state for audio control
+  isMuted: boolean; // Master mute: true only when both channels are muted.
+  musicMuted: boolean;
+  sfxMuted: boolean;
+  musicVolume: number;
+  sfxVolume: number;
   cameraZoom: number;
   playMode: 'multiplayer' | 'solo';
 
@@ -199,7 +206,11 @@ interface GameState {
 
   setMode: (mode: GameMode) => void;
   togglePause: () => void; 
-  toggleMute: () => void; // New action
+  toggleMute: () => void; // Master mute/unmute for both audio channels.
+  toggleMusicMute: () => void;
+  toggleSfxMute: () => void;
+  setMusicVolume: (volume: number) => void;
+  setSfxVolume: (volume: number) => void;
   setCameraZoom: (zoom: number | ((current: number) => number)) => void;
   setPlayMode: (mode: 'multiplayer' | 'solo') => void;
   setQuizOpen: (isOpen: boolean) => void;
@@ -640,6 +651,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   adviceResult: null,
   
   isMuted: false,
+  musicMuted: false,
+  sfxMuted: false,
+  musicVolume: 1,
+  sfxVolume: 1,
   cameraZoom: 1.0,
   playMode: 'multiplayer',
 
@@ -1054,7 +1069,55 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {};
   }),
   
-  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
+  toggleMute: () => set((state) => {
+    const shouldMuteAll = !(state.musicMuted && state.sfxMuted);
+    const musicVolume = !shouldMuteAll && state.musicVolume <= 0 ? 1 : state.musicVolume;
+    const sfxVolume = !shouldMuteAll && state.sfxVolume <= 0 ? 1 : state.sfxVolume;
+
+    return {
+      isMuted: shouldMuteAll,
+      musicMuted: shouldMuteAll,
+      sfxMuted: shouldMuteAll,
+      musicVolume,
+      sfxVolume,
+    };
+  }),
+  toggleMusicMute: () => set((state) => {
+    const musicMuted = !state.musicMuted;
+    const musicVolume = !musicMuted && state.musicVolume <= 0 ? 1 : state.musicVolume;
+    return {
+      musicMuted,
+      musicVolume,
+      isMuted: musicMuted && state.sfxMuted,
+    };
+  }),
+  toggleSfxMute: () => set((state) => {
+    const sfxMuted = !state.sfxMuted;
+    const sfxVolume = !sfxMuted && state.sfxVolume <= 0 ? 1 : state.sfxVolume;
+    return {
+      sfxMuted,
+      sfxVolume,
+      isMuted: state.musicMuted && sfxMuted,
+    };
+  }),
+  setMusicVolume: (volume) => set((state) => {
+    const musicVolume = clampUnitVolume(volume);
+    const musicMuted = musicVolume <= 0;
+    return {
+      musicVolume,
+      musicMuted,
+      isMuted: musicMuted && state.sfxMuted,
+    };
+  }),
+  setSfxVolume: (volume) => set((state) => {
+    const sfxVolume = clampUnitVolume(volume);
+    const sfxMuted = sfxVolume <= 0;
+    return {
+      sfxVolume,
+      sfxMuted,
+      isMuted: state.musicMuted && sfxMuted,
+    };
+  }),
   setCameraZoom: (zoom) => set((state) => ({
     cameraZoom: clampCameraZoom(typeof zoom === 'function' ? zoom(state.cameraZoom) : zoom),
   })),
@@ -1954,7 +2017,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       highlightedPortalId: null,
       adviceLoading: false,
       adviceResult: null,
-      isMuted: false, 
+      isMuted: false,
+      musicMuted: false,
+      sfxMuted: false,
+      musicVolume: 1,
+      sfxVolume: 1,
       cameraZoom: 1.0,
     });
   },

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Vector2 } from '../../types';
 
 interface VirtualJoystickProps {
@@ -11,6 +11,12 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove }) => {
   const [origin, setOrigin] = useState({ x: 0, y: 0 }); // The center of the joystick (where touch started)
   const [currentPos, setCurrentPos] = useState({ x: 0, y: 0 }); // The current touch position relative to origin
   const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      onMove({ x: 0, y: 0 });
+    };
+  }, [onMove]);
 
   const releaseJoystick = () => {
     setTouchId(null);

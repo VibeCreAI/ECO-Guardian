@@ -89,11 +89,41 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const resetMovementInput = useCallback(() => {
+    keyboardVector.current.x = 0;
+    keyboardVector.current.y = 0;
+    joystickVector.current.x = 0;
+    joystickVector.current.y = 0;
+    inputVector.current.x = 0;
+    inputVector.current.y = 0;
+    dashTrigger.current = false;
+  }, []);
+
   const handleJoystickMove = useCallback((vector: Vector2) => {
     joystickVector.current.x = vector.x;
     joystickVector.current.y = vector.y;
     syncInputVector();
   }, [syncInputVector]);
+
+  useEffect(() => {
+    resetMovementInput();
+  }, [gameMode, resetMovementInput]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        resetMovementInput();
+      }
+    };
+
+    window.addEventListener('blur', resetMovementInput);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', resetMovementInput);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [resetMovementInput]);
 
   // Keyboard controls
   useEffect(() => {

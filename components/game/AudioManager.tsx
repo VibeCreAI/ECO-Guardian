@@ -38,7 +38,10 @@ export const AudioManager: React.FC = () => {
   const activeStage = useGameStore(s => s.activeStage);
   const activeBattle = useGameStore(s => s.activeBattle);
   const lastGameplayMode = useGameStore(s => s.lastGameplayMode);
-  const isMuted = useGameStore(s => s.isMuted);
+  const musicMuted = useGameStore(s => s.musicMuted);
+  const sfxMuted = useGameStore(s => s.sfxMuted);
+  const musicVolume = useGameStore(s => s.musicVolume);
+  const sfxVolume = useGameStore(s => s.sfxVolume);
   const quizResult = useGameStore(s => s.quizResult);
   const audioRef = useRef<HTMLAudioElement>(null);
   const narrationRef = useRef<HTMLAudioElement | null>(null);
@@ -52,8 +55,14 @@ export const AudioManager: React.FC = () => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const baseVolume = getMusicVolumeForMode(useGameStore.getState().mode);
-    audio.volume = narrationActive ? Math.min(baseVolume, 0.12) : baseVolume;
+    const { mode, musicMuted, musicVolume } = useGameStore.getState();
+    if (musicMuted || musicVolume <= 0) {
+      audio.volume = 0;
+      return;
+    }
+
+    const baseVolume = getMusicVolumeForMode(mode) * musicVolume;
+    audio.volume = narrationActive ? Math.min(baseVolume, 0.12 * musicVolume) : baseVolume;
   }, []);
 
   const disconnectNarrationNodes = useCallback(() => {
@@ -114,7 +123,8 @@ export const AudioManager: React.FC = () => {
   }, []);
 
   const playNarration = useCallback((detail: QuizNarrationDetail) => {
-    if (!detail.src || isMuted) return;
+    const { sfxMuted, sfxVolume } = useGameStore.getState();
+    if (!detail.src || sfxMuted || sfxVolume <= 0) return;
     const activeNarration = narrationRef.current;
     if (narrationKeyRef.current === detail.key && activeNarration && !activeNarration.ended) return;
 
@@ -127,7 +137,7 @@ export const AudioManager: React.FC = () => {
 
     const narration = new Audio(detail.src);
     narration.preload = 'auto';
-    narration.volume = 0.9;
+    narration.volume = 0.9 * sfxVolume;
     narrationRef.current = narration;
     narrationKeyRef.current = detail.key;
     applyMusicVolume(true);
@@ -156,7 +166,7 @@ export const AudioManager: React.FC = () => {
         cleanup();
       }
     });
-  }, [connectNarrationEcho, disconnectNarrationNodes, isMuted, stopNarration]);
+  }, [connectNarrationEcho, disconnectNarrationNodes, stopNarration]);
   
   // Map game state to audio file
   const getTrackForState = () => {
@@ -197,7 +207,7 @@ export const AudioManager: React.FC = () => {
       }
 
       const audio = audioRef.current;
-      if (audio && !isMuted && audio.paused && audio.src) {
+      if (audio && !musicMuted && musicVolume > 0 && audio.paused && audio.src) {
         audio.play().catch(() => { /* Suppress specific play errors during interaction */ });
       }
     };
@@ -211,7 +221,7 @@ export const AudioManager: React.FC = () => {
       window.removeEventListener('touchstart', handleInteraction);
       window.removeEventListener('keydown', handleInteraction);
     };
-  }, [isMuted, playNarration]); // Re-bind if mute state changes
+  }, [musicMuted, musicVolume, playNarration]); // Re-bind if mute state changes
 
   useEffect(() => {
     const handleNarrationRequest = (event: Event) => {
@@ -225,9 +235,15 @@ export const AudioManager: React.FC = () => {
   }, [playNarration]);
 
   useEffect(() => {
-    if (!isMuted) return;
+    if (!sfxMuted && sfxVolume > 0) return;
     stopNarration();
-  }, [isMuted, stopNarration]);
+  }, [sfxMuted, sfxVolume, stopNarration]);
+
+  useEffect(() => {
+    if (narrationRef.current && !sfxMuted) {
+      narrationRef.current.volume = 0.9 * sfxVolume;
+    }
+  }, [sfxMuted, sfxVolume]);
 
   useEffect(() => {
     if (!quizResult?.explanationAudioSrc) return;
@@ -250,8 +266,8 @@ export const AudioManager: React.FC = () => {
             audio.load();
         }
         
-        // Try to play if not muted AND user has interacted
-        if (!isMuted && audio.paused && hasInteracted.current) {
+        // Try to play if music is enabled AND user has interacted
+        if (!musicMuted && musicVolume > 0 && audio.paused && hasInteracted.current) {
             await audio.play();
         }
       } catch (error) {
@@ -261,28 +277,29 @@ export const AudioManager: React.FC = () => {
 
     playAudio();
 
-  }, [targetTrack, isMuted]);
+  }, [targetTrack, musicMuted, musicVolume]);
 
   // Handle Mute/Unmute State
   useEffect(() => {
       const audio = audioRef.current;
       if (!audio) return;
 
-      if (isMuted) {
+      if (musicMuted || musicVolume <= 0) {
           audio.pause();
       } else {
           // If unmuted and paused, try to resume (only if interacted)
           if (audio.paused && audio.src && hasInteracted.current) {
               audio.play().catch(() => { /* Suppress errors */ });
           }
+          applyMusicVolume();
       }
-  }, [isMuted]);
+  }, [applyMusicVolume, musicMuted, musicVolume]);
 
   // Handle Volume adjustments
   useEffect(() => {
     if (!audioRef.current) return;
     applyMusicVolume();
-  }, [applyMusicVolume, mode]);
+  }, [applyMusicVolume, mode, musicMuted, musicVolume]);
 
   return (
     <audio 

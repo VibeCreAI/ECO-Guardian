@@ -84,6 +84,8 @@ const StatusIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const FpsMeter: React.FC<{ isShortHeight: boolean }> = React.memo(({ isShortHeight }) => {
     const [fps, setFps] = useState(0);
+    const bottomOffset = `calc(env(safe-area-inset-bottom, 0px) + ${isShortHeight ? 58 : 108}px)`;
+    const rightOffset = isShortHeight ? '1rem' : '2rem';
 
     useEffect(() => {
         let frameCount = 0;
@@ -109,7 +111,12 @@ const FpsMeter: React.FC<{ isShortHeight: boolean }> = React.memo(({ isShortHeig
 
     return (
         <div
-            className={`absolute right-4 z-[70] w-[108px] h-6 ui-chip flex items-center justify-center font-bold text-[11px] leading-none tracking-normal text-[var(--eco-acid)] pointer-events-none select-none ${isShortHeight ? 'top-1' : 'top-3'}`}
+            className="absolute z-[70] font-mono font-bold text-[10px] md:text-[11px] leading-none tracking-normal text-white/35 pointer-events-none select-none"
+            style={{
+                right: rightOffset,
+                bottom: bottomOffset,
+                textShadow: '1px 1px 0 rgba(0, 0, 0, 0.45)'
+            }}
             aria-label={`FPS ${fps}`}
         >
             FPS {fps}
@@ -147,7 +154,7 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore(useShallow((s) => ({
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore(useShallow((s) => ({
     mode: s.mode,
     playerStats: s.playerStats,
     dashCooldownCurrent: s.dashCooldownCurrent,
@@ -179,6 +186,14 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     rerollLevelUpOptions: s.rerollLevelUpOptions,
     isMuted: s.isMuted,
     toggleMute: s.toggleMute,
+    musicMuted: s.musicMuted,
+    sfxMuted: s.sfxMuted,
+    musicVolume: s.musicVolume,
+    sfxVolume: s.sfxVolume,
+    toggleMusicMute: s.toggleMusicMute,
+    toggleSfxMute: s.toggleSfxMute,
+    setMusicVolume: s.setMusicVolume,
+    setSfxVolume: s.setSfxVolume,
     showNarrative: s.showNarrative,
     setShowNarrative: s.setShowNarrative,
     narrativeDismissed: s.narrativeDismissed,
@@ -1339,7 +1354,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   if (mode === GameMode.PAUSED) {
       return (
           <div className="absolute inset-0 flex items-center justify-center ui-backdrop z-[100] p-4 pointer-events-auto">
-              <div className="ui-panel p-8 text-center max-w-sm w-full">
+              <div className="ui-panel p-6 md:p-8 text-center max-w-sm w-full max-h-[92vh] overflow-y-auto">
                   <h2 className="text-3xl md:text-4xl ui-title font-bold mb-8">PAUSED</h2>
                   <div className="space-y-4">
                       <button onClick={togglePause} className="w-full ui-button ui-button-primary py-4 font-bold text-xl">RESUME</button>
@@ -1386,27 +1401,80 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
-                        <button 
-                            onClick={toggleMute} 
-                            className={`flex-1 py-3 font-bold text-sm flex items-center justify-center gap-2 transition-colors ui-button ${isMuted ? 'ui-button-disabled' : 'ui-button-warning'}`}
-                        >
-                            <span className="leading-none"><SoundIcon muted={isMuted} size={20} /></span>
-                            <span>{isMuted ? 'UNMUTE' : 'MUTE'}</span>
-                        </button>
-                        
-                        <button 
-                            onClick={toggleFullScreen}
-                            className="flex-1 py-3 font-bold text-sm flex items-center justify-center gap-2 ui-button ui-button-secondary"
-                        >
-                            {isFullScreen ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="m15 3l2.3 2.3l-2.89 2.87l1.42 1.42L18.7 6.7L21 9V3zM3 9l2.3-2.3l2.87 2.89l1.42-1.42L6.7 5.3L9 3H3zm6 12l-2.3-2.3l2.89-2.87l-1.42-1.42L5.3 17.3L3 15v6zm12-6l-2.3 2.3l-2.87-2.89l-1.42 1.42l2.89 2.87L15 21h6z"/></svg>
-                            )}
-                            <span>{isFullScreen ? 'EXIT FS' : 'FULL SCR'}</span>
-                        </button>
+                      <div className="ui-chip p-3 border border-black/50 bg-black/25 text-left">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-[10px] uppercase ui-muted">Audio</div>
+                          <button
+                            onClick={toggleMute}
+                            className={`ui-button px-3 py-1 text-[10px] font-bold flex items-center gap-1 ${isMuted ? 'ui-button-disabled' : 'ui-button-warning'}`}
+                          >
+                            <SoundIcon muted={isMuted} size={14} />
+                            {isMuted ? 'UNMUTE ALL' : 'MUTE ALL'}
+                          </button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-xs font-bold text-green-200">Music</span>
+                              <span className="text-[10px] ui-muted">{musicMuted ? 'MUTED' : `${Math.round(musicVolume * 100)}%`}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={Math.round(musicVolume * 100)}
+                                onChange={(e) => setMusicVolume(Number(e.target.value) / 100)}
+                                className="w-full accent-green-400"
+                                aria-label="Music volume"
+                              />
+                              <button
+                                onClick={toggleMusicMute}
+                                className={`ui-button px-2 py-1 text-[10px] font-bold min-w-[64px] ${musicMuted ? 'ui-button-disabled' : 'ui-button-secondary'}`}
+                              >
+                                {musicMuted ? 'UNMUTE' : 'MUTE'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-xs font-bold text-cyan-200">Voice SFX</span>
+                              <span className="text-[10px] ui-muted">{sfxMuted ? 'MUTED' : `${Math.round(sfxVolume * 100)}%`}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={Math.round(sfxVolume * 100)}
+                                onChange={(e) => setSfxVolume(Number(e.target.value) / 100)}
+                                className="w-full accent-cyan-300"
+                                aria-label="Voice SFX volume"
+                              />
+                              <button
+                                onClick={toggleSfxMute}
+                                className={`ui-button px-2 py-1 text-[10px] font-bold min-w-[64px] ${sfxMuted ? 'ui-button-disabled' : 'ui-button-secondary'}`}
+                              >
+                                {sfxMuted ? 'UNMUTE' : 'MUTE'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+
+                      <button
+                          onClick={toggleFullScreen}
+                          className="w-full py-3 font-bold text-sm flex items-center justify-center gap-2 ui-button ui-button-secondary"
+                      >
+                          {isFullScreen ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+                          ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="m15 3l2.3 2.3l-2.89 2.87l1.42 1.42L18.7 6.7L21 9V3zM3 9l2.3-2.3l2.87 2.89l1.42-1.42L6.7 5.3L9 3H3zm6 12l-2.3-2.3l2.89-2.87l-1.42-1.42L5.3 17.3L3 15v6zm12-6l-2.3 2.3l-2.87-2.89l-1.42 1.42l2.89 2.87L15 21h6z"/></svg>
+                          )}
+                          <span>{isFullScreen ? 'EXIT FS' : 'FULL SCR'}</span>
+                      </button>
 
                       <button onClick={() => setMode(GameMode.MENU)} className="w-full ui-button ui-button-danger py-4 font-bold text-xl">QUIT TO MENU</button>
                   </div>
@@ -1826,7 +1894,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
         className="absolute inset-0 z-50 pointer-events-none"
         style={{ marginBottom: gameplayOverlayMarginBottom }}
       >
-        {isMobile && <VirtualJoystick onMove={onJoystickMove} />}
+        {isMobile && <VirtualJoystick key={mode} onMove={onJoystickMove} />}
         
         {/* Fix: cast mode to any to prevent narrowing error due to early returns */}
         {((mode as any) === GameMode.BATTLE || (mode as any) === GameMode.OVERWORLD) && !battleWon && (
