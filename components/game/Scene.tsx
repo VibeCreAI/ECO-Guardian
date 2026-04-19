@@ -466,10 +466,17 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   useEffect(() => {
     if (playerRef.current) {
         if (prevModeRef.current === GameMode.PAUSED || prevModeRef.current === GameMode.SHOP || prevModeRef.current === GameMode.STATUS || prevModeRef.current === GameMode.LIBRARY) { /* */ }
-        else { if (mode === GameMode.OVERWORLD) { playerRef.current.position.set(worldPosition.x, 0, worldPosition.z); battleCooldown.current = 3.0; } else if (mode === GameMode.BATTLE) { const isResuming = prevModeRef.current === GameMode.REWARD || prevModeRef.current === GameMode.CHEST_REWARD; if (!isResuming) { playerRef.current.position.set(0, 0, 0); } } }
+        else { if (mode === GameMode.OVERWORLD) { battleCooldown.current = 3.0; } else if (mode === GameMode.BATTLE) { const isResuming = prevModeRef.current === GameMode.REWARD || prevModeRef.current === GameMode.CHEST_REWARD; if (!isResuming) { playerRef.current.position.set(0, 0, 0); } } }
     }
     prevModeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    if (!isOverworldSceneReady) return;
+    if (mode !== GameMode.OVERWORLD) return;
+    if (!playerRef.current) return;
+    playerRef.current.position.set(worldPosition.x, 0, worldPosition.z);
+  }, [isOverworldSceneReady]);
 
   useEffect(() => {
     if (!playerRef.current) return;

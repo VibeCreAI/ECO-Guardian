@@ -21,6 +21,7 @@ const App: React.FC = () => {
 
   // Auto-join matchmaking when a run begins; auto-leave when returning to menu.
   const gameMode = useGameStore((s) => s.mode);
+  const isOverworldSceneReady = useGameStore((s) => s.isOverworldSceneReady);
   const activeStage = useGameStore((s) => s.activeStage);
   const playMode = useGameStore((s) => s.playMode);
   const mpGroupId = useGameStore((s) => s.multiplayer.groupId);
@@ -252,6 +253,18 @@ const App: React.FC = () => {
     dashTrigger.current = true;
   };
 
+  const isGameplayMode =
+    gameMode === GameMode.OVERWORLD ||
+    gameMode === GameMode.BATTLE ||
+    gameMode === GameMode.REWARD ||
+    gameMode === GameMode.CHEST_REWARD ||
+    gameMode === GameMode.LOADING_LEVEL ||
+    gameMode === GameMode.PAUSED ||
+    gameMode === GameMode.SHOP ||
+    gameMode === GameMode.STATUS ||
+    gameMode === GameMode.LIBRARY;
+  const canvasVisible = isOverworldSceneReady || isGameplayMode;
+
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'mouse' || e.button !== 0) return;
 
@@ -269,7 +282,11 @@ const App: React.FC = () => {
     >
       <AudioManager />
       {/* Performance Optimization: Removed shadows={true} */}
-      <div className="absolute inset-0" onPointerDown={handleCanvasPointerDown}>
+      <div
+        className="absolute inset-0"
+        onPointerDown={handleCanvasPointerDown}
+        style={{ opacity: canvasVisible ? 1 : 0, transition: 'opacity 0.4s ease' }}
+      >
         <Canvas
           camera={{ position: [0, 10, 10], fov: 45 }}
           dpr={[1, 1.5]}
