@@ -4,6 +4,7 @@ import { useAiDirectorStore } from '../../store/aiDirectorStore';
 
 const DEBUG_PARAM = 'stageDebug';
 const STAGES = Array.from({ length: 10 }, (_, index) => index + 1);
+const STAGE_DEBUG_ALLOWED = import.meta.env.DEV;
 
 export const StageDebugPanel: React.FC = () => {
   const [enabled, setEnabled] = useState(false);
@@ -14,11 +15,16 @@ export const StageDebugPanel: React.FC = () => {
   const isGenerating = useAiDirectorStore((state) => state.isGenerating);
 
   useEffect(() => {
+    if (!STAGE_DEBUG_ALLOWED) {
+      setEnabled(false);
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     setEnabled(params.get(DEBUG_PARAM) === '1');
   }, []);
 
-  if (!enabled) return null;
+  if (!STAGE_DEBUG_ALLOWED || !enabled) return null;
 
   const jumpToStage = async (stage: number) => {
     setPendingStage(stage);

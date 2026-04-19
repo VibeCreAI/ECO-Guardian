@@ -1243,6 +1243,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   debugJumpToStage: async (stage) => {
+      if (!import.meta.env.DEV) return;
+
       const targetStage = Math.min(10, Math.max(1, Math.floor(stage)));
       const state = get();
 
