@@ -1792,7 +1792,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
           }
           return <DefaultFadeEffect key={ef.id} effect={ef} />;
       })}
-      {renderOrbs.map(orb => <SpriteBillboard key={orb.id} entity={orb} color={orb.value > 20 ? '#a855f7' : (orb.value > 10 ? '#eab308' : '#22c55e')} scale={0.8} type={orb.type || 'XP_ORB'} />)}
+      {renderOrbs.map(orb => <SpriteBillboard key={orb.id} entity={orb} color="#22c55e" scale={0.8} type={orb.type || 'XP_ORB'} />)}
       {chest && !chest.isOpen && ( 
         <group position={[chest.x, 0, chest.z]}>
             <SpriteBillboard color="white" scale={3} type="CHEST" position={[0, 1.75, 0]} renderOrder={3} />

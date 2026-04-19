@@ -542,15 +542,25 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     else if (type === 'XP_ORB' || type === 'CO2_ORB') {
         const { r } = createPixelDrawer(ctx, 64, 64);
         const cx = 32; const cy = 32;
-        const c = (color === 'white' || !color) ? '#22c55e' : color;
+        const c = type === 'CO2_ORB' ? '#22c55e' : ((color === 'white' || !color) ? '#22c55e' : color);
+        const rimColor = '#ffffff';
         
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = 0.4;
         r(cx-10, cy-16, 20, 32, c);
         r(cx-16, cy-10, 32, 20, c);
         r(cx-12, cy-12, 24, 24, c);
 
         ctx.globalAlpha = 1.0;
-        const rimColor = '#ffffff';
+        r(cx-8, cy-14, 16, 4, rimColor);
+        r(cx-12, cy-10, 24, 4, rimColor);
+        r(cx-14, cy-6, 28, 12, rimColor);
+        r(cx-12, cy+6, 24, 4, rimColor);
+        r(cx-8, cy+10, 16, 4, rimColor);
+
+        r(cx-6, cy-10, 12, 4, c);
+        r(cx-10, cy-6, 20, 12, c);
+        r(cx-6, cy+6, 12, 4, c);
+
         r(cx-6, cy-10, 12, 2, rimColor);
         r(cx-6, cy+8, 12, 2, rimColor);
         r(cx-10, cy-6, 2, 12, rimColor);
