@@ -36,7 +36,7 @@ export const StageDebugPanel: React.FC = () => {
   };
 
   return (
-    <div className="absolute top-3 left-1/2 z-[120] -translate-x-1/2 pointer-events-auto select-none">
+    <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] left-1/2 z-[120] -translate-x-1/2 pointer-events-auto select-none">
       <div className="ui-panel border-2 border-cyan-400 bg-black/85 px-2 py-2 shadow-[0_0_0_2px_#000]">
         <div className="flex items-center justify-between gap-3 text-[9px] leading-none text-cyan-100 mb-2">
           <span className="font-bold">STAGE DEBUG</span>

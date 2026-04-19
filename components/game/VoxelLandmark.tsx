@@ -22,8 +22,6 @@ const landmarkAmbientMoteGeo = new THREE.BoxGeometry(1, 1, 1);
 type LandmarkAmbientConfig = {
   color: string;
   secondaryColor: string;
-  haloRadius: number;
-  haloOpacity: number;
   moteCount: number;
   moteRadius: number;
   moteHeight: number;
@@ -33,16 +31,16 @@ type LandmarkAmbientConfig = {
 };
 
 const LANDMARK_AMBIENT_CONFIGS: Record<string, LandmarkAmbientConfig> = {
-  FOREST: { color: '#86efac', secondaryColor: '#fef08a', haloRadius: 5.8, haloOpacity: 0.18, moteCount: 10, moteRadius: 4.8, moteHeight: 5.8, moteScale: 0.26, orbitSpeed: 0.28, bob: 1.2 },
-  SKULL: { color: '#bbf7d0', secondaryColor: '#cbd5e1', haloRadius: 5.4, haloOpacity: 0.13, moteCount: 8, moteRadius: 4.4, moteHeight: 3.8, moteScale: 0.22, orbitSpeed: 0.18, bob: 0.7 },
-  ICE: { color: '#a5f3fc', secondaryColor: '#ffffff', haloRadius: 5.3, haloOpacity: 0.18, moteCount: 10, moteRadius: 4.8, moteHeight: 7.2, moteScale: 0.24, orbitSpeed: 0.24, bob: 0.9 },
-  VOLCANO: { color: '#fb923c', secondaryColor: '#facc15', haloRadius: 6.8, haloOpacity: 0.19, moteCount: 12, moteRadius: 5.8, moteHeight: 5.6, moteScale: 0.24, orbitSpeed: 0.3, bob: 1.4 },
-  PYRAMID: { color: '#facc15', secondaryColor: '#cffafe', haloRadius: 6.5, haloOpacity: 0.16, moteCount: 8, moteRadius: 5.6, moteHeight: 5.2, moteScale: 0.22, orbitSpeed: 0.18, bob: 0.8 },
-  MUSHROOM: { color: '#f0abfc', secondaryColor: '#d9f99d', haloRadius: 5.8, haloOpacity: 0.16, moteCount: 12, moteRadius: 5.2, moteHeight: 5.4, moteScale: 0.22, orbitSpeed: 0.2, bob: 1.3 },
-  CYBER: { color: '#67e8f9', secondaryColor: '#86efac', haloRadius: 5.6, haloOpacity: 0.17, moteCount: 10, moteRadius: 5.0, moteHeight: 6.2, moteScale: 0.22, orbitSpeed: 0.35, bob: 0.65 },
-  VOID: { color: '#a78bfa', secondaryColor: '#e9d5ff', haloRadius: 6.0, haloOpacity: 0.18, moteCount: 12, moteRadius: 5.2, moteHeight: 6.4, moteScale: 0.24, orbitSpeed: 0.22, bob: 1.1 },
-  SKY: { color: '#ffffff', secondaryColor: '#fef08a', haloRadius: 6.2, haloOpacity: 0.14, moteCount: 9, moteRadius: 5.4, moteHeight: 6.0, moteScale: 0.24, orbitSpeed: 0.16, bob: 0.9 },
-  HELL: { color: '#fb7185', secondaryColor: '#fb923c', haloRadius: 6.2, haloOpacity: 0.2, moteCount: 12, moteRadius: 5.5, moteHeight: 6.0, moteScale: 0.25, orbitSpeed: 0.32, bob: 1.5 },
+  FOREST: { color: '#86efac', secondaryColor: '#fef08a', moteCount: 10, moteRadius: 4.8, moteHeight: 5.8, moteScale: 0.26, orbitSpeed: 0.28, bob: 1.2 },
+  SKULL: { color: '#bbf7d0', secondaryColor: '#cbd5e1', moteCount: 8, moteRadius: 4.4, moteHeight: 3.8, moteScale: 0.22, orbitSpeed: 0.18, bob: 0.7 },
+  ICE: { color: '#a5f3fc', secondaryColor: '#ffffff', moteCount: 10, moteRadius: 4.8, moteHeight: 7.2, moteScale: 0.24, orbitSpeed: 0.24, bob: 0.9 },
+  VOLCANO: { color: '#fb923c', secondaryColor: '#facc15', moteCount: 12, moteRadius: 5.8, moteHeight: 5.6, moteScale: 0.24, orbitSpeed: 0.3, bob: 1.4 },
+  PYRAMID: { color: '#facc15', secondaryColor: '#cffafe', moteCount: 8, moteRadius: 5.6, moteHeight: 5.2, moteScale: 0.22, orbitSpeed: 0.18, bob: 0.8 },
+  MUSHROOM: { color: '#f0abfc', secondaryColor: '#d9f99d', moteCount: 12, moteRadius: 5.2, moteHeight: 5.4, moteScale: 0.22, orbitSpeed: 0.2, bob: 1.3 },
+  CYBER: { color: '#67e8f9', secondaryColor: '#86efac', moteCount: 10, moteRadius: 5.0, moteHeight: 6.2, moteScale: 0.22, orbitSpeed: 0.35, bob: 0.65 },
+  VOID: { color: '#a78bfa', secondaryColor: '#e9d5ff', moteCount: 12, moteRadius: 5.2, moteHeight: 6.4, moteScale: 0.24, orbitSpeed: 0.22, bob: 1.1 },
+  SKY: { color: '#ffffff', secondaryColor: '#fef08a', moteCount: 9, moteRadius: 5.4, moteHeight: 6.0, moteScale: 0.24, orbitSpeed: 0.16, bob: 0.9 },
+  HELL: { color: '#fb7185', secondaryColor: '#fb923c', moteCount: 12, moteRadius: 5.5, moteHeight: 6.0, moteScale: 0.25, orbitSpeed: 0.32, bob: 1.5 },
 };
 
 const createLandmarkSeededRandom = (seedInput: string) => {
@@ -64,9 +62,6 @@ const createLandmarkSeededRandom = (seedInput: string) => {
 const LandmarkAmbientEffects = ({ type }: { type: string }) => {
     const normalizedType = type.toUpperCase();
     const config = LANDMARK_AMBIENT_CONFIGS[normalizedType] ?? LANDMARK_AMBIENT_CONFIGS.FOREST;
-    const haloOpacity = config.haloOpacity * 0.62;
-    const haloRef = useRef<THREE.Mesh>(null);
-    const haloMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
     const motesRef = useRef<THREE.Group>(null);
     const motes = useMemo(() => {
         const rand = createLandmarkSeededRandom(`landmark-ambient:${normalizedType}`);
@@ -84,13 +79,6 @@ const LandmarkAmbientEffects = ({ type }: { type: string }) => {
 
     useFrame((state) => {
         const t = state.clock.elapsedTime;
-        if (haloRef.current) {
-            const pulse = 1 + Math.sin(t * 1.6) * 0.045;
-            haloRef.current.scale.set(pulse, pulse, pulse);
-        }
-        if (haloMaterialRef.current) {
-            haloMaterialRef.current.opacity = haloOpacity + Math.sin(t * 1.7) * haloOpacity * 0.22;
-        }
         if (motesRef.current) {
             motesRef.current.rotation.y = t * config.orbitSpeed;
             motesRef.current.children.forEach((child, index) => {
@@ -104,18 +92,6 @@ const LandmarkAmbientEffects = ({ type }: { type: string }) => {
 
     return (
         <group>
-            <mesh ref={haloRef} position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
-                <ringGeometry args={[config.haloRadius * 0.68, config.haloRadius, 32]} />
-                <meshBasicMaterial
-                    ref={haloMaterialRef}
-                    color={config.color}
-                    transparent
-                    opacity={haloOpacity}
-                    depthWrite={false}
-                    blending={THREE.AdditiveBlending}
-                    toneMapped={false}
-                />
-            </mesh>
             <group ref={motesRef}>
                 {motes.map((mote, index) => (
                     <mesh

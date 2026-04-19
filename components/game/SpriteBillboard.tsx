@@ -931,8 +931,8 @@ const getPropGroundingStyle = (type: string): PropGroundingStyle => {
         style.glowScaleX = 0.38;
         style.glowScaleZ = 0.16;
     } else if (t.includes('SERVER') || t === 'NEON_SIGN' || t === 'CABLE_POST') {
-        style.glowColor = t.includes('BURNED') ? '#fb7185' : t.includes('SKY') ? '#7dd3fc' : '#4ade80';
-        style.glowOpacity = 0.14;
+        style.glowColor = t.includes('BURNED') ? '#fb7185' : '#38bdf8';
+        style.glowOpacity = 0.09;
         style.glowScaleX = 0.4;
         style.glowScaleZ = 0.16;
     } else if (t.includes('MAGMA') || t.includes('LAVA') || t.includes('EMBER') || t === 'HELL_OBELISK') {
