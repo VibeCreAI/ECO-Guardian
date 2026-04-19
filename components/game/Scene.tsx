@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, Suspense, useMemo, useLayoutEffect } from 'react';
-import { Cloud, Clouds, Sky, Stars, Text } from '@react-three/drei';
+import { Billboard, Cloud, Clouds, Sky, Stars, Text } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -224,6 +224,134 @@ const AnimatedClouds = ({ hideLowerClouds = false }: { hideLowerClouds?: boolean
 
 type TrailData = { id: string; x: number; z: number; life: number };
 
+type FirstQuizTutorialPhase = 'quiz' | 'portal' | 'done';
+
+const FIRST_QUIZ_TUTORIAL_TEXT: Record<Exclude<FirstQuizTutorialPhase, 'done'>, string> = {
+  quiz: 'READ THE QUIZ\nON THE GROUND',
+  portal: 'CHOOSE YES OR NO\nPORTAL',
+};
+
+const FIRST_QUIZ_TUTORIAL_PANEL = {
+  width: 5.05,
+  height: 1.52,
+} as const;
+
+const FIRST_QUIZ_TUTORIAL_RENDER_ORDER = 10000;
+const firstQuizTutorialFontUrl = '/assets/font/DungGeunMo.ttf';
+
+const FirstQuizTutorialPrompt: React.FC<{ phase: Exclude<FirstQuizTutorialPhase, 'done'> }> = ({ phase }) => {
+  const text = FIRST_QUIZ_TUTORIAL_TEXT[phase];
+  const [displayText, setDisplayText] = useState(text);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const syncPreference = () => setPrefersReducedMotion(query.matches);
+    syncPreference();
+
+    if (query.addEventListener) {
+      query.addEventListener('change', syncPreference);
+      return () => query.removeEventListener('change', syncPreference);
+    }
+
+    query.addListener(syncPreference);
+    return () => query.removeListener(syncPreference);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setDisplayText(text);
+      return;
+    }
+
+    let index = 0;
+    setDisplayText('');
+    const interval = window.setInterval(() => {
+      index += 1;
+      setDisplayText(text.slice(0, index));
+      if (index >= text.length) window.clearInterval(interval);
+    }, 34);
+
+    return () => window.clearInterval(interval);
+  }, [text, prefersReducedMotion]);
+
+  const halfW = FIRST_QUIZ_TUTORIAL_PANEL.width / 2;
+  const halfH = FIRST_QUIZ_TUTORIAL_PANEL.height / 2;
+
+  return (
+    <group position={[0, 3.55, 0]}>
+      <Billboard follow>
+        <group>
+          <mesh position={[0.16, -0.16, -0.08]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width, FIRST_QUIZ_TUTORIAL_PANEL.height]} />
+            <meshBasicMaterial color="#020805" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          </mesh>
+          <mesh position={[0, 0, -0.055]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 1}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width, FIRST_QUIZ_TUTORIAL_PANEL.height]} />
+            <meshBasicMaterial color="#020805" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          </mesh>
+          <mesh position={[0, -0.04, -0.04]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 2}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width - 0.34, FIRST_QUIZ_TUTORIAL_PANEL.height - 0.34]} />
+            <meshBasicMaterial color="#082012" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          </mesh>
+          <mesh position={[0, halfH - 0.11, -0.025]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 3}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width - 0.34, 0.14]} />
+            <meshBasicMaterial color="#fbbf24" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          </mesh>
+          <mesh position={[0, -halfH + 0.13, -0.025]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 3}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width - 0.34, 0.1]} />
+            <meshBasicMaterial color="#4ade80" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          </mesh>
+          {[
+            [-halfW + 0.17, halfH - 0.17, '#4ade80'],
+            [halfW - 0.17, halfH - 0.17, '#4ade80'],
+            [-halfW + 0.17, -halfH + 0.17, '#fbbf24'],
+            [halfW - 0.17, -halfH + 0.17, '#fbbf24'],
+          ].map(([x, y, color], index) => (
+            <mesh key={index} position={[x as number, y as number, -0.01]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 4}>
+              <planeGeometry args={[0.26, 0.26]} />
+              <meshBasicMaterial color={color as string} transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+            </mesh>
+          ))}
+          <group position={[0, -halfH - 0.18, -0.015]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 5}>
+            <mesh position={[0.1, -0.04, -0.03]}>
+              <planeGeometry args={[0.42, 0.26]} />
+              <meshBasicMaterial color="#020805" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+            </mesh>
+            <mesh rotation={[0, 0, Math.PI / 4]}>
+              <planeGeometry args={[0.34, 0.34]} />
+              <meshBasicMaterial color="#fbbf24" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+            </mesh>
+          </group>
+          <Text
+            font={firstQuizTutorialFontUrl}
+            fontSize={0.38}
+            color="#d8ffd0"
+            position={[0, -0.02, 0.03]}
+            anchorX="center"
+            anchorY="middle"
+            maxWidth={4.38}
+            textAlign="center"
+            lineHeight={1.04}
+            outlineWidth={0.045}
+            outlineColor="#000000"
+            depthTest={false}
+            material-transparent
+            material-opacity={1}
+            material-depthTest={false}
+            material-depthWrite={false}
+            renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 6}
+          >
+            {displayText}
+          </Text>
+        </group>
+      </Billboard>
+    </group>
+  );
+};
+
 // Self-animating trail particle — reads t.life via useFrame so the parent only
 // re-renders on add/remove, not every frame while a dash trail fades.
 const TrailParticle: React.FC<{ trail: TrailData }> = ({ trail }) => {
@@ -346,6 +474,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const [isMoving, setIsMoving] = useState(false);
   const [viewDirection, setViewDirection] = useState<'DOWN'|'UP'|'SIDE'>('DOWN');
   const [groundTextHighlights, setGroundTextHighlights] = useState<GroundTextHighlights>({});
+  const [firstQuizTutorialPhase, setFirstQuizTutorialPhase] = useState<FirstQuizTutorialPhase>('quiz');
+  const [isPlayerPlacementReady, setIsPlayerPlacementReady] = useState(false);
   const facingRef = useRef(1);
   const isMovingRef = useRef(false);
   const viewDirectionRef = useRef<'DOWN'|'UP'|'SIDE'>('DOWN');
@@ -365,6 +495,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const prevBroadcastModeRef = useRef<GameMode>(mode);
   const overworldWarmupFrames = useRef(0);
   const groundTextHighlightsRef = useRef<GroundTextHighlights>({});
+  const firstQuizTutorialPhaseRef = useRef<FirstQuizTutorialPhase>('quiz');
+  const isPlayerPlacementReadyRef = useRef(false);
   const stageIntroGroundInsideRef = useRef(false);
   const quizGroundInsideRef = useRef(false);
   const bossGroundInsideRef = useRef(false);
@@ -440,6 +572,19 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     : null;
   const bossPromptAudioSrc = bossPortal ? ASSET_PATHS.audio.gaia.bossPrompt(gaiaStageNumber) : undefined;
   const bossPromptAudioKey = bossPortal ? `gaia:boss-prompt:${gaiaStageNumber}:${bossPortal.id}` : undefined;
+  const hasInitialQuizPortals = useMemo(
+    () => portals.some(p => p.id === 'p_A') && portals.some(p => p.id === 'p_B'),
+    [portals]
+  );
+  const isFirstQuizTutorialEligible =
+    activeStage === 1 &&
+    mode === GameMode.OVERWORLD &&
+    hasInitialQuizPortals &&
+    Boolean(aiConfig?.quiz?.question);
+  const showFirstQuizTutorial =
+    isFirstQuizTutorialEligible && isOverworldSceneReady && isPlayerPlacementReady && firstQuizTutorialPhase !== 'done';
+  const firstQuizTutorialPromptPhase =
+    firstQuizTutorialPhase === 'done' ? 'quiz' : firstQuizTutorialPhase;
 
   const props = React.useMemo(() => {
     const possibleTypes = getThemePropPool(sceneTheme, aiConfig?.theme.propType);
@@ -480,22 +625,39 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     setGroundTextHighlights(nextHighlights);
   };
 
-  useEffect(() => {
+  const updateFirstQuizTutorialPhase = React.useCallback((nextPhase: FirstQuizTutorialPhase) => {
+    if (firstQuizTutorialPhaseRef.current === nextPhase) return;
+    firstQuizTutorialPhaseRef.current = nextPhase;
+    setFirstQuizTutorialPhase(nextPhase);
+  }, []);
+
+  const updatePlayerPlacementReady = React.useCallback((ready: boolean) => {
+    if (isPlayerPlacementReadyRef.current === ready) return;
+    isPlayerPlacementReadyRef.current = ready;
+    setIsPlayerPlacementReady(ready);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.LOADING_LEVEL) {
+      updatePlayerPlacementReady(false);
+    }
+
     if (playerRef.current) {
         if (prevModeRef.current === GameMode.PAUSED || prevModeRef.current === GameMode.SHOP || prevModeRef.current === GameMode.STATUS || prevModeRef.current === GameMode.LIBRARY) { /* */ }
-        else { if (mode === GameMode.OVERWORLD) { battleCooldown.current = 3.0; } else if (mode === GameMode.BATTLE) { const isResuming = prevModeRef.current === GameMode.REWARD || prevModeRef.current === GameMode.CHEST_REWARD; if (!isResuming) { playerRef.current.position.set(0, 0, 0); } } }
+        else { if (mode === GameMode.OVERWORLD) { battleCooldown.current = 3.0; } else if (mode === GameMode.BATTLE) { const isResuming = prevModeRef.current === GameMode.REWARD || prevModeRef.current === GameMode.CHEST_REWARD; if (!isResuming) { playerRef.current.position.set(0, 0, 0); } updatePlayerPlacementReady(true); } }
     }
     prevModeRef.current = mode;
-  }, [mode]);
+  }, [mode, updatePlayerPlacementReady]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOverworldSceneReady) return;
     if (mode !== GameMode.OVERWORLD) return;
     if (!playerRef.current) return;
     playerRef.current.position.set(worldPosition.x, 0, worldPosition.z);
-  }, [isOverworldSceneReady]);
+    updatePlayerPlacementReady(true);
+  }, [isOverworldSceneReady, mode, worldPosition.x, worldPosition.z, updatePlayerPlacementReady]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!playerRef.current) return;
     if (mode !== GameMode.OVERWORLD) return;
     if (!mpGroupId || !mpJoinedAt) return;
@@ -503,12 +665,13 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     if (Date.now() - mpJoinedAt > 4000) return;
     if (localSlotIndex <= 0) return; // keep existing player (slot 0) fixed
 
-    // Nudge only newly joined non-host players a little to avoid overlap at spawn.
+    // Keep co-op spawn nudges on the portal line so every player starts between
+    // the first YES/NO portals instead of drifting into the quiz ground text.
     const offsets: Array<{ x: number; z: number }> = [
       { x: 0, z: 0 },
       { x: 2.0, z: 0 },
       { x: -2.0, z: 0 },
-      { x: 0, z: 2.0 },
+      { x: 4.0, z: 0 },
     ];
     const offset = offsets[localSlotIndex] ?? offsets[1];
     playerRef.current.position.x += offset.x;
@@ -542,6 +705,18 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       updateGroundTextHighlights({});
     }
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS) {
+      updateFirstQuizTutorialPhase('quiz');
+    }
+  }, [mode, updateFirstQuizTutorialPhase]);
+
+  useEffect(() => {
+    if (activeStage === 1 && (mode === GameMode.QUIZ_RESULT || mode === GameMode.BATTLE)) {
+      updateFirstQuizTutorialPhase('done');
+    }
+  }, [activeStage, mode, updateFirstQuizTutorialPhase]);
 
   // Keep dashCooldownRef in sync with external store resets (stage change etc.)
   // Subscribe side-effect-only so this doesn't cause Scene re-renders.
@@ -628,15 +803,35 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         const playerX = playerRef.current.position.x;
         const playerZ = playerRef.current.position.z;
         const isOverworldMode = mode === GameMode.OVERWORLD;
+        const insideQuizGroundText =
+          isOverworldMode &&
+          isQuizGroundTextVisible &&
+          isInsideGroundTextPanel(playerX, playerZ, quizGroundTextCenter, QUIZ_GROUND_TEXT_PANEL);
         const nextGroundTextHighlights: GroundTextHighlights = {
           stageIntro: isOverworldMode && Boolean(aiConfig) && isInsideGroundTextPanel(playerX, playerZ, stageIntroGroundTextCenter, STAGE_INTRO_GROUND_TEXT_PANEL),
-          quiz: isOverworldMode && isQuizGroundTextVisible && isInsideGroundTextPanel(playerX, playerZ, quizGroundTextCenter, QUIZ_GROUND_TEXT_PANEL),
+          quiz: insideQuizGroundText,
           boss: isOverworldMode && Boolean(bossGroundTextCenter) && isInsideGroundTextPanel(playerX, playerZ, bossGroundTextCenter ?? stageIntroGroundTextCenter, BOSS_GROUND_TEXT_PANEL),
           shop: isOverworldMode && isInsideGroundTextPanel(playerX, playerZ, shopGroundTextCenter, SHOP_GROUND_TEXT_PANEL),
           vibeJamNext: isOverworldMode && isInsideGroundTextPanel(playerX, playerZ, vibeJamNextGroundTextCenter, VIBEJAM_GROUND_TEXT_PANEL),
           vibeJamReturn: isOverworldMode && isPortalEntry && isInsideGroundTextPanel(playerX, playerZ, vibeJamReturnGroundTextCenter, VIBEJAM_GROUND_TEXT_PANEL),
         };
         updateGroundTextHighlights(nextGroundTextHighlights);
+        if (isFirstQuizTutorialEligible && firstQuizTutorialPhaseRef.current !== 'done') {
+          if (firstQuizTutorialPhaseRef.current === 'quiz' && insideQuizGroundText) {
+            updateFirstQuizTutorialPhase('portal');
+          }
+
+          const insideInitialQuizPortal = portals.some((portal) => {
+            if (portal.id !== 'p_A' && portal.id !== 'p_B') return false;
+            const dx = playerX - portal.x;
+            const dz = playerZ - portal.z;
+            return dx * dx + dz * dz < PORTAL_VOTE_PROXIMITY * PORTAL_VOTE_PROXIMITY;
+          });
+
+          if (insideInitialQuizPortal) {
+            updateFirstQuizTutorialPhase('done');
+          }
+        }
         if (mode === GameMode.OVERWORLD && stageIntroAudioSrc && stageIntroAudioKey) {
           const insideStageIntroText =
             Math.abs(playerRef.current.position.x - stageIntroGroundTextCenter.x) <= STAGE_INTRO_GROUND_TEXT_PANEL.width / 2 &&
@@ -824,7 +1019,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   // Map quizOption key to display label for portals
   const getPortalLabel = (portal: any): string | undefined => { if (portal.type === 'BOSS') return 'BOSS'; if (!portal.quizOption) return undefined; if (portal.quizOption === 'A') return 'YES'; if (portal.quizOption === 'B') return 'NO'; return portal.quizOption; };
   const isPlayerHit = (Date.now() - playerStats.lastDamageTime) < 200;
-  const arrowTarget = useMemo(() => { if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [portals, highlightedPortalId, bossPortal]);
+  const arrowTarget = useMemo(() => { if (showFirstQuizTutorial && firstQuizTutorialPhase === 'quiz') return quizGroundTextCenter; if (highlightedPortalId) { return portals.find(p => p.id === highlightedPortalId); } if (bossPortal) return bossPortal; const normalPortals = portals.filter(p => p.type === 'NORMAL'); if (normalPortals.length === 1) { return normalPortals[0]; } return null; }, [showFirstQuizTutorial, firstQuizTutorialPhase, portals, highlightedPortalId, bossPortal]);
   const showStars = sceneTheme === 'VOID' || sceneTheme === 'HELL' || sceneTheme === 'SKULL';
   const showGameplayStars = sceneTheme === 'SKULL';
   const showClouds = !showStars || sceneTheme === 'SKULL';
@@ -836,6 +1031,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD)
   );
   const showBattleScene = (mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE));
+  const showLocalPlayer =
+    showBattleScene ||
+    (showOverworldScene && mode !== GameMode.INSTRUCTIONS && mode !== GameMode.LOADING_LEVEL && isOverworldSceneReady && isPlayerPlacementReady);
   const localVotedPortal = useMemo(
     () => (localPortalVoteId ? portals.find((p) => p.id === localPortalVoteId) ?? null : null),
     [localPortalVoteId, portals]
@@ -1003,7 +1201,18 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
           </group>
       )}
       <PlayerTrailRenderer playerRef={playerRef} dashTimer={dashTimer} />
-      <group ref={playerRef}><Suspense fallback={null}><PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} slotIndex={localSlotIndex} /></Suspense><mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.5, 16]} /><meshBasicMaterial color="black" opacity={0.5} transparent /></mesh></group>
+      <group ref={playerRef} visible={showLocalPlayer}>
+        <Suspense fallback={null}>
+          <PlayerSpriteBillboard position={[0, 1, 0]} scale={2.0} facing={facing} action={isMoving ? 'RUN' : 'IDLE'} viewDirection={viewDirection} isHit={isPlayerHit} slotIndex={localSlotIndex} />
+        </Suspense>
+        {showFirstQuizTutorial && (
+          <FirstQuizTutorialPrompt phase={firstQuizTutorialPromptPhase} />
+        )}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+          <circleGeometry args={[0.5, 16]} />
+          <meshBasicMaterial color="black" opacity={0.5} transparent />
+        </mesh>
+      </group>
       {showOverworldScene && !showBattleScene && visiblePeerList.map((peer) => (
         <Suspense key={peer.playerId} fallback={null}>
           <RemotePlayer peer={peer} scale={2.0} />
