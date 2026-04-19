@@ -19,6 +19,8 @@ interface BattleManagerProps {
   activeBattle: ActiveBattleState;
 }
 
+const STAGE_ONE_ROUND_ONE_ENEMY_HP_MULTIPLIER = 0.5;
+
 const FireAura: React.FC<{ radius: number, position: THREE.Vector3 }> = ({ radius, position }) => {
     const groupRef = useRef<THREE.Group>(null);
     const mesh1 = useRef<THREE.Mesh>(null);
@@ -409,6 +411,13 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const weaponTimers = useRef({ magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 });
   
   const isPaused = (mode as any) === GameMode.REWARD || (mode as any) === GameMode.CHEST_REWARD || mode === GameMode.LOADING_LEVEL || mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || isQuizOpen || isImpactOpen;
+  const enemyHpMultiplier =
+    activeStage === 1 &&
+    !activeBattle.isBoss &&
+    Boolean(activeBattle.portalId) &&
+    !activeBattle.portalId.includes('_r2')
+      ? STAGE_ONE_ROUND_ONE_ENEMY_HP_MULTIPLIER
+      : 1;
 
   const requestBossDefeatNarration = () => {
       if (bossDefeatNarrationTriggered.current) return;
@@ -572,9 +581,11 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         attackRange = profile.attackRange;
     }
 
+    const hp = baseHp * hpMult * hpMod * enemyHpMultiplier;
+
     enemiesRef.current.push({
         id: Math.random().toString(), x: Math.cos(angle) * r, z: Math.sin(angle) * r,
-        hp: baseHp * hpMult * hpMod, maxHp: baseHp * hpMult * hpMod, 
+        hp, maxHp: hp, 
         type: type, speed: speed, attackRange: attackRange, 
         damage: baseDmg * dmgMult * damageMod, attackCooldown: 0, dashCooldown: 0, facing: 1,
         knockbackX: 0, knockbackZ: 0
@@ -665,11 +676,12 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
             const dmgMult = 1.0 + ((activeStage - 1) * 0.4);
             const angle = Math.random() * Math.PI * 2;
             const r = 16;
+            const hp = (400 + activeBattle.lostStreak * 200) * hpMult * enemyHpMultiplier;
             enemiesRef.current.push({
                 id: 'misinformation_' + Math.random().toString(),
                 x: Math.cos(angle) * r, z: Math.sin(angle) * r,
-                hp: (400 + activeBattle.lostStreak * 200) * hpMult,
-                maxHp: (400 + activeBattle.lostStreak * 200) * hpMult,
+                hp,
+                maxHp: hp,
                 type: 'MISINFORMATION' as any,
                 speed: 3.0, attackRange: 6, damage: (15 + battleDifficultyRef.current * 3) * dmgMult * 1.5,
                 attackCooldown: 0, dashCooldown: 3.0, facing: 1,
