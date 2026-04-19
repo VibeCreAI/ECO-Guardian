@@ -3,6 +3,7 @@ import React, { Suspense, useRef, useEffect, useState, useCallback } from 'react
 import { Canvas } from '@react-three/fiber';
 import { Preload } from '@react-three/drei';
 import { UIOverlay } from './components/ui/UIOverlay';
+import { StageDebugPanel } from './components/ui/StageDebugPanel';
 import { Scene } from './components/game/Scene';
 import { AudioManager } from './components/game/AudioManager';
 import { GameMode, Vector2 } from './types';
@@ -304,6 +305,7 @@ const App: React.FC = () => {
         onDash={handleDash}
         isMobile={isMobile}
       />
+      <StageDebugPanel />
     </div>
   );
 };

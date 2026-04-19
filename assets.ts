@@ -67,6 +67,51 @@ const ENEMY_SPRITE_SHEET_PATHS = {
   MISINFORMATION: assetPath('images/enemies/misinformation.png'),
 } as const satisfies Record<string, string>;
 
+const PROP_SPRITE_FILE_NAMES = {
+  TREE: 'tree.png',
+  TREE_STUMP: 'tree_stump.png',
+  PLASTIC_BAG_SHRUB: 'plastic_bag_shrub.png',
+  BOTTLE_PILE: 'bottle_pile.png',
+  STONE: 'stone.png',
+  MUSHROOM: 'mushroom.png',
+  GRAVE: 'grave.png',
+  RUIN: 'ruin.png',
+  BATTERY_GRAVE: 'battery_grave.png',
+  CABLE_ROOTS: 'cable_roots.png',
+  CRYSTAL: 'crystal.png',
+  SNOW_TREE: 'snow_tree.png',
+  FROZEN_SERVER: 'frozen_server.png',
+  ICE_SHARD: 'ice_shard.png',
+  MAGMA_ROCK: 'magma_rock.png',
+  LAVA_PILLAR: 'lava_pillar.png',
+  OIL_DRUM: 'oil_drum.png',
+  EMBER_VENT: 'ember_vent.png',
+  CACTUS: 'cactus.png',
+  PALM: 'palm.png',
+  GLASS_DUNE: 'glass_dune.png',
+  SILICON_SPIRE: 'silicon_spire.png',
+  SWAMP_TREE: 'swamp_tree.png',
+  VINE: 'vine.png',
+  TOXIC_BARREL: 'toxic_barrel.png',
+  SLUDGE_POOL: 'sludge_pool.png',
+  SERVER: 'server.png',
+  NEON_SIGN: 'neon_sign.png',
+  CABLE_POST: 'cable_post.png',
+  TRASH_CAN: 'trash_can.png',
+  BILLBOARD_RUIN: 'billboard_ruin.png',
+  VOID_ROCK: 'void_rock.png',
+  STAR_PILLAR: 'star_pillar.png',
+  NULL_CRYSTAL: 'null_crystal.png',
+  STATIC_RIFT: 'static_rift.png',
+  CLOUD_PILLAR: 'cloud_pillar.png',
+  GOLD_GATE: 'gold_gate.png',
+  SKY_SERVER: 'sky_server.png',
+  SATELLITE_DISH: 'satellite_dish.png',
+  SPIKE_ROCK: 'spike_rock.png',
+  HELL_OBELISK: 'hell_obelisk.png',
+  BURNED_SERVER: 'burned_server.png',
+} as const satisfies Record<string, string>;
+
 export const ASSET_PATHS = {
   audio: {
     music: {
@@ -108,6 +153,13 @@ export const ASSET_PATHS = {
     enemies: {
       byType: (enemyType: string) => ENEMY_SPRITE_SHEET_PATHS[enemyType as keyof typeof ENEMY_SPRITE_SHEET_PATHS],
     },
+    props: {
+      byType: (propType: string) => assetPath(`images/props/${PROP_SPRITE_FILE_NAMES[propType as keyof typeof PROP_SPRITE_FILE_NAMES] ?? `${propType.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}.png`}`),
+    },
+    ground: {
+      byTheme: (themeName: string, mode = 'OVERWORLD') =>
+        assetPath(`images/ground/${themeName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_${mode.toLowerCase()}.png`),
+    },
     start: {
       background: assetPath('images/start/background.png'),
       favicon: assetPath('images/start/favicon.png'),
@@ -133,6 +185,12 @@ export const STARTUP_PRELOAD_ASSETS = [
 
 export const getEnemySpriteSheetPath = (enemyType: string) =>
   ENEMY_SPRITE_SHEET_PATHS[enemyType as keyof typeof ENEMY_SPRITE_SHEET_PATHS];
+
+export const getPropSpritePath = (propType: string) =>
+  ASSET_PATHS.images.props.byType(propType);
+
+export const getGroundTilePath = (themeName: string, mode: string) =>
+  ASSET_PATHS.images.ground.byTheme(themeName, mode);
 
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);
 

@@ -262,11 +262,30 @@ const getLandmarkType = (stage: number, config: AiStageConfig | null) => {
     switch(cycle) { case 1: return 'FOREST'; case 2: return 'SKULL'; case 3: return 'ICE'; case 4: return 'VOLCANO'; case 5: return 'PYRAMID'; case 6: return 'MUSHROOM'; case 7: return 'CYBER'; case 8: return 'VOID'; case 9: return 'SKY'; case 10: return 'HELL'; default: return 'FOREST'; }
 }
 
+const THEME_PROP_POOLS: Record<ThemeName, string[]> = {
+  FOREST: ['TREE', 'TREE_STUMP', 'PLASTIC_BAG_SHRUB', 'BOTTLE_PILE', 'MUSHROOM', 'STONE'],
+  SKULL: ['GRAVE', 'RUIN', 'BATTERY_GRAVE', 'CABLE_ROOTS', 'STONE'],
+  ICE: ['SNOW_TREE', 'CRYSTAL', 'FROZEN_SERVER', 'ICE_SHARD', 'STONE'],
+  VOLCANO: ['MAGMA_ROCK', 'LAVA_PILLAR', 'OIL_DRUM', 'EMBER_VENT', 'SPIKE_ROCK'],
+  PYRAMID: ['CACTUS', 'PALM', 'GLASS_DUNE', 'SILICON_SPIRE', 'STONE'],
+  MUSHROOM: ['SWAMP_TREE', 'VINE', 'MUSHROOM', 'TOXIC_BARREL', 'SLUDGE_POOL'],
+  CYBER: ['SERVER', 'NEON_SIGN', 'CABLE_POST', 'TRASH_CAN', 'BILLBOARD_RUIN'],
+  VOID: ['VOID_ROCK', 'STAR_PILLAR', 'NULL_CRYSTAL', 'STATIC_RIFT'],
+  SKY: ['CLOUD_PILLAR', 'GOLD_GATE', 'SKY_SERVER', 'SATELLITE_DISH', 'SERVER'],
+  HELL: ['SPIKE_ROCK', 'LAVA_PILLAR', 'HELL_OBELISK', 'BURNED_SERVER', 'MAGMA_ROCK'],
+};
+
+const getThemePropPool = (theme: ThemeName, primaryProp?: string) => {
+  const pool = THEME_PROP_POOLS[theme] ?? THEME_PROP_POOLS.FOREST;
+  return primaryProp ? Array.from(new Set([primaryProp, ...pool])) : pool;
+};
+
 const getPropScale = (type: string) => {
-    if (type.includes('TREE') || type === 'PALM' || type === 'SWAMP_TREE' || type === 'SNOW_TREE') return 3.5;
-    if (type.includes('PILLAR') || type === 'RUIN' || type === 'SERVER' || type.includes('GATE') || type === 'NEON_SIGN') return 3.0;
-    if (type === 'MUSHROOM' || type === 'CRYSTAL' || type === 'CACTUS' || type === 'GRAVE' || type === 'TRASH_CAN') return 2.2;
-    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE') return 1.8;
+    if (type === 'TREE' || type === 'PALM' || type === 'SWAMP_TREE' || type === 'SNOW_TREE') return 3.5;
+    if (type.includes('PILLAR') || type === 'RUIN' || type.includes('SERVER') || type.includes('GATE') || type === 'NEON_SIGN' || type === 'BILLBOARD_RUIN' || type === 'HELL_OBELISK') return 3.0;
+    if (type === 'SATELLITE_DISH' || type === 'SILICON_SPIRE' || type === 'STATIC_RIFT') return 2.7;
+    if (type === 'MUSHROOM' || type.includes('CRYSTAL') || type === 'CACTUS' || type.includes('GRAVE') || type === 'TRASH_CAN' || type.includes('BARREL') || type === 'OIL_DRUM') return 2.2;
+    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') return 1.8;
     return 2.0;
 };
 
@@ -423,16 +442,14 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const bossPromptAudioKey = bossPortal ? `gaia:boss-prompt:${gaiaStageNumber}:${bossPortal.id}` : undefined;
 
   const props = React.useMemo(() => {
-    let possibleTypes: string[] = ['TREE', 'STONE', 'MUSHROOM']; 
-    if (aiConfig) { possibleTypes = [aiConfig.theme.propType, 'STONE']; if (aiConfig.theme.propType === 'TREE') possibleTypes.push('MUSHROOM'); } 
-    else { if (themeId === 2) possibleTypes = ['GRAVE', 'RUIN', 'STONE']; else if (themeId === 3) possibleTypes = ['SNOW_TREE', 'CRYSTAL', 'STONE']; else if (themeId === 4) possibleTypes = ['MAGMA_ROCK', 'LAVA_PILLAR']; else if (themeId === 5) possibleTypes = ['CACTUS', 'PALM', 'STONE']; else if (themeId === 6) possibleTypes = ['SWAMP_TREE', 'VINE', 'MUSHROOM']; else if (themeId === 7) possibleTypes = ['SERVER', 'NEON_SIGN']; else if (themeId === 8) possibleTypes = ['VOID_ROCK', 'STAR_PILLAR']; else if (themeId === 9) possibleTypes = ['CLOUD_PILLAR', 'GOLD_GATE']; else if (themeId === 10) possibleTypes = ['SPIKE_ROCK', 'LAVA_PILLAR']; }
+    const possibleTypes = getThemePropPool(sceneTheme, aiConfig?.theme.propType);
     const items = []; for(let i=0; i<150; i++) { const type = possibleTypes[Math.floor(Math.random() * possibleTypes.length)]; const x = (Math.random() - 0.5) * 54; const z = (Math.random() - 0.5) * 54; const dist = Math.sqrt(x*x + z*z); if (z > -16 && z < 1 && x > -8 && x < 8) continue; if (z > 1 && z < 18 && x > -12 && x < 12) continue;
     const distToShop = Math.sqrt((x - SHOP_POS.x)**2 + (z - SHOP_POS.z)**2); if (distToShop < 8) continue;
     const distToVJNext = Math.sqrt((x - VIBEJAM_NEXT_POS.x)**2 + (z - VIBEJAM_NEXT_POS.z)**2); if (distToVJNext < 6) continue;
     const distToVJReturn = Math.sqrt((x - VIBEJAM_RETURN_POS.x)**2 + (z - VIBEJAM_RETURN_POS.z)**2); if (distToVJReturn < 6) continue;
     if (dist < 6) continue; items.push({ id: i, type, x, z }); }
     return items;
-  }, [themeId, aiConfig]);
+  }, [sceneTheme, aiConfig]);
 
   const propSprites = React.useMemo(
     () => props.map((p) => ({ ...p, scale: getPropScale(p.type) })),

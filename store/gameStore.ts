@@ -258,6 +258,7 @@ interface GameState {
   preloadGame: (difficulty: QuizDifficulty) => void;
   preloadGameFromPortal: (refUrl: string | null) => void;
   startGame: () => void;
+  debugJumpToStage: (stage: number) => Promise<void>;
   setHighlightedPortal: (id: string | null) => void;
 }
 
@@ -1239,6 +1240,63 @@ export const useGameStore = create<GameState>((set, get) => ({
       } else {
           set({ mode: GameMode.LOADING_LEVEL, lastGameplayMode: GameMode.OVERWORLD });
       }
+  },
+
+  debugJumpToStage: async (stage) => {
+      const targetStage = Math.min(10, Math.max(1, Math.floor(stage)));
+      const state = get();
+
+      if (state.multiplayer.groupId) {
+          void get().leaveMatchmaking();
+      }
+
+      set({
+          mode: GameMode.LOADING_LEVEL,
+          lastGameplayMode: GameMode.OVERWORLD,
+          isStageReady: false,
+          isOverworldSceneReady: false,
+          playMode: 'solo',
+          highlightedPortalId: null,
+      });
+
+      await useAiDirectorStore.getState().generateNextStage(state.playerStats, targetStage - 1, 'Stage debug preview', `debug-stage-${targetStage}`);
+
+      set((prevState) => ({
+          activeStage: targetStage,
+          portals: generatePortals(targetStage),
+          activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
+          battleWon: false,
+          bossStats: null,
+          bossNarrativeOpen: false,
+          dashCooldownCurrent: 0,
+          shopOptions: generateShopOptions(prevState.playerStats),
+          chestReward: null,
+          quizResult: null,
+          isQuizOpen: false,
+          isImpactOpen: false,
+          isStageReady: true,
+          isOverworldSceneReady: false,
+          showNarrative: false,
+          narrativeDismissed: true,
+          highlightedPortalId: null,
+          worldPosition: getOverworldSpawn(),
+          savedOverworldPosition: getOverworldSpawn(),
+          mode: GameMode.OVERWORLD,
+          previousMode: prevState.mode,
+          lastGameplayMode: GameMode.OVERWORLD,
+          playMode: 'solo',
+          multiplayer: {
+              ...prevState.multiplayer,
+              groupId: null,
+              peers: {},
+              enemyStates: {},
+              portalVotes: {},
+              guideMessage: null,
+              connectionStatus: 'idle',
+              livingCount: 1,
+              stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+          },
+      }));
   },
 
   enterBattle: (portal) => {

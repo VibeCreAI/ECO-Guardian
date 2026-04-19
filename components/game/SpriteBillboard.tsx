@@ -2,7 +2,7 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ASSET_PATHS, getEnemySpriteSheetPath } from '../../assets';
+import { ASSET_PATHS, getEnemySpriteSheetPath, getPropSpritePath } from '../../assets';
 import { drawEnemySheet, ENEMY_RENDER_TYPES, ENEMY_SHEET_HEIGHT, ENEMY_SHEET_WIDTH, isEnemyRenderType, isGhostEnemyType, usesPixelEnemyStyle } from './enemyDrawing';
 import { getCachedPlayerSlotTextures, getPlayerSlotTextures } from './playerTint';
 
@@ -58,6 +58,7 @@ interface ExternalBossSpriteProps {
 }
 
 const textureCache: Record<string, THREE.Texture> = {};
+const propSpriteAvailabilityCache: Record<string, Promise<boolean>> = {};
 const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
 const OUTLINE_HEX = '#f8fafc';
@@ -113,6 +114,223 @@ const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize
     return { p, r };
 };
 
+const maybeApplyExternalPropSprite = (texture: THREE.Texture, type: string) => {
+    const spriteUrl = getPropSpritePath(type);
+    if (!spriteUrl || typeof window === 'undefined' || typeof fetch !== 'function' || typeof Image === 'undefined') return;
+
+    if (!propSpriteAvailabilityCache[spriteUrl]) {
+        propSpriteAvailabilityCache[spriteUrl] = fetch(spriteUrl, { method: 'HEAD', cache: 'force-cache' })
+            .then((response) => {
+                const contentType = response.headers.get('content-type') ?? '';
+                return response.ok && contentType.toLowerCase().startsWith('image/');
+            })
+            .catch(() => false);
+    }
+
+    propSpriteAvailabilityCache[spriteUrl].then((available) => {
+        if (!available) return;
+        const image = new Image();
+        image.onload = () => {
+            texture.image = image;
+            texture.needsUpdate = true;
+        };
+        image.src = spriteUrl;
+    });
+};
+
+const drawPixelDiamond = (
+    r: (x: number, y: number, w: number, h: number, color: string) => void,
+    cx: number,
+    cy: number,
+    halfWidth: number,
+    halfHeight: number,
+    color: string,
+) => {
+    for (let y = -halfHeight; y <= halfHeight; y += 1) {
+        const rowWidth = Math.max(1, Math.round(halfWidth * (1 - Math.abs(y) / (halfHeight + 1))));
+        r(cx - rowWidth, cy + y, rowWidth * 2, 1, color);
+    }
+};
+
+const drawPixelTriangle = (
+    r: (x: number, y: number, w: number, h: number, color: string) => void,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    color: string,
+) => {
+    for (let row = 0; row < height; row += 1) {
+        const rowWidth = Math.max(1, Math.round(width * (1 - row / height)));
+        r(x + Math.floor((width - rowWidth) / 2), y + row, rowWidth, 1, color);
+    }
+};
+
+const drawProceduralProp = (ctx: CanvasRenderingContext2D, type: string) => {
+    const { p, r } = createPixelDrawer(ctx, 64, 64);
+    const t = type.toUpperCase();
+    const shadow = (x = 14, w = 36, alpha = 0.24) => r(x, 56, w, 4, `rgba(0,0,0,${alpha})`);
+    const rim = '#0f172a';
+
+    if (t === 'TREE') {
+        shadow(13, 38);
+        r(26, 34, 13, 24, '#3b2416'); r(29, 35, 7, 23, '#7c4a22'); r(34, 36, 3, 18, '#a16207');
+        r(11, 18, 38, 22, rim); r(17, 10, 30, 20, rim); r(24, 4, 20, 14, rim);
+        r(13, 19, 34, 20, '#166534'); r(19, 11, 26, 18, '#15803d'); r(25, 5, 18, 12, '#22c55e');
+        r(18, 23, 9, 5, '#4ade80'); r(35, 15, 7, 5, '#86efac'); r(39, 30, 6, 5, '#14532d');
+        p(22, 35, '#fbbf24'); p(41, 23, '#f9a8d4');
+    } else if (t === 'TREE_STUMP') {
+        shadow(19, 28);
+        r(20, 36, 26, 22, rim); r(23, 34, 20, 24, '#6b3f1d'); r(25, 36, 16, 5, '#a16207');
+        r(26, 42, 12, 2, '#3b2416'); r(29, 47, 8, 2, '#3b2416'); r(19, 51, 5, 4, '#166534'); r(43, 50, 4, 5, '#22c55e');
+    } else if (t === 'PLASTIC_BAG_SHRUB') {
+        shadow(14, 36);
+        r(17, 36, 30, 18, '#14532d'); r(14, 41, 36, 10, '#166534'); r(22, 31, 20, 13, '#22c55e');
+        r(25, 25, 16, 23, '#f8fafc'); r(28, 28, 10, 16, '#e2e8f0'); r(30, 25, 3, 5, '#cbd5e1'); r(35, 26, 3, 4, '#cbd5e1');
+        r(27, 35, 10, 2, '#94a3b8'); p(22, 45, '#f472b6'); p(42, 42, '#38bdf8');
+    } else if (t === 'BOTTLE_PILE') {
+        shadow(15, 36);
+        r(18, 45, 13, 7, rim); r(20, 39, 8, 14, '#38bdf8'); r(22, 35, 4, 4, '#e0f2fe');
+        r(31, 43, 16, 7, rim); r(34, 37, 9, 15, '#86efac'); r(36, 33, 4, 5, '#dcfce7');
+        r(25, 48, 18, 5, '#facc15'); r(27, 46, 13, 3, '#fde68a'); r(17, 52, 30, 3, '#475569');
+    } else if (t === 'MUSHROOM') {
+        shadow(18, 30);
+        r(27, 37, 10, 20, rim); r(29, 38, 7, 18, '#fef3c7'); r(31, 43, 4, 8, '#fde68a');
+        r(16, 25, 34, 17, rim); r(19, 22, 28, 16, '#dc2626'); r(23, 20, 18, 8, '#ef4444');
+        r(23, 28, 5, 5, '#f8fafc'); r(35, 31, 6, 5, '#f8fafc'); r(31, 24, 4, 4, '#fee2e2');
+    } else if (t === 'GRAVE') {
+        shadow(17, 32);
+        r(18, 30, 28, 28, rim); r(21, 24, 22, 34, '#64748b'); r(23, 26, 18, 5, '#94a3b8');
+        r(30, 33, 4, 18, '#cbd5e1'); r(24, 39, 16, 4, '#cbd5e1'); r(20, 54, 28, 5, '#475569');
+        r(23, 48, 3, 3, '#334155'); r(39, 47, 2, 4, '#334155');
+    } else if (t === 'BATTERY_GRAVE') {
+        shadow(17, 32);
+        r(20, 28, 24, 30, rim); r(22, 27, 20, 31, '#475569'); r(27, 23, 10, 5, '#94a3b8');
+        r(25, 33, 14, 6, '#a3e635'); r(28, 35, 8, 2, '#1a2e05'); r(25, 45, 14, 3, '#ef4444'); r(20, 54, 24, 5, '#334155');
+    } else if (t === 'RUIN') {
+        shadow(12, 40);
+        r(14, 24, 12, 34, rim); r(16, 21, 8, 37, '#64748b'); r(17, 25, 6, 4, '#94a3b8');
+        r(38, 32, 10, 26, rim); r(40, 29, 7, 29, '#64748b'); r(41, 34, 5, 3, '#94a3b8');
+        r(22, 50, 20, 7, '#475569'); r(28, 45, 11, 5, '#334155'); p(19, 39, '#cbd5e1'); p(43, 44, '#cbd5e1');
+    } else if (t === 'CABLE_ROOTS' || t === 'VINE') {
+        shadow(12, 40);
+        r(15, 49, 30, 4, '#14532d'); r(19, 45, 4, 8, '#166534'); r(35, 43, 4, 10, '#166534');
+        r(25, 47, 4, 6, '#65a30d'); r(13, 53, 10, 3, '#84cc16'); r(40, 52, 10, 3, '#84cc16');
+        p(21, 44, '#a3e635'); p(38, 42, '#a3e635');
+    } else if (t === 'CRYSTAL' || t === 'ICE_SHARD' || t === 'NULL_CRYSTAL') {
+        shadow(16, 34);
+        const main = t === 'NULL_CRYSTAL' ? '#7c3aed' : '#06b6d4';
+        const light = t === 'NULL_CRYSTAL' ? '#ddd6fe' : '#cffafe';
+        drawPixelDiamond(r, 31, 31, 9, 24, rim); drawPixelDiamond(r, 31, 29, 7, 21, main);
+        drawPixelDiamond(r, 20, 42, 5, 13, rim); drawPixelDiamond(r, 20, 41, 4, 11, '#67e8f9');
+        drawPixelDiamond(r, 43, 45, 5, 11, rim); drawPixelDiamond(r, 43, 44, 4, 9, main);
+        r(31, 11, 3, 20, light); p(27, 24, light); p(39, 39, light);
+    } else if (t === 'SNOW_TREE') {
+        shadow(16, 32);
+        r(28, 37, 8, 21, '#334155'); r(30, 38, 5, 20, '#7c4a22');
+        drawPixelTriangle(r, 15, 34, 34, 17, rim); drawPixelTriangle(r, 17, 35, 30, 14, '#e0f2fe');
+        drawPixelTriangle(r, 18, 23, 28, 18, rim); drawPixelTriangle(r, 20, 24, 24, 15, '#bae6fd');
+        drawPixelTriangle(r, 22, 13, 20, 15, rim); drawPixelTriangle(r, 24, 14, 16, 12, '#f8fafc');
+    } else if (t === 'MAGMA_ROCK' || t === 'SPIKE_ROCK' || t === 'VOID_ROCK' || t === 'STONE') {
+        shadow(13, 38);
+        const hot = t === 'MAGMA_ROCK' || t === 'SPIKE_ROCK';
+        const voided = t === 'VOID_ROCK';
+        const base = hot ? '#3f1d1d' : voided ? '#1e1b4b' : '#57534e';
+        const hi = hot ? '#ef4444' : voided ? '#7c3aed' : '#78716c';
+        r(11, 43, 42, 13, rim); r(15, 38, 34, 18, base); r(20, 34, 21, 9, base);
+        r(18, 40, 14, 4, hi); r(35, 45, 9, 3, hi); r(24, 51, 17, 3, '#292524');
+        if (hot) { r(25, 43, 4, 10, '#facc15'); r(39, 39, 3, 6, '#fb923c'); }
+        if (voided) { p(27, 40, '#e9d5ff'); p(44, 47, '#a78bfa'); }
+    } else if (t === 'LAVA_PILLAR' || t === 'EMBER_VENT') {
+        shadow(18, 30);
+        r(22, 22, 20, 36, rim); r(24, 20, 16, 38, '#3f1d1d'); r(26, 24, 12, 31, '#7f1d1d');
+        r(28, 16, 8, 42, '#ef4444'); r(30, 19, 4, 36, '#facc15'); r(25, 34, 4, 5, '#292524'); r(36, 28, 4, 6, '#292524');
+        p(23, 18, '#fb923c'); p(41, 23, '#f97316');
+    } else if (t === 'OIL_DRUM' || t === 'TOXIC_BARREL') {
+        shadow(19, 27);
+        const body = t === 'OIL_DRUM' ? '#1f2937' : '#365314';
+        const glow = t === 'OIL_DRUM' ? '#a3e635' : '#bef264';
+        r(20, 27, 24, 31, rim); r(22, 26, 20, 32, body); r(21, 28, 22, 4, '#64748b'); r(21, 50, 22, 4, '#64748b');
+        r(25, 36, 14, 9, glow); r(29, 38, 3, 5, rim); r(34, 38, 3, 5, rim); p(39, 32, '#86efac');
+    } else if (t === 'CACTUS') {
+        shadow(18, 30);
+        r(27, 18, 12, 40, rim); r(29, 17, 8, 41, '#15803d'); r(31, 20, 3, 36, '#22c55e');
+        r(17, 31, 12, 10, rim); r(19, 32, 10, 7, '#15803d'); r(20, 24, 6, 12, rim); r(21, 25, 4, 11, '#22c55e');
+        r(37, 28, 12, 10, rim); r(37, 29, 9, 7, '#15803d'); r(42, 20, 6, 13, rim); r(43, 21, 4, 12, '#22c55e');
+        p(30, 25, '#f8fafc'); p(35, 39, '#f8fafc'); p(22, 29, '#f8fafc');
+    } else if (t === 'PALM') {
+        shadow(16, 34);
+        r(28, 28, 9, 30, rim); r(30, 29, 6, 29, '#92400e'); r(30, 37, 6, 3, '#78350f'); r(29, 47, 6, 3, '#78350f');
+        r(14, 19, 22, 8, '#166534'); r(28, 12, 8, 25, '#22c55e'); r(34, 17, 18, 8, '#15803d'); r(20, 28, 30, 7, '#65a30d');
+        p(33, 20, '#facc15');
+    } else if (t === 'GLASS_DUNE' || t === 'SILICON_SPIRE') {
+        shadow(15, 36);
+        const glass = t === 'GLASS_DUNE';
+        r(13, 49, 39, 8, rim); r(16, 46, 33, 10, glass ? '#fcd34d' : '#d97706'); r(21, 42, 22, 6, '#fbbf24');
+        drawPixelDiamond(r, 33, 33, glass ? 5 : 7, glass ? 12 : 20, rim);
+        drawPixelDiamond(r, 33, 32, glass ? 4 : 5, glass ? 10 : 17, glass ? '#cffafe' : '#f59e0b');
+        p(31, 26, '#ffffff'); p(37, 40, '#fde68a');
+    } else if (t === 'SWAMP_TREE') {
+        shadow(13, 38);
+        r(25, 26, 15, 32, rim); r(28, 26, 9, 32, '#3f2c1c'); r(31, 27, 4, 28, '#854d0e');
+        r(15, 18, 34, 22, '#365314'); r(20, 12, 25, 18, '#4d7c0f'); r(12, 34, 39, 8, '#1a2e05');
+        r(21, 41, 4, 12, '#65a30d'); r(41, 38, 4, 14, '#65a30d'); p(35, 20, '#bef264');
+    } else if (t === 'SLUDGE_POOL') {
+        shadow(11, 42, 0.18);
+        r(13, 47, 39, 9, '#1a2e05'); r(16, 45, 32, 10, '#365314'); r(20, 47, 24, 5, '#65a30d');
+        p(25, 46, '#bef264'); p(37, 49, '#bef264'); r(29, 42, 6, 5, '#84cc16');
+    } else if (t === 'SERVER' || t === 'FROZEN_SERVER' || t === 'SKY_SERVER' || t === 'BURNED_SERVER') {
+        shadow(18, 30);
+        const frozen = t === 'FROZEN_SERVER';
+        const sky = t === 'SKY_SERVER';
+        const burned = t === 'BURNED_SERVER';
+        const body = burned ? '#292524' : sky ? '#e0f2fe' : frozen ? '#94a3b8' : '#1e293b';
+        const light = burned ? '#ef4444' : sky ? '#0ea5e9' : frozen ? '#cffafe' : '#4ade80';
+        r(19, 16, 26, 42, rim); r(21, 15, 22, 43, body); r(24, 20, 16, 3, light); r(24, 28, 16, 3, light); r(24, 36, 16, 3, light); r(24, 47, 5, 5, '#64748b'); r(35, 47, 5, 5, '#64748b');
+        if (frozen) { r(17, 18, 6, 12, '#cffafe'); r(39, 39, 6, 10, '#e0f2fe'); }
+        if (burned) { r(25, 24, 5, 3, '#0f172a'); r(35, 34, 5, 3, '#0f172a'); }
+    } else if (t === 'NEON_SIGN' || t === 'BILLBOARD_RUIN') {
+        shadow(15, 34);
+        const ruined = t === 'BILLBOARD_RUIN';
+        r(12, 22, 40, 24, rim); r(15, 24, 34, 18, ruined ? '#334155' : '#111827');
+        r(18, 28, 12, 4, ruined ? '#64748b' : '#f0abfc'); r(32, 33, 13, 4, ruined ? '#475569' : '#38bdf8');
+        r(28, 44, 6, 14, '#475569'); r(26, 57, 10, 2, '#334155');
+        if (!ruined) { p(20, 36, '#fef3c7'); p(43, 28, '#fef08a'); }
+    } else if (t === 'CABLE_POST') {
+        shadow(19, 28);
+        r(28, 20, 8, 38, rim); r(30, 21, 4, 37, '#475569'); r(18, 28, 28, 5, '#334155');
+        r(16, 31, 5, 8, '#facc15'); r(43, 31, 5, 8, '#38bdf8'); r(23, 42, 18, 3, '#ef4444'); r(20, 45, 6, 3, '#ef4444');
+    } else if (t === 'TRASH_CAN') {
+        shadow(19, 28);
+        r(20, 29, 24, 29, rim); r(22, 28, 20, 30, '#64748b'); r(18, 24, 28, 6, '#94a3b8'); r(26, 20, 12, 4, '#475569');
+        r(25, 36, 14, 3, '#475569'); r(25, 44, 14, 3, '#475569'); p(29, 33, '#f87171'); p(35, 33, '#f87171');
+    } else if (t === 'SATELLITE_DISH') {
+        shadow(16, 34);
+        r(29, 36, 6, 22, '#475569'); r(21, 55, 22, 3, '#334155');
+        r(18, 19, 28, 22, rim); r(20, 21, 24, 18, '#e5e7eb'); r(25, 26, 14, 8, '#94a3b8'); r(39, 16, 5, 5, '#38bdf8');
+    } else if (t === 'STAR_PILLAR' || t === 'STATIC_RIFT') {
+        shadow(18, 30, 0.2);
+        r(28, 17, 9, 41, rim); r(30, 18, 5, 39, '#312e81'); r(26, 31, 13, 4, '#7c3aed'); r(25, 43, 15, 3, '#a78bfa');
+        drawPixelDiamond(r, 32, 18, 4, 6, '#e9d5ff'); p(23, 26, '#ddd6fe'); p(43, 39, '#c4b5fd');
+    } else if (t === 'CLOUD_PILLAR') {
+        shadow(17, 32, 0.16);
+        r(28, 28, 9, 30, '#cbd5e1'); r(30, 27, 5, 31, '#f8fafc');
+        r(15, 20, 34, 14, '#f0f9ff'); r(20, 14, 26, 15, '#ffffff'); r(26, 10, 15, 10, '#f8fafc');
+        p(37, 18, '#bae6fd'); p(21, 25, '#bae6fd');
+    } else if (t === 'GOLD_GATE') {
+        shadow(12, 40);
+        r(14, 24, 10, 34, rim); r(40, 24, 10, 34, rim); r(16, 22, 6, 36, '#d97706'); r(42, 22, 6, 36, '#d97706');
+        r(18, 18, 28, 8, rim); r(20, 19, 24, 5, '#facc15'); r(23, 31, 18, 4, '#fbbf24'); p(32, 21, '#fef3c7');
+    } else if (t === 'HELL_OBELISK') {
+        shadow(17, 32);
+        drawPixelTriangle(r, 21, 13, 22, 14, rim); r(22, 25, 20, 33, rim); drawPixelTriangle(r, 24, 15, 16, 10, '#7f1d1d'); r(24, 25, 16, 33, '#450a0a');
+        r(29, 30, 6, 18, '#ef4444'); r(31, 33, 2, 12, '#facc15'); p(26, 49, '#fb923c'); p(38, 22, '#f97316');
+    } else {
+        shadow(18, 30);
+        r(21, 36, 22, 22, rim); r(24, 34, 16, 24, '#6b7280'); r(27, 38, 10, 16, '#9ca3af'); p(30, 42, '#e5e7eb');
+    }
+};
+
 const generateTexture = (type: string, color: string, variant: string = '') => {
     const externalSpriteUrl = getEnemySpriteSheetPath(type);
     const cacheKey = externalSpriteUrl ? `external_${externalSpriteUrl}` : `${type}_${color}_${variant}`;
@@ -154,6 +372,7 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return new THREE.Texture();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let isProceduralProp = false;
 
     if (isEnemyRenderType(type)) {
         drawEnemySheet(ctx, type);
@@ -347,16 +566,8 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
         r(cx-4, cy-4, 2, 2, 'white');
     }
     else {
-        const { r } = createPixelDrawer(ctx, 64, 64); r(16, 56, 32, 4, 'rgba(0,0,0,0.2)');
-        if (type.includes('TREE') || type === 'PALM' || type.includes('PILLAR') || type === 'SERVER') {
-             const cTrunk = type.includes('MAGMA') ? '#7f1d1d' : (type === 'SERVER' ? '#1e293b' : '#5d4037'); const cTop = type.includes('MAGMA') ? '#ef4444' : (type === 'SERVER' ? '#22c55e' : '#15803d');
-             if (type === 'PALM') { r(28, 30, 8, 34, '#78350f'); r(16, 12, 32, 24, '#65a30d'); } else if (type === 'SERVER') { r(20, 20, 24, 44, '#1e293b'); r(24, 24, 16, 2, '#4ade80'); r(24, 30, 16, 2, '#4ade80'); r(24, 36, 16, 2, '#4ade80'); } else { r(26, 44, 12, 20, cTrunk); r(16, 12, 32, 32, cTop); if(!type.includes('MAGMA')) r(20, 16, 10, 8, '#4ade80'); }
-        } else if (type.includes('STONE') || type.includes('ROCK') || type === 'GRAVE' || type === 'RUIN') {
-             const cMain = type.includes('MAGMA') ? '#7f1d1d' : (type === 'GRAVE' ? '#94a3b8' : '#57534e');
-             if (type === 'GRAVE') { r(20, 32, 24, 32, cMain); r(16, 60, 32, 4, '#475569'); r(28, 36, 8, 20, '#cbd5e1'); r(22, 40, 20, 6, '#cbd5e1'); } else { r(12, 44, 40, 20, cMain); r(16, 40, 32, 4, type.includes('MAGMA') ? '#b91c1c' : '#78716c'); }
-        } else if (type === 'MUSHROOM' || type === 'CRYSTAL' || type === 'NEON_SIGN' || type.includes('GATE') || type === 'CACTUS') {
-             if (type === 'CRYSTAL') { r(28, 32, 8, 32, '#06b6d4'); r(20, 44, 8, 20, '#67e8f9'); r(36, 44, 8, 20, '#67e8f9'); } else if (type === 'CACTUS') { r(28, 24, 10, 40, '#15803d'); r(18, 32, 10, 10, '#15803d'); r(18, 24, 6, 8, '#15803d'); r(38, 28, 10, 10, '#15803d'); r(42, 20, 6, 8, '#15803d'); } else if (type === 'NEON_SIGN') { r(12, 24, 40, 24, '#1e293b'); r(16, 28, 32, 16, '#f0abfc'); r(30, 48, 4, 16, '#475569'); } else if (type === 'MUSHROOM') { r(28, 44, 8, 20, '#fef3c7'); r(20, 28, 24, 16, '#dc2626'); r(24, 32, 4, 4, 'white'); r(36, 36, 4, 4, 'white'); } else { r(24, 40, 16, 24, '#eab308'); }
-        } else { r(24, 40, 16, 24, '#888'); }
+        isProceduralProp = true;
+        drawProceduralProp(ctx, type);
     }
     if (type === 'BOSS' || isEnemyRenderType(type)) {
         bakeAlphaOutline(ctx, canvas.width, canvas.height, OUTLINE_HEX);
@@ -368,6 +579,9 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     tex.magFilter = isEnemyRenderType(type) ? (useNearest ? THREE.NearestFilter : THREE.LinearFilter) : THREE.NearestFilter;
     tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace;
+    if (isProceduralProp) {
+        maybeApplyExternalPropSprite(tex, type);
+    }
     textureCache[cacheKey] = tex;
     return tex;
 };
@@ -682,11 +896,12 @@ const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchI
         texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.needsUpdate = true;
 
-        return new THREE.MeshStandardMaterial({
+        return new THREE.MeshBasicMaterial({
             map: texture,
             transparent: true,
             alphaTest: 0.01,
             side: THREE.DoubleSide,
+            toneMapped: false,
         });
     }, [texture]);
 
