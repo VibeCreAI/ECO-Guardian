@@ -1,5 +1,6 @@
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AiStageConfig } from '../../types';
 import { getGroundTilePath } from '../../assets';
@@ -13,6 +14,26 @@ interface PixelGroundProps {
 }
 
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
+type AnimatedOverlaySpec = {
+    key: string;
+    speedX: number;
+    speedY: number;
+    opacity: number;
+    pulse: number;
+    pulseSpeed: number;
+    randomDrift?: boolean;
+};
+type OverlayParticle = {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    stretch: number;
+    alpha: number;
+    phase: number;
+    colorIndex: number;
+};
 
 const groundTileAvailabilityCache: Record<string, Promise<boolean>> = {};
 
@@ -240,6 +261,360 @@ const drawGroundTile = (
     }
 };
 
+const getAnimatedOverlaySpecs = (themeType: ThemeName, mode: 'OVERWORLD' | 'BATTLE'): AnimatedOverlaySpec[] => {
+    const combatFade = mode === 'BATTLE' ? 0.72 : 1;
+
+    if (themeType === 'FOREST') {
+        return [
+            { key: 'forest-drift', speedX: 0, speedY: 0, opacity: 0.11 * combatFade, pulse: 0.03 * combatFade, pulseSpeed: 1.4, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'SKULL') {
+        return [
+            { key: 'skull-mist', speedX: 0, speedY: 0, opacity: 0.12 * combatFade, pulse: 0.035 * combatFade, pulseSpeed: 1.25, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'ICE') {
+        return [
+            { key: 'ice-sparkle', speedX: 0, speedY: 0, opacity: 0.14 * combatFade, pulse: 0.05 * combatFade, pulseSpeed: 1.9, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'VOLCANO') {
+        return [
+            { key: 'volcano-vertical', speedX: 0, speedY: -0.08, opacity: 0.24 * combatFade, pulse: 0.08 * combatFade, pulseSpeed: 1.8 },
+            { key: 'volcano-horizontal', speedX: 0.1, speedY: 0, opacity: 0.18 * combatFade, pulse: 0.06 * combatFade, pulseSpeed: 2.2 },
+        ];
+    }
+
+    if (themeType === 'PYRAMID') {
+        return [
+            { key: 'pyramid-dust', speedX: 0, speedY: 0, opacity: 0.12 * combatFade, pulse: 0.03 * combatFade, pulseSpeed: 1.15, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'MUSHROOM') {
+        return [
+            { key: 'mushroom-spores', speedX: 0, speedY: 0, opacity: 0.13 * combatFade, pulse: 0.04 * combatFade, pulseSpeed: 1.6, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'CYBER') {
+        return [
+            { key: 'cyber-vertical', speedX: 0, speedY: -0.16, opacity: 0.15 * combatFade, pulse: 0.05 * combatFade, pulseSpeed: 2.6 },
+            { key: 'cyber-horizontal', speedX: 0.18, speedY: 0, opacity: 0.13 * combatFade, pulse: 0.04 * combatFade, pulseSpeed: 3 },
+        ];
+    }
+
+    if (themeType === 'VOID') {
+        return [
+            { key: 'void-drift', speedX: 0, speedY: 0, opacity: 0.2 * combatFade, pulse: 0.07 * combatFade, pulseSpeed: 1.5, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'SKY') {
+        return [
+            { key: 'sky-breeze', speedX: 0, speedY: 0, opacity: 0.13 * combatFade, pulse: 0.035 * combatFade, pulseSpeed: 1.2, randomDrift: true },
+        ];
+    }
+
+    if (themeType === 'HELL') {
+        return [
+            { key: 'hell-vertical', speedX: 0, speedY: -0.12, opacity: 0.28 * combatFade, pulse: 0.1 * combatFade, pulseSpeed: 2.1 },
+            { key: 'hell-horizontal', speedX: 0.14, speedY: 0, opacity: 0.22 * combatFade, pulse: 0.08 * combatFade, pulseSpeed: 2.5 },
+        ];
+    }
+
+    return [];
+};
+
+const drawGroundOverlayLayer = (
+    ctx: CanvasRenderingContext2D,
+    themeType: ThemeName,
+    layerKey: string,
+) => {
+    const size = 128;
+    const grid = 32;
+    const px = size / grid;
+    ctx.clearRect(0, 0, size, size);
+
+    const rect = (x: number, y: number, w: number, h: number, color: string) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x) * px, Math.floor(y) * px, Math.ceil(w) * px, Math.ceil(h) * px);
+    };
+
+    if (themeType === 'FOREST') {
+        rect(7, 9, 1, 1, 'rgba(254,240,138,0.8)');
+        rect(19, 6, 1, 1, 'rgba(187,247,208,0.8)');
+        rect(27, 21, 1, 1, 'rgba(254,240,138,0.75)');
+        rect(12, 25, 2, 1, 'rgba(134,239,172,0.55)');
+        rect(23, 14, 1, 2, 'rgba(187,247,208,0.5)');
+    } else if (themeType === 'SKULL') {
+        rect(2, 18, 6, 1, 'rgba(203,213,225,0.34)');
+        rect(9, 19, 3, 1, 'rgba(226,232,240,0.28)');
+        rect(18, 7, 7, 1, 'rgba(203,213,225,0.32)');
+        rect(25, 8, 4, 1, 'rgba(148,163,184,0.28)');
+        rect(14, 27, 5, 1, 'rgba(190,242,100,0.2)');
+    } else if (themeType === 'ICE') {
+        rect(7, 8, 2, 1, 'rgba(255,255,255,0.78)'); rect(8, 7, 1, 3, 'rgba(255,255,255,0.72)');
+        rect(23, 5, 2, 1, 'rgba(255,255,255,0.65)'); rect(24, 4, 1, 3, 'rgba(255,255,255,0.58)');
+        rect(18, 24, 2, 1, 'rgba(224,242,254,0.72)'); rect(19, 23, 1, 3, 'rgba(224,242,254,0.65)');
+        rect(4, 19, 4, 1, 'rgba(186,230,253,0.38)');
+    } else if (themeType === 'VOLCANO') {
+        if (layerKey === 'volcano-vertical') {
+            for (let y = -4; y < grid + 4; y += 8) {
+                rect(10, y, 1, 4, '#fde047');
+                rect(9, y + 1, 3, 2, 'rgba(249,115,22,0.72)');
+                rect(24, y + 4, 1, 3, 'rgba(251,146,60,0.75)');
+            }
+        } else {
+            for (let x = -4; x < grid + 4; x += 8) {
+                rect(x, 21, 4, 1, '#fde047');
+                rect(x + 1, 20, 3, 3, 'rgba(249,115,22,0.68)');
+            }
+        }
+    } else if (themeType === 'PYRAMID') {
+        rect(0, 7, 8, 1, 'rgba(254,243,199,0.34)');
+        rect(12, 11, 9, 1, 'rgba(253,230,138,0.32)');
+        rect(23, 21, 7, 1, 'rgba(254,243,199,0.3)');
+        rect(6, 25, 2, 1, 'rgba(255,255,255,0.28)');
+        rect(27, 5, 1, 1, 'rgba(254,240,138,0.62)');
+    } else if (themeType === 'MUSHROOM') {
+        rect(5, 7, 1, 1, 'rgba(217,249,157,0.7)');
+        rect(17, 12, 1, 1, 'rgba(240,171,252,0.58)');
+        rect(26, 24, 1, 1, 'rgba(217,249,157,0.65)');
+        rect(12, 27, 2, 1, 'rgba(190,242,100,0.45)');
+        rect(23, 5, 1, 2, 'rgba(240,171,252,0.36)');
+    } else if (themeType === 'CYBER') {
+        if (layerKey === 'cyber-vertical') {
+            [4, 21].forEach((x) => {
+                for (let y = -2; y < grid + 2; y += 12) {
+                    rect(x, y, 1, 4, '#67e8f9');
+                    rect(x, y + 4, 1, 1, '#86efac');
+                }
+            });
+        } else {
+            [4, 24].forEach((y) => {
+                for (let x = -2; x < grid + 2; x += 12) {
+                    rect(x, y, 4, 1, '#38bdf8');
+                    rect(x + 4, y, 1, 1, '#c4b5fd');
+                }
+            });
+        }
+    } else if (themeType === 'VOID') {
+        rect(5, 8, 1, 1, '#e9d5ff');
+        rect(17, 4, 1, 1, '#c4b5fd');
+        rect(27, 14, 1, 1, '#ddd6fe');
+        rect(10, 25, 2, 1, 'rgba(196,181,253,0.78)');
+        rect(22, 21, 1, 2, 'rgba(233,213,255,0.78)');
+        rect(2, 17, 4, 1, 'rgba(167,139,250,0.5)');
+        rect(20, 6, 5, 1, 'rgba(196,181,253,0.5)');
+    } else if (themeType === 'SKY') {
+        rect(2, 9, 8, 1, 'rgba(255,255,255,0.32)');
+        rect(14, 18, 7, 1, 'rgba(255,255,255,0.3)');
+        rect(24, 7, 5, 1, 'rgba(224,242,254,0.38)');
+        rect(7, 24, 1, 1, 'rgba(254,240,138,0.6)');
+        rect(28, 19, 1, 1, 'rgba(255,255,255,0.58)');
+    } else if (themeType === 'HELL') {
+        if (layerKey === 'hell-vertical') {
+            for (let y = -4; y < grid + 4; y += 7) {
+                rect(9, y, 1, 4, '#facc15');
+                rect(8, y + 1, 3, 2, 'rgba(251,146,60,0.78)');
+                rect(27, y + 3, 1, 3, 'rgba(239,68,68,0.74)');
+            }
+        } else {
+            for (let x = -4; x < grid + 4; x += 7) {
+                rect(x, 19, 4, 1, '#fde047');
+                rect(x + 1, 18, 3, 3, 'rgba(251,146,60,0.72)');
+                rect(x + 4, 6, 3, 1, 'rgba(239,68,68,0.6)');
+            }
+        }
+    }
+};
+
+const PARTICLE_PALETTES: Record<ThemeName, Array<[number, number, number]>> = {
+    FOREST: [[254, 240, 138], [187, 247, 208], [134, 239, 172]],
+    SKULL: [[203, 213, 225], [226, 232, 240], [190, 242, 100]],
+    ICE: [[255, 255, 255], [224, 242, 254], [186, 230, 253]],
+    VOLCANO: [[253, 224, 71], [251, 146, 60], [249, 115, 22]],
+    PYRAMID: [[254, 243, 199], [253, 230, 138], [255, 255, 255]],
+    MUSHROOM: [[217, 249, 157], [240, 171, 252], [190, 242, 100]],
+    CYBER: [[103, 232, 249], [134, 239, 172], [196, 181, 253]],
+    VOID: [[233, 213, 255], [196, 181, 253], [167, 139, 250]],
+    SKY: [[255, 255, 255], [224, 242, 254], [254, 240, 138]],
+    HELL: [[253, 224, 71], [251, 146, 60], [239, 68, 68]],
+};
+
+const createRandomOverlayParticles = (themeType: ThemeName, layerKey: string): OverlayParticle[] => {
+    const rand = createSeededRandom(`overlay-particles:${themeType}:${layerKey}`);
+    const config = {
+        FOREST: { count: 7, minSpeed: 0.16, maxSpeed: 0.42, minSize: 1, maxSize: 1, maxStretch: 2 },
+        SKULL: { count: 6, minSpeed: 0.08, maxSpeed: 0.22, minSize: 1, maxSize: 1, maxStretch: 5 },
+        ICE: { count: 6, minSpeed: 0.08, maxSpeed: 0.2, minSize: 1, maxSize: 1, maxStretch: 2 },
+        PYRAMID: { count: 7, minSpeed: 0.14, maxSpeed: 0.34, minSize: 1, maxSize: 1, maxStretch: 6 },
+        MUSHROOM: { count: 8, minSpeed: 0.12, maxSpeed: 0.32, minSize: 1, maxSize: 1, maxStretch: 2 },
+        VOID: { count: 8, minSpeed: 0.1, maxSpeed: 0.26, minSize: 1, maxSize: 1, maxStretch: 4 },
+        SKY: { count: 7, minSpeed: 0.12, maxSpeed: 0.3, minSize: 1, maxSize: 1, maxStretch: 7 },
+    }[themeType] ?? { count: 6, minSpeed: 0.1, maxSpeed: 0.24, minSize: 1, maxSize: 1, maxStretch: 3 };
+
+    return Array.from({ length: config.count }, (_, index) => {
+        const angle = rand() * Math.PI * 2;
+        const speed = config.minSpeed + rand() * (config.maxSpeed - config.minSpeed);
+        return {
+            x: rand() * 32,
+            y: rand() * 32,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: config.minSize + Math.floor(rand() * (config.maxSize - config.minSize + 1)),
+            stretch: 1 + Math.floor(rand() * config.maxStretch),
+            alpha: 0.42 + rand() * 0.34,
+            phase: rand() * Math.PI * 2 + index,
+            colorIndex: Math.floor(rand() * PARTICLE_PALETTES[themeType].length),
+        };
+    });
+};
+
+const drawRandomOverlayParticles = (
+    ctx: CanvasRenderingContext2D,
+    themeType: ThemeName,
+    particles: OverlayParticle[],
+    elapsed: number,
+) => {
+    const size = 128;
+    const grid = 32;
+    const px = size / grid;
+    const palette = PARTICLE_PALETTES[themeType];
+    ctx.clearRect(0, 0, size, size);
+
+    const rect = (x: number, y: number, w: number, h: number, color: string) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x) * px, Math.floor(y) * px, Math.ceil(w) * px, Math.ceil(h) * px);
+    };
+
+    particles.forEach((particle, index) => {
+        const [r, g, b] = palette[particle.colorIndex % palette.length];
+        const shimmer = 0.62 + Math.sin(elapsed * 1.35 + particle.phase) * 0.38;
+        const alpha = Math.max(0, Math.min(1, particle.alpha * shimmer));
+        const color = `rgba(${r},${g},${b},${alpha})`;
+        const x = Math.floor(particle.x);
+        const y = Math.floor(particle.y);
+
+        if (themeType === 'ICE') {
+            rect(x, y, particle.size + 1, 1, color);
+            rect(x + 1, y - 1, 1, particle.size + 2, color);
+        } else if (themeType === 'SKULL' || themeType === 'PYRAMID' || themeType === 'SKY') {
+            const horizontal = Math.abs(particle.vx) >= Math.abs(particle.vy);
+            if (horizontal) rect(x, y, particle.stretch, 1, color);
+            else rect(x, y, 1, Math.min(3, particle.stretch), color);
+        } else if (themeType === 'VOID') {
+            rect(x, y, Math.min(2, particle.stretch), 1, color);
+            if (index % 3 === 0) rect(x + 1, y + 1, 1, 1, color);
+        } else {
+            rect(x, y, particle.size, particle.size, color);
+            if (index % 2 === 0) rect(x + 1, y, 1, 1, `rgba(${r},${g},${b},${alpha * 0.5})`);
+        }
+    });
+};
+
+const createAnimatedOverlayTexture = (themeType: ThemeName, spec: AnimatedOverlaySpec, repeat: THREE.Vector2) => {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) drawGroundOverlayLayer(ctx, themeType, spec.key);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.repeat.set(repeat.x, repeat.y);
+    return texture;
+};
+
+const AnimatedGroundOverlay: React.FC<{
+    width: number;
+    height: number;
+    boxDepth: number;
+    themeType: ThemeName;
+    mode: 'OVERWORLD' | 'BATTLE';
+    uvScale: THREE.Vector2;
+}> = ({ width, height, boxDepth, themeType, mode, uvScale }) => {
+    const materialRefs = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+    const specs = useMemo(() => getAnimatedOverlaySpecs(themeType, mode), [themeType, mode]);
+    const layers = useMemo(() => specs.map((spec) => {
+        const texture = createAnimatedOverlayTexture(themeType, spec, uvScale);
+        const canvas = texture.image as HTMLCanvasElement;
+
+        return {
+            spec,
+            texture,
+            ctx: spec.randomDrift ? canvas.getContext('2d') : null,
+            particles: spec.randomDrift ? createRandomOverlayParticles(themeType, spec.key) : null,
+        };
+    }), [specs, themeType, uvScale]);
+
+    useEffect(() => () => {
+        layers.forEach((layer) => layer.texture.dispose());
+    }, [layers]);
+
+    useFrame(({ clock }, delta) => {
+        layers.forEach((layer, index) => {
+            const { spec, texture } = layer;
+            if (spec.randomDrift && layer.ctx && layer.particles) {
+                layer.particles.forEach((particle) => {
+                    particle.x = (particle.x + particle.vx * delta + 32) % 32;
+                    particle.y = (particle.y + particle.vy * delta + 32) % 32;
+                });
+                drawRandomOverlayParticles(layer.ctx, themeType, layer.particles, clock.elapsedTime);
+                texture.needsUpdate = true;
+            } else {
+                texture.offset.x = (texture.offset.x + spec.speedX * delta) % 1;
+                texture.offset.y = (texture.offset.y + spec.speedY * delta) % 1;
+            }
+
+            const material = materialRefs.current[index];
+            if (material) {
+                material.opacity = Math.max(0, spec.opacity + Math.sin(clock.elapsedTime * spec.pulseSpeed + index) * spec.pulse);
+            }
+        });
+    });
+
+    if (layers.length === 0) return null;
+
+    return (
+        <>
+            {layers.map(({ spec, texture }, index) => (
+                <mesh
+                    key={spec.key}
+                    position={[0, boxDepth / 2 + 0.018 + index * 0.004, 0]}
+                    rotation={[-Math.PI / 2, 0, 0]}
+                    renderOrder={1 + index}
+                >
+                    <planeGeometry args={[width, height]} />
+                    <meshBasicMaterial
+                        ref={(material) => {
+                            materialRefs.current[index] = material;
+                        }}
+                        map={texture}
+                        transparent
+                        opacity={spec.opacity}
+                        depthWrite={false}
+                        side={THREE.DoubleSide}
+                        blending={THREE.AdditiveBlending}
+                        toneMapped={false}
+                    />
+                </mesh>
+            ))}
+        </>
+    );
+};
+
 export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId, mode = 'OVERWORLD', aiConfig }) => {
     const themeType = useMemo(() => resolveThemeType(themeId, aiConfig), [themeId, aiConfig]);
     const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
@@ -288,6 +663,14 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
             <mesh receiveShadow material={boxMaterials}>
                 <boxGeometry args={[width, boxDepth, height]} />
             </mesh>
+            <AnimatedGroundOverlay
+                width={width}
+                height={height}
+                boxDepth={boxDepth}
+                themeType={themeType}
+                mode={mode}
+                uvScale={uvScale}
+            />
         </group>
     );
 };
