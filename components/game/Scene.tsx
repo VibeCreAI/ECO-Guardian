@@ -289,6 +289,154 @@ const getPropScale = (type: string) => {
     return 2.0;
 };
 
+type AtmosphereParticle = {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  scaleX: number;
+  scaleY: number;
+  phase: number;
+  color: string;
+};
+
+type AtmosphereConfig = {
+  count: number;
+  colors: string[];
+  opacity: number;
+  area: number;
+  yMin: number;
+  yMax: number;
+  speed: number;
+  sizeMin: number;
+  sizeMax: number;
+  stretchMin: number;
+  stretchMax: number;
+  verticalBias?: number;
+  additive?: boolean;
+};
+
+const atmosphereParticleGeometry = new THREE.PlaneGeometry(1, 1);
+
+const createSceneSeededRandom = (seedInput: string) => {
+  let seed = 2166136261;
+  for (let i = 0; i < seedInput.length; i += 1) {
+    seed ^= seedInput.charCodeAt(i);
+    seed = Math.imul(seed, 16777619);
+  }
+
+  return () => {
+    seed += 0x6D2B79F5;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const ATMOSPHERE_CONFIGS: Record<ThemeName, AtmosphereConfig> = {
+  FOREST: { count: 26, colors: ['#fef08a', '#bbf7d0', '#86efac'], opacity: 0.2, area: 58, yMin: 1.1, yMax: 5.2, speed: 0.34, sizeMin: 0.09, sizeMax: 0.18, stretchMin: 1, stretchMax: 1.6, additive: true },
+  SKULL: { count: 18, colors: ['#cbd5e1', '#e2e8f0', '#bef264'], opacity: 0.13, area: 58, yMin: 0.35, yMax: 2.2, speed: 0.18, sizeMin: 0.14, sizeMax: 0.28, stretchMin: 3, stretchMax: 7 },
+  ICE: { count: 20, colors: ['#ffffff', '#e0f2fe', '#bae6fd'], opacity: 0.18, area: 58, yMin: 0.8, yMax: 4.5, speed: 0.2, sizeMin: 0.08, sizeMax: 0.15, stretchMin: 1, stretchMax: 1.8, additive: true },
+  VOLCANO: { count: 24, colors: ['#facc15', '#fb923c', '#ef4444'], opacity: 0.24, area: 56, yMin: 0.5, yMax: 6.2, speed: 0.42, sizeMin: 0.08, sizeMax: 0.18, stretchMin: 1, stretchMax: 2.2, verticalBias: 0.35, additive: true },
+  PYRAMID: { count: 20, colors: ['#fef3c7', '#fde68a', '#ffffff'], opacity: 0.13, area: 58, yMin: 0.35, yMax: 2.6, speed: 0.24, sizeMin: 0.12, sizeMax: 0.24, stretchMin: 3, stretchMax: 8 },
+  MUSHROOM: { count: 28, colors: ['#d9f99d', '#f0abfc', '#bef264'], opacity: 0.18, area: 58, yMin: 0.65, yMax: 4.6, speed: 0.28, sizeMin: 0.08, sizeMax: 0.18, stretchMin: 1, stretchMax: 1.8, additive: true },
+  CYBER: { count: 18, colors: ['#67e8f9', '#86efac', '#c4b5fd'], opacity: 0.16, area: 58, yMin: 0.8, yMax: 4.2, speed: 0.38, sizeMin: 0.08, sizeMax: 0.16, stretchMin: 1, stretchMax: 2.4, additive: true },
+  VOID: { count: 24, colors: ['#e9d5ff', '#c4b5fd', '#a78bfa'], opacity: 0.2, area: 58, yMin: 0.75, yMax: 5.2, speed: 0.25, sizeMin: 0.08, sizeMax: 0.2, stretchMin: 1, stretchMax: 2.6, additive: true },
+  SKY: { count: 20, colors: ['#ffffff', '#e0f2fe', '#fef08a'], opacity: 0.16, area: 58, yMin: 1.5, yMax: 6.5, speed: 0.26, sizeMin: 0.12, sizeMax: 0.24, stretchMin: 3, stretchMax: 8 },
+  HELL: { count: 28, colors: ['#facc15', '#fb923c', '#ef4444'], opacity: 0.25, area: 56, yMin: 0.45, yMax: 6.4, speed: 0.48, sizeMin: 0.08, sizeMax: 0.2, stretchMin: 1, stretchMax: 2.4, verticalBias: 0.45, additive: true },
+};
+
+const BiomeAtmosphere: React.FC<{ theme: ThemeName }> = ({ theme }) => {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const tempObject = useMemo(() => new THREE.Object3D(), []);
+  const config = ATMOSPHERE_CONFIGS[theme] ?? ATMOSPHERE_CONFIGS.FOREST;
+  const particles = useMemo<AtmosphereParticle[]>(() => {
+    const rand = createSceneSeededRandom(`biome-atmosphere:${theme}`);
+    const halfArea = config.area / 2;
+    const yRange = config.yMax - config.yMin;
+
+    return Array.from({ length: config.count }, (_, index) => {
+      const angle = rand() * Math.PI * 2;
+      const speed = config.speed * (0.45 + rand() * 0.75);
+      const baseSize = config.sizeMin + rand() * (config.sizeMax - config.sizeMin);
+      const stretch = config.stretchMin + rand() * (config.stretchMax - config.stretchMin);
+      const horizontalStretch = theme === 'SKULL' || theme === 'PYRAMID' || theme === 'SKY';
+
+      return {
+        x: rand() * config.area - halfArea,
+        y: config.yMin + rand() * yRange,
+        z: rand() * config.area - halfArea,
+        vx: Math.cos(angle) * speed,
+        vy: (rand() - 0.5) * speed * 0.35 + (config.verticalBias ?? 0),
+        vz: Math.sin(angle) * speed,
+        scaleX: horizontalStretch ? baseSize * stretch : baseSize,
+        scaleY: horizontalStretch ? baseSize : baseSize * (1 + rand() * 0.35),
+        phase: rand() * Math.PI * 2 + index,
+        color: config.colors[Math.floor(rand() * config.colors.length)],
+      };
+    });
+  }, [config, theme]);
+  const material = useMemo(() => new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: config.opacity,
+    depthWrite: false,
+    vertexColors: true,
+    blending: config.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    toneMapped: false,
+  }), [config.additive, config.opacity]);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    particles.forEach((particle, index) => {
+      mesh.setColorAt(index, new THREE.Color(particle.color));
+    });
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [particles]);
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  useFrame(({ camera, clock }, delta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    const halfArea = config.area / 2;
+    const wrap = (value: number, min: number, max: number) => {
+      const range = max - min;
+      if (value < min) return value + range;
+      if (value > max) return value - range;
+      return value;
+    };
+
+    particles.forEach((particle, index) => {
+      particle.x = wrap(particle.x + particle.vx * delta, -halfArea, halfArea);
+      particle.y = wrap(particle.y + particle.vy * delta, config.yMin, config.yMax);
+      particle.z = wrap(particle.z + particle.vz * delta, -halfArea, halfArea);
+
+      const pulse = 0.78 + Math.sin(clock.elapsedTime * 1.4 + particle.phase) * 0.22;
+      tempObject.position.set(particle.x, particle.y, particle.z);
+      tempObject.quaternion.copy(camera.quaternion);
+      tempObject.scale.set(particle.scaleX * pulse, particle.scaleY * pulse, 1);
+      tempObject.updateMatrix();
+      mesh.setMatrixAt(index, tempObject.matrix);
+    });
+
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[atmosphereParticleGeometry, material, particles.length]}
+      frustumCulled={false}
+      renderOrder={2}
+    />
+  );
+};
+
 const isBattlePresenceMode = (mode: GameMode) =>
   mode === GameMode.BATTLE ||
   mode === GameMode.QUIZ_RESULT ||
@@ -932,6 +1080,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
       {showOverworldScene && (
           <group>
             <PixelGround width={64} height={64} themeId={themeId} mode="OVERWORLD" aiConfig={aiConfig} />
+            <BiomeAtmosphere theme={sceneTheme} />
             <VoxelLandmark type={landmarkType} position={[LANDMARK_POS.x, 0, LANDMARK_POS.z]} />
             <VoxelShop position={[SHOP_POS.x, 0, SHOP_POS.z]} />
             {/* VibeJam Next portal — always present, sends player to the VibeJam webring */}

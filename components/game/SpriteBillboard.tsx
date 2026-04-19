@@ -63,6 +63,7 @@ const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
 const OUTLINE_HEX = '#f8fafc';
 const propPlaneGeometry = new THREE.PlaneGeometry(1, 1);
+const propGroundDiscGeometry = new THREE.CircleGeometry(1, 16);
 
 const bakeAlphaOutline = (ctx: CanvasRenderingContext2D, width: number, height: number, colorHex: string, radius = 2) => {
     const sourceImage = ctx.getImageData(0, 0, width, height);
@@ -884,12 +885,85 @@ export const PropSprite: React.FC<PropSpriteProps> = ({ position, type, scale = 
     return <SpriteBillboard position={position} color="#ffffff" scale={scale} type={type} />;
 };
 
+type PropGroundingStyle = {
+    shadowOpacity: number;
+    shadowScaleX: number;
+    shadowScaleZ: number;
+    glowColor: string;
+    glowOpacity: number;
+    glowScaleX: number;
+    glowScaleZ: number;
+};
+
+const getPropGroundingStyle = (type: string): PropGroundingStyle => {
+    const t = type.toUpperCase();
+    const style: PropGroundingStyle = {
+        shadowOpacity: 0.24,
+        shadowScaleX: 0.34,
+        shadowScaleZ: 0.14,
+        glowColor: '#ffffff',
+        glowOpacity: 0,
+        glowScaleX: 0.42,
+        glowScaleZ: 0.18,
+    };
+
+    if (t.includes('TREE') || t === 'PALM' || t === 'CACTUS') {
+        style.shadowOpacity = 0.3;
+        style.shadowScaleX = 0.42;
+        style.shadowScaleZ = 0.17;
+    } else if (t.includes('ROCK') || t === 'STONE' || t === 'RUIN' || t === 'GRAVE') {
+        style.shadowOpacity = 0.28;
+        style.shadowScaleX = 0.38;
+        style.shadowScaleZ = 0.15;
+    } else if (t.includes('SERVER') || t === 'NEON_SIGN' || t === 'BILLBOARD_RUIN' || t === 'CABLE_POST') {
+        style.shadowOpacity = 0.27;
+        style.shadowScaleX = 0.32;
+        style.shadowScaleZ = 0.13;
+    } else if (t.includes('POOL')) {
+        style.shadowOpacity = 0.16;
+        style.shadowScaleX = 0.44;
+        style.shadowScaleZ = 0.15;
+    }
+
+    if (t.includes('CRYSTAL') || t.includes('SHARD')) {
+        style.glowColor = t.includes('NULL') || t.includes('VOID') ? '#a78bfa' : '#67e8f9';
+        style.glowOpacity = 0.18;
+        style.glowScaleX = 0.38;
+        style.glowScaleZ = 0.16;
+    } else if (t.includes('SERVER') || t === 'NEON_SIGN' || t === 'CABLE_POST') {
+        style.glowColor = t.includes('BURNED') ? '#fb7185' : t.includes('SKY') ? '#7dd3fc' : '#4ade80';
+        style.glowOpacity = 0.14;
+        style.glowScaleX = 0.4;
+        style.glowScaleZ = 0.16;
+    } else if (t.includes('MAGMA') || t.includes('LAVA') || t.includes('EMBER') || t === 'HELL_OBELISK') {
+        style.glowColor = '#fb923c';
+        style.glowOpacity = 0.2;
+        style.glowScaleX = 0.42;
+        style.glowScaleZ = 0.18;
+    } else if (t.includes('VOID') || t.includes('RIFT') || t.includes('STAR')) {
+        style.glowColor = '#a78bfa';
+        style.glowOpacity = 0.15;
+        style.glowScaleX = 0.4;
+        style.glowScaleZ = 0.16;
+    } else if (t.includes('GATE')) {
+        style.glowColor = '#facc15';
+        style.glowOpacity = 0.14;
+        style.glowScaleX = 0.44;
+        style.glowScaleZ = 0.18;
+    }
+
+    return style;
+};
+
 const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchItem[] }> = ({ type, items }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null);
+    const shadowMeshRef = useRef<THREE.InstancedMesh>(null);
+    const glowMeshRef = useRef<THREE.InstancedMesh>(null);
     const lastCameraQuaternion = useRef(new THREE.Quaternion());
     const hasCameraQuaternion = useRef(false);
     const tempObject = useMemo(() => new THREE.Object3D(), []);
     const texture = useMemo(() => generateTexture(type, '#ffffff'), [type]);
+    const grounding = useMemo(() => getPropGroundingStyle(type), [type]);
     const material = useMemo(() => {
         texture.repeat.set(1, 1);
         texture.wrapS = THREE.ClampToEdgeWrapping;
@@ -904,18 +978,54 @@ const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchI
             toneMapped: false,
         });
     }, [texture]);
+    const shadowMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+        color: '#000000',
+        transparent: true,
+        opacity: grounding.shadowOpacity,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+    }), [grounding.shadowOpacity]);
+    const glowMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+        color: grounding.glowColor,
+        transparent: true,
+        opacity: grounding.glowOpacity,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+    }), [grounding.glowColor, grounding.glowOpacity]);
 
-    useEffect(() => () => material.dispose(), [material]);
+    useEffect(() => () => {
+        material.dispose();
+        shadowMaterial.dispose();
+        glowMaterial.dispose();
+    }, [material, shadowMaterial, glowMaterial]);
 
     useFrame(({ camera }) => {
         const mesh = meshRef.current;
-        if (!mesh) return;
+        const shadowMesh = shadowMeshRef.current;
+        const glowMesh = glowMeshRef.current;
+        if (!mesh || !shadowMesh) return;
         if (hasCameraQuaternion.current && lastCameraQuaternion.current.angleTo(camera.quaternion) < 0.0001) return;
         hasCameraQuaternion.current = true;
         lastCameraQuaternion.current.copy(camera.quaternion);
 
         items.forEach((item, index) => {
             const scale = item.scale;
+            tempObject.position.set(item.x, 0.062, item.z);
+            tempObject.rotation.set(-Math.PI / 2, 0, 0);
+            tempObject.scale.set(scale * grounding.shadowScaleX, scale * grounding.shadowScaleZ, 1);
+            tempObject.updateMatrix();
+            shadowMesh.setMatrixAt(index, tempObject.matrix);
+
+            if (glowMesh && grounding.glowOpacity > 0) {
+                tempObject.position.set(item.x, 0.066, item.z);
+                tempObject.rotation.set(-Math.PI / 2, 0, 0);
+                tempObject.scale.set(scale * grounding.glowScaleX, scale * grounding.glowScaleZ, 1);
+                tempObject.updateMatrix();
+                glowMesh.setMatrixAt(index, tempObject.matrix);
+            }
+
             tempObject.position.set(item.x, scale * 0.5, item.z);
             tempObject.quaternion.copy(camera.quaternion);
             tempObject.scale.set(scale, scale, 1);
@@ -923,15 +1033,33 @@ const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchI
             mesh.setMatrixAt(index, tempObject.matrix);
         });
 
+        shadowMesh.instanceMatrix.needsUpdate = true;
+        if (glowMesh && grounding.glowOpacity > 0) glowMesh.instanceMatrix.needsUpdate = true;
         mesh.instanceMatrix.needsUpdate = true;
     });
 
     return (
-        <instancedMesh
-            ref={meshRef}
-            args={[propPlaneGeometry, material, items.length]}
-            frustumCulled={false}
-        />
+        <>
+            <instancedMesh
+                ref={shadowMeshRef}
+                args={[propGroundDiscGeometry, shadowMaterial, items.length]}
+                frustumCulled={false}
+                renderOrder={-2}
+            />
+            {grounding.glowOpacity > 0 && (
+                <instancedMesh
+                    ref={glowMeshRef}
+                    args={[propGroundDiscGeometry, glowMaterial, items.length]}
+                    frustumCulled={false}
+                    renderOrder={-1}
+                />
+            )}
+            <instancedMesh
+                ref={meshRef}
+                args={[propPlaneGeometry, material, items.length]}
+                frustumCulled={false}
+            />
+        </>
     );
 };
 
