@@ -279,55 +279,49 @@ const FirstQuizTutorialPrompt: React.FC<{ phase: Exclude<FirstQuizTutorialPhase,
 
   const halfW = FIRST_QUIZ_TUTORIAL_PANEL.width / 2;
   const halfH = FIRST_QUIZ_TUTORIAL_PANEL.height / 2;
+  const edge = 0.08;
+  const corner = 0.24;
 
   return (
-    <group position={[0, 3.55, 0]}>
+    <group position={[0, 3.5, 0]}>
       <Billboard follow>
         <group>
-          <mesh position={[0.16, -0.16, -0.08]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER}>
+          <mesh position={[0, 0, -0.04]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER}>
             <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width, FIRST_QUIZ_TUTORIAL_PANEL.height]} />
-            <meshBasicMaterial color="#020805" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+            <meshBasicMaterial color="#082012" transparent opacity={0.9} toneMapped={false} depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[0, 0, -0.055]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 1}>
-            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width, FIRST_QUIZ_TUTORIAL_PANEL.height]} />
-            <meshBasicMaterial color="#020805" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+
+          <mesh position={[0, halfH - edge / 2, -0.02]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 1}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width, edge]} />
+            <meshBasicMaterial color="#020805" transparent opacity={0.92} toneMapped={false} depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[0, -0.04, -0.04]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 2}>
-            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width - 0.34, FIRST_QUIZ_TUTORIAL_PANEL.height - 0.34]} />
-            <meshBasicMaterial color="#082012" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          <mesh position={[0, -halfH + edge / 2, -0.02]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 1}>
+            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width, edge]} />
+            <meshBasicMaterial color="#020805" transparent opacity={0.92} toneMapped={false} depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[0, halfH - 0.11, -0.025]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 3}>
-            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width - 0.34, 0.14]} />
-            <meshBasicMaterial color="#fbbf24" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          <mesh position={[-halfW + edge / 2, 0, -0.02]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 1}>
+            <planeGeometry args={[edge, FIRST_QUIZ_TUTORIAL_PANEL.height]} />
+            <meshBasicMaterial color="#020805" transparent opacity={0.92} toneMapped={false} depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[0, -halfH + 0.13, -0.025]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 3}>
-            <planeGeometry args={[FIRST_QUIZ_TUTORIAL_PANEL.width - 0.34, 0.1]} />
-            <meshBasicMaterial color="#4ade80" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+          <mesh position={[halfW - edge / 2, 0, -0.02]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 1}>
+            <planeGeometry args={[edge, FIRST_QUIZ_TUTORIAL_PANEL.height]} />
+            <meshBasicMaterial color="#020805" transparent opacity={0.92} toneMapped={false} depthTest={false} depthWrite={false} />
           </mesh>
+
           {[
-            [-halfW + 0.17, halfH - 0.17, '#4ade80'],
-            [halfW - 0.17, halfH - 0.17, '#4ade80'],
-            [-halfW + 0.17, -halfH + 0.17, '#fbbf24'],
-            [halfW - 0.17, -halfH + 0.17, '#fbbf24'],
-          ].map(([x, y, color], index) => (
-            <mesh key={index} position={[x as number, y as number, -0.01]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 4}>
-              <planeGeometry args={[0.26, 0.26]} />
-              <meshBasicMaterial color={color as string} transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
+            [-halfW + corner / 2, halfH - corner / 2],
+            [halfW - corner / 2, halfH - corner / 2],
+            [-halfW + corner / 2, -halfH + corner / 2],
+            [halfW - corner / 2, -halfH + corner / 2],
+          ].map(([x, y], index) => (
+            <mesh key={index} position={[x, y, -0.005]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 2}>
+              <planeGeometry args={[corner, corner]} />
+              <meshBasicMaterial color="#4ade80" transparent opacity={0.96} toneMapped={false} depthTest={false} depthWrite={false} />
             </mesh>
           ))}
-          <group position={[0, -halfH - 0.18, -0.015]} renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 5}>
-            <mesh position={[0.1, -0.04, -0.03]}>
-              <planeGeometry args={[0.42, 0.26]} />
-              <meshBasicMaterial color="#020805" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
-            </mesh>
-            <mesh rotation={[0, 0, Math.PI / 4]}>
-              <planeGeometry args={[0.34, 0.34]} />
-              <meshBasicMaterial color="#fbbf24" transparent opacity={1} toneMapped={false} depthTest={false} depthWrite={false} />
-            </mesh>
-          </group>
           <Text
             font={firstQuizTutorialFontUrl}
-            fontSize={0.38}
+            fontSize={0.36}
             color="#d8ffd0"
             position={[0, -0.02, 0.03]}
             anchorX="center"
@@ -342,7 +336,7 @@ const FirstQuizTutorialPrompt: React.FC<{ phase: Exclude<FirstQuizTutorialPhase,
             material-opacity={1}
             material-depthTest={false}
             material-depthWrite={false}
-            renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 6}
+            renderOrder={FIRST_QUIZ_TUTORIAL_RENDER_ORDER + 3}
           >
             {displayText}
           </Text>
