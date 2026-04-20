@@ -113,12 +113,16 @@ const PROP_SPRITE_FILE_NAMES = {
 } as const satisfies Record<string, string>;
 
 export const ASSET_PATHS = {
+  video: {
+    finalEnding: assetPath('video/ECO Guardial Ending.mp4'),
+  },
   audio: {
     music: {
       menu: assetPath('audio/music/menu.mp3'),
       battle: assetPath('audio/music/battle.mp3'),
       boss: assetPath('audio/music/boss.mp3'),
       stage: (stageNumber: number) => assetPath(`audio/music/stage_${stageNumber}.mp3`),
+      endingBackground: assetPath('audio/music/ending_background.mp3'),
     },
     gaia: {
       missionStart: assetPath('audio/gaia/mission_start.mp3'),

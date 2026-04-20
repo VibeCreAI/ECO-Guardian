@@ -4,6 +4,8 @@ import { GameMode } from '../../types';
 import { ASSET_PATHS } from '../../assets';
 
 const GAIA_NARRATION_EVENT = 'eco-guardian:gaia-narration';
+export const GAIA_NARRATION_LIFECYCLE_EVENT = 'eco-guardian:gaia-narration-lifecycle';
+export const FINAL_ENDING_NARRATION_KEY = 'gaia:final-ending';
 
 type GaiaNarrationClip = {
   src: string;
@@ -19,6 +21,12 @@ type GaiaNarrationDetail = {
   clips: GaiaNarrationClip[];
 };
 
+type GaiaNarrationLifecycleStatus = 'started' | 'finished' | 'skipped' | 'error';
+
+type GaiaNarrationLifecycleDetail = GaiaNarrationClip & {
+  status: GaiaNarrationLifecycleStatus;
+};
+
 type AudioContextConstructor = typeof AudioContext;
 
 const getAudioContextConstructor = (): AudioContextConstructor | undefined =>
@@ -26,6 +34,25 @@ const getAudioContextConstructor = (): AudioContextConstructor | undefined =>
 
 const normalizeNarrationClips = (clips: GaiaNarrationClipInput[]): GaiaNarrationClip[] =>
   clips.flatMap((clip) => (clip?.src && clip.key ? [{ src: clip.src, key: clip.key }] : []));
+
+const dispatchGaiaNarrationLifecycle = (
+  clip: GaiaNarrationClip,
+  status: GaiaNarrationLifecycleStatus,
+) => {
+  if (clip.key === FINAL_ENDING_NARRATION_KEY) {
+    const store = useGameStore.getState();
+    if (status === 'started') {
+      store.markFinalEndingNarrationStarted();
+    } else {
+      store.markFinalEndingNarrationEnded();
+    }
+  }
+
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<GaiaNarrationLifecycleDetail>(GAIA_NARRATION_LIFECYCLE_EVENT, {
+    detail: { ...clip, status },
+  }));
+};
 
 const clampStageNumber = (stageNumber: number) => Math.min(10, Math.max(1, stageNumber));
 
@@ -60,6 +87,9 @@ export const AudioManager: React.FC = () => {
   const activeStage = useGameStore(s => s.activeStage);
   const activeBattle = useGameStore(s => s.activeBattle);
   const lastGameplayMode = useGameStore(s => s.lastGameplayMode);
+  const finalEndingCinematicPhase = useGameStore(s => s.finalEndingCinematic.phase);
+  const isCinematicActive = finalEndingCinematicPhase !== 'inactive' && finalEndingCinematicPhase !== 'complete';
+  const isCinematicActiveRef = useRef(isCinematicActive);
   const musicMuted = useGameStore(s => s.musicMuted);
   const sfxMuted = useGameStore(s => s.sfxMuted);
   const musicVolume = useGameStore(s => s.musicVolume);
@@ -102,16 +132,31 @@ export const AudioManager: React.FC = () => {
     narrationNodesRef.current = [];
   }, []);
 
-  const stopNarration = useCallback(() => {
+  const stopNarration = useCallback((status: GaiaNarrationLifecycleStatus = 'skipped') => {
     const narration = narrationRef.current;
+    const activeKey = narrationKeyRef.current;
+    const queuedClips = [
+      ...narrationQueueRef.current,
+      ...pendingNarrationQueueRef.current,
+    ];
+
     pendingNarrationQueueRef.current = [];
     narrationQueueRef.current = [];
     narrationKeyRef.current = null;
     disconnectNarrationNodes();
 
+    queuedClips.forEach((clip) => dispatchGaiaNarrationLifecycle(clip, 'skipped'));
+
     if (!narration) {
       applyMusicVolume(false);
       return;
+    }
+
+    if (activeKey) {
+      dispatchGaiaNarrationLifecycle({
+        src: narration.currentSrc || narration.src,
+        key: activeKey,
+      }, status);
     }
 
     narration.pause();
@@ -159,6 +204,10 @@ export const AudioManager: React.FC = () => {
 
     const { sfxMuted, sfxVolume } = useGameStore.getState();
     if (sfxMuted || sfxVolume <= 0) {
+      [
+        ...narrationQueueRef.current,
+        ...pendingNarrationQueueRef.current,
+      ].forEach((clip) => dispatchGaiaNarrationLifecycle(clip, 'skipped'));
       narrationQueueRef.current = [];
       pendingNarrationQueueRef.current = [];
       applyMusicVolume(false);
@@ -195,12 +244,13 @@ export const AudioManager: React.FC = () => {
       disconnectNarrationNodes();
     }
 
-    const cleanup = () => {
+    const cleanup = (status: GaiaNarrationLifecycleStatus) => {
       if (narrationRef.current !== narration) return;
 
       disconnectNarrationNodes();
       narrationRef.current = null;
       narrationKeyRef.current = null;
+      dispatchGaiaNarrationLifecycle(detail, status);
 
       if (
         narrationQueueRef.current.length > 0 &&
@@ -213,12 +263,18 @@ export const AudioManager: React.FC = () => {
       }
     };
 
-    narration.addEventListener('ended', cleanup, { once: true });
-    narration.addEventListener('error', cleanup, { once: true });
+    narration.addEventListener('ended', () => cleanup('finished'), { once: true });
+    narration.addEventListener('error', () => cleanup('error'), { once: true });
 
-    narration.play().catch(() => {
-      cleanup();
-    });
+    narration.play()
+      .then(() => {
+        if (narrationRef.current === narration) {
+          dispatchGaiaNarrationLifecycle(detail, 'started');
+        }
+      })
+      .catch(() => {
+        cleanup('error');
+      });
   }, [applyMusicVolume, connectNarrationEcho, disconnectNarrationNodes]);
 
   playNextNarrationRef.current = playNextNarration;
@@ -228,7 +284,10 @@ export const AudioManager: React.FC = () => {
     if (playableClips.length === 0) return;
 
     const { sfxMuted, sfxVolume } = useGameStore.getState();
-    if (sfxMuted || sfxVolume <= 0) return;
+    if (sfxMuted || sfxVolume <= 0) {
+      playableClips.forEach((clip) => dispatchGaiaNarrationLifecycle(clip, 'skipped'));
+      return;
+    }
 
     const activeKey = narrationKeyRef.current;
     const queuedKeys = new Set([
@@ -256,10 +315,12 @@ export const AudioManager: React.FC = () => {
   
   // Map game state to audio file
   const getTrackForState = () => {
+    if (isCinematicActive) return null;
+
     const isMenuLibrary = mode === GameMode.LIBRARY && previousMode === GameMode.MENU;
 
-    // Priority 1: Menu / Intro / Game Over / Leaderboard
-    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.GAMEOVER || mode === GameMode.LEADERBOARD || isMenuLibrary) {
+    // Priority 1: Menu / Intro / Game Over / Leaderboard / Victory
+    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.GAMEOVER || mode === GameMode.LEADERBOARD || mode === GameMode.VICTORY || isMenuLibrary) {
       return ASSET_PATHS.audio.music.menu;
     }
 
@@ -281,6 +342,11 @@ export const AudioManager: React.FC = () => {
 
   const targetTrack = getTrackForState();
 
+  // Keep cinematic-active ref in sync so event listeners read the latest value
+  useEffect(() => {
+    isCinematicActiveRef.current = isCinematicActive;
+  }, [isCinematicActive]);
+
   // Persistent User Interaction Listener
   // Checks on every click/tap if audio should be playing but isn't
   useEffect(() => {
@@ -291,6 +357,8 @@ export const AudioManager: React.FC = () => {
         pendingNarrationQueueRef.current = [];
         playNextNarrationRef.current();
       }
+
+      if (isCinematicActiveRef.current) return;
 
       const audio = audioRef.current;
       if (audio && !musicMuted && musicVolume > 0 && audio.paused && audio.src) {
@@ -379,7 +447,16 @@ export const AudioManager: React.FC = () => {
   // Handle Track Switching
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !targetTrack) return;
+    if (!audio) return;
+
+    if (!targetTrack) {
+      audio.pause();
+      if (audio.src) {
+        audio.removeAttribute('src');
+        audio.load();
+      }
+      return;
+    }
 
     const playAudio = async () => {
       try {
@@ -388,7 +465,7 @@ export const AudioManager: React.FC = () => {
             audio.src = targetTrack;
             audio.load();
         }
-        
+
         // Try to play if music is enabled AND user has interacted
         if (!musicMuted && musicVolume > 0 && audio.paused && hasInteracted.current) {
             await audio.play();
@@ -407,6 +484,11 @@ export const AudioManager: React.FC = () => {
       const audio = audioRef.current;
       if (!audio) return;
 
+      if (isCinematicActive) {
+          audio.pause();
+          return;
+      }
+
       if (musicMuted || musicVolume <= 0) {
           audio.pause();
       } else {
@@ -416,7 +498,7 @@ export const AudioManager: React.FC = () => {
           }
           applyMusicVolume();
       }
-  }, [applyMusicVolume, musicMuted, musicVolume]);
+  }, [applyMusicVolume, musicMuted, musicVolume, isCinematicActive]);
 
   // Handle Volume adjustments
   useEffect(() => {

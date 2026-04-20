@@ -83,6 +83,47 @@ type SubmitScoreResult = {
   error?: string;
 };
 
+export type FinalEndingCinematicPhase =
+  | 'inactive'
+  | 'waiting-for-narration'
+  | 'playing'
+  | 'video-ended'
+  | 'narration-ended'
+  | 'complete';
+
+export type FinalEndingCinematicState = {
+  phase: FinalEndingCinematicPhase;
+  narrationStarted: boolean;
+  narrationEnded: boolean;
+  videoEnded: boolean;
+};
+
+const createFinalEndingCinematicState = (): FinalEndingCinematicState => ({
+  phase: 'inactive',
+  narrationStarted: false,
+  narrationEnded: false,
+  videoEnded: false,
+});
+
+const createPendingFinalEndingCinematicState = (): FinalEndingCinematicState => ({
+  phase: 'waiting-for-narration',
+  narrationStarted: false,
+  narrationEnded: false,
+  videoEnded: false,
+});
+
+const getFinalEndingCinematicPhase = (
+  narrationStarted: boolean,
+  narrationEnded: boolean,
+  videoEnded: boolean,
+): FinalEndingCinematicPhase => {
+  if (narrationEnded && videoEnded) return 'complete';
+  if (narrationEnded) return 'narration-ended';
+  if (videoEnded) return 'video-ended';
+  if (narrationStarted) return 'playing';
+  return 'waiting-for-narration';
+};
+
 const readApiError = async (response: Response): Promise<string> => {
   try {
     const data = await response.json();
@@ -106,6 +147,7 @@ interface GameState {
   portals: Portal[];
   activeBattle: ActiveBattleState;
   battleWon: boolean;
+  finalEndingCinematic: FinalEndingCinematicState;
   
   quizResult: {
     correct: boolean;
@@ -246,6 +288,11 @@ interface GameState {
 
   setDashCooldown: (time: number) => void;
   setBattleWon: (won: boolean) => void;
+  prepareFinalEndingCinematic: () => void;
+  markFinalEndingNarrationStarted: () => void;
+  markFinalEndingNarrationEnded: () => void;
+  markFinalEndingVideoEnded: () => void;
+  resetFinalEndingCinematic: () => void;
   
   setBossStats: (stats: { currentHp: number; maxHp: number; name: string } | null) => void;
   
@@ -259,6 +306,7 @@ interface GameState {
   preloadGameFromPortal: (refUrl: string | null) => void;
   startGame: () => void;
   debugJumpToStage: (stage: number) => Promise<void>;
+  debugEnterEndingCinematic: () => Promise<void>;
   setHighlightedPortal: (id: string | null) => void;
 }
 
@@ -627,6 +675,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
   battleWon: false,
+  finalEndingCinematic: createFinalEndingCinematicState(),
   bossStats: null,
   bossNarrativeOpen: false, 
   quizResult: null,
@@ -953,7 +1002,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   onGroupStageAdvance: (newStage, seed) => {
     const state = get();
     if (newStage <= state.activeStage) return;
-    set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
+    set({
+      mode: GameMode.LOADING_LEVEL,
+      isStageReady: false,
+      isOverworldSceneReady: false,
+      finalEndingCinematic: createFinalEndingCinematicState(),
+    });
     const stageSeed = Number.isFinite(seed) ? seed ?? null : null;
     const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial', stageSeed);
     useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey).then(() => {
@@ -968,6 +1022,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         isStageReady: true,
         isOverworldSceneReady: false,
         battleWon: false,
+        finalEndingCinematic: createFinalEndingCinematicState(),
         bossStats: null,
         bossNarrativeOpen: false,
         queuedLevelUp: false,
@@ -1054,7 +1109,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
-  setMode: (mode) => set((state) => ({ mode, previousMode: state.mode })),
+  setMode: (mode) => set((state) => ({
+    mode,
+    previousMode: state.mode,
+    ...(mode === GameMode.VICTORY ? {} : { finalEndingCinematic: createFinalEndingCinematicState() }),
+  })),
   
   togglePause: () => set((state) => {
       if (state.mode === GameMode.OVERWORLD || state.mode === GameMode.BATTLE) {
@@ -1147,6 +1206,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           worldPosition: getOverworldSpawn(),
           savedOverworldPosition: getOverworldSpawn(),
           battleWon: false,
+          finalEndingCinematic: createFinalEndingCinematicState(),
           bossStats: null,
           bossNarrativeOpen: false,
           dashCooldownCurrent: 0,
@@ -1198,6 +1258,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           worldPosition: getOverworldSpawn(),
           savedOverworldPosition: getOverworldSpawn(),
           battleWon: false,
+          finalEndingCinematic: createFinalEndingCinematicState(),
           bossStats: null,
           bossNarrativeOpen: false,
           dashCooldownCurrent: 0,
@@ -1236,9 +1297,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   startGame: () => {
       const state = get();
       if (state.isStageReady) {
-          set({ mode: GameMode.OVERWORLD, lastGameplayMode: GameMode.OVERWORLD });
+          set({
+            mode: GameMode.OVERWORLD,
+            lastGameplayMode: GameMode.OVERWORLD,
+            finalEndingCinematic: createFinalEndingCinematicState(),
+          });
       } else {
-          set({ mode: GameMode.LOADING_LEVEL, lastGameplayMode: GameMode.OVERWORLD });
+          set({
+            mode: GameMode.LOADING_LEVEL,
+            lastGameplayMode: GameMode.OVERWORLD,
+            finalEndingCinematic: createFinalEndingCinematicState(),
+          });
       }
   },
 
@@ -1259,6 +1328,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           isOverworldSceneReady: false,
           playMode: 'solo',
           highlightedPortalId: null,
+          finalEndingCinematic: createFinalEndingCinematicState(),
       });
 
       await useAiDirectorStore.getState().generateNextStage(state.playerStats, targetStage - 1, 'Stage debug preview', `debug-stage-${targetStage}`);
@@ -1268,6 +1338,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           portals: generatePortals(targetStage),
           activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
           battleWon: false,
+          finalEndingCinematic: createFinalEndingCinematicState(),
           bossStats: null,
           bossNarrativeOpen: false,
           dashCooldownCurrent: 0,
@@ -1299,6 +1370,17 @@ export const useGameStore = create<GameState>((set, get) => ({
               stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
           },
       }));
+  },
+
+  debugEnterEndingCinematic: async () => {
+      if (!import.meta.env.DEV) return;
+      await get().debugJumpToStage(10);
+      set({
+          mode: GameMode.VICTORY,
+          lastGameplayMode: GameMode.VICTORY,
+          activeBattle: { portalId: 'debug_boss', level: 10, isBoss: true, isBonus: false, lostStreak: 0 },
+          finalEndingCinematic: createPendingFinalEndingCinematicState(),
+      });
   },
 
   enterBattle: (portal) => {
@@ -1410,6 +1492,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             lostStreak: lostStreakForBattle
         },
         battleWon: false,
+        finalEndingCinematic: createFinalEndingCinematicState(),
         bossStats: null,
         quizResult: quizResult,
         queuedLevelUp: false,
@@ -1889,6 +1972,63 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   setBattleWon: (won) => set({ battleWon: won }),
 
+  prepareFinalEndingCinematic: () => set({
+    finalEndingCinematic: createPendingFinalEndingCinematicState(),
+  }),
+
+  markFinalEndingNarrationStarted: () => set((state) => {
+    if (state.finalEndingCinematic.phase === 'inactive' || state.finalEndingCinematic.phase === 'complete') return {};
+
+    const narrationStarted = true;
+    const narrationEnded = state.finalEndingCinematic.narrationEnded;
+    const videoEnded = state.finalEndingCinematic.videoEnded;
+
+    return {
+      finalEndingCinematic: {
+        ...state.finalEndingCinematic,
+        narrationStarted,
+        phase: getFinalEndingCinematicPhase(narrationStarted, narrationEnded, videoEnded),
+      },
+    };
+  }),
+
+  markFinalEndingNarrationEnded: () => set((state) => {
+    if (state.finalEndingCinematic.phase === 'inactive' || state.finalEndingCinematic.phase === 'complete') return {};
+
+    const narrationStarted = true;
+    const narrationEnded = true;
+    const videoEnded = state.finalEndingCinematic.videoEnded;
+
+    return {
+      finalEndingCinematic: {
+        ...state.finalEndingCinematic,
+        narrationStarted,
+        narrationEnded,
+        phase: getFinalEndingCinematicPhase(narrationStarted, narrationEnded, videoEnded),
+      },
+    };
+  }),
+
+  markFinalEndingVideoEnded: () => set((state) => {
+    if (state.finalEndingCinematic.phase === 'inactive' || state.finalEndingCinematic.phase === 'complete') return {};
+
+    const narrationStarted = state.finalEndingCinematic.narrationStarted;
+    const narrationEnded = state.finalEndingCinematic.narrationEnded;
+    const videoEnded = true;
+
+    return {
+      finalEndingCinematic: {
+        ...state.finalEndingCinematic,
+        videoEnded,
+        phase: getFinalEndingCinematicPhase(narrationStarted, narrationEnded, videoEnded),
+      },
+    };
+  }),
+
+  resetFinalEndingCinematic: () => set({
+    finalEndingCinematic: createFinalEndingCinematicState(),
+  }),
+
   setBossStats: (stats) => set({ bossStats: stats }),
 
   completePortal: (portalId) => set((state) => {
@@ -1976,6 +2116,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             mode: GameMode.LOADING_LEVEL,
             isStageReady: false,
             isOverworldSceneReady: false,
+            finalEndingCinematic: createFinalEndingCinematicState(),
             multiplayer: {
               ...s.multiplayer,
               guideMessage: 'Waiting for group stage sync...',
@@ -2008,7 +2149,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       saveMetaStats(state.playerStats);
-      set({ mode: GameMode.LOADING_LEVEL, isStageReady: false, isOverworldSceneReady: false });
+      set({
+        mode: GameMode.LOADING_LEVEL,
+        isStageReady: false,
+        isOverworldSceneReady: false,
+        finalEndingCinematic: createFinalEndingCinematicState(),
+      });
       
       const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial', stageSeed);
       useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey).then(() => {
@@ -2023,6 +2169,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             isStageReady: true,
             isOverworldSceneReady: false,
             battleWon: false,
+            finalEndingCinematic: createFinalEndingCinematicState(),
             bossStats: null,
             bossNarrativeOpen: false,
             queuedLevelUp: false,
@@ -2060,6 +2207,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       portals: generatePortals(1),
       activeBattle: { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
       battleWon: false,
+      finalEndingCinematic: createFinalEndingCinematicState(),
       bossStats: null,
       bossNarrativeOpen: false,
       dashCooldownCurrent: 0,

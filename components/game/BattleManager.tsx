@@ -12,7 +12,7 @@ import { ASSET_PATHS } from '../../assets';
 import * as THREE from 'three';
 import { QuestArrow } from './QuestArrow';
 import { getEnemyCombatProfile, isKnockbackResistantEnemyType, isLargeEnemyType, STAGE_ENEMY_POOLS, HORDE_MELEE_TYPES } from './enemyDrawing';
-import { requestGaiaNarration } from './AudioManager';
+import { FINAL_ENDING_NARRATION_KEY, requestGaiaNarration } from './AudioManager';
 
 interface BattleManagerProps {
   playerPosition: THREE.Vector3;
@@ -369,6 +369,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const openChest = useGameStore(s => s.openChest);
   const gainXp = useGameStore(s => s.gainXp);
   const showQueuedLevelUp = useGameStore(s => s.showQueuedLevelUp);
+  const prepareFinalEndingCinematic = useGameStore(s => s.prepareFinalEndingCinematic);
   const aiConfig = useAiDirectorStore(state => state.currentConfig);
   
   const enemiesRef = useRef<Enemy[]>([]);
@@ -435,7 +436,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
 
       const stageNumber = Math.min(10, Math.max(1, activeStage));
       if (stageNumber >= 10) {
-          requestGaiaNarration(ASSET_PATHS.audio.gaia.finalEnding, 'gaia:final-ending');
+          prepareFinalEndingCinematic();
+          requestGaiaNarration(ASSET_PATHS.audio.gaia.finalEnding, FINAL_ENDING_NARRATION_KEY);
           return;
       }
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, useGameStore } from '../../store/gameStore';
+import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, type FinalEndingCinematicState, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
 import { GameMode, HighScore, UpgradeOption, Vector2 } from '../../types';
 import { useModalKeyboard } from '../../hooks/useModalKeyboard';
@@ -19,6 +19,104 @@ interface UIOverlayProps {
   onDash: () => void;
   isMobile: boolean;
 }
+
+interface FinalEndingCinematicOverlayProps {
+    cinematic: FinalEndingCinematicState;
+    onVideoEnded: () => void;
+}
+
+const FinalEndingCinematicOverlay: React.FC<FinalEndingCinematicOverlayProps> = ({ cinematic, onVideoEnded }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+    const videoSettledRef = useRef(false);
+    const narrationEndedRef = useRef(cinematic.narrationEnded);
+    const isLoopingRef = useRef(false);
+    const shouldPlayVideo = cinematic.narrationStarted || cinematic.narrationEnded;
+
+    // Start background music at the same moment the video starts (narration started)
+    useEffect(() => {
+        if (!shouldPlayVideo) return;
+        const audio = new Audio(ASSET_PATHS.audio.music.endingBackground);
+        audio.loop = false;
+        audio.volume = 0.35;
+        bgMusicRef.current = audio;
+        void audio.play().catch(() => {});
+        return () => {
+            audio.pause();
+            audio.src = '';
+            bgMusicRef.current = null;
+        };
+    }, [shouldPlayVideo]);
+
+    useEffect(() => {
+        videoSettledRef.current = cinematic.videoEnded;
+    }, [cinematic.videoEnded]);
+
+    useEffect(() => {
+        narrationEndedRef.current = cinematic.narrationEnded;
+    }, [cinematic.narrationEnded]);
+
+    const handleVideoComplete = React.useCallback(() => {
+        if (videoSettledRef.current) return;
+        videoSettledRef.current = true;
+        onVideoEnded();
+    }, [onVideoEnded]);
+
+    // Once narration ends while looping the tail, stop and finalize
+    useEffect(() => {
+        if (!cinematic.narrationEnded || !isLoopingRef.current) return;
+        const video = videoRef.current;
+        if (video) video.pause();
+        handleVideoComplete();
+    }, [cinematic.narrationEnded, handleVideoComplete]);
+
+    const handleVideoEnded = React.useCallback(() => {
+        if (narrationEndedRef.current) {
+            handleVideoComplete();
+            return;
+        }
+        // Narration still playing — loop the last second of video
+        isLoopingRef.current = true;
+        const video = videoRef.current;
+        if (!video) return;
+        video.currentTime = Math.max(0, video.duration - 0.5);
+        void video.play();
+    }, [handleVideoComplete]);
+
+    useEffect(() => {
+        if (!shouldPlayVideo || cinematic.videoEnded) return;
+
+        const video = videoRef.current;
+        if (!video) return;
+
+        video.loop = false;
+        video.muted = true;
+        video.playbackRate = 0.8;
+        const playPromise = video.play();
+        if (playPromise) {
+            playPromise.catch(handleVideoComplete);
+        }
+    }, [cinematic.videoEnded, handleVideoComplete, shouldPlayVideo]);
+
+    return (
+        <div className="absolute inset-0 z-[120] bg-black/80 flex items-center justify-center pointer-events-auto">
+            {shouldPlayVideo && (
+                <video
+                    ref={videoRef}
+                    src={ASSET_PATHS.video.finalEnding}
+                    className="w-full max-w-[1280px] max-h-[720px] aspect-video object-contain bg-black shadow-[0_0_60px_rgba(0,0,0,0.9)]"
+                    autoPlay
+                    muted
+                    playsInline
+                    preload="auto"
+                    onEnded={handleVideoEnded}
+                    onError={handleVideoComplete}
+                    aria-label="ECO Guardian ending cinematic"
+                />
+            )}
+        </div>
+    );
+};
 
 const MenuHero = () => {
     const [frame, setFrame] = useState(0);
@@ -156,7 +254,7 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore(useShallow((s) => ({
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore(useShallow((s) => ({
     mode: s.mode,
     playerStats: s.playerStats,
     dashCooldownCurrent: s.dashCooldownCurrent,
@@ -167,6 +265,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     worldPosition: s.worldPosition,
     portals: s.portals,
     battleWon: s.battleWon,
+    finalEndingCinematic: s.finalEndingCinematic,
+    markFinalEndingVideoEnded: s.markFinalEndingVideoEnded,
     activeStage: s.activeStage,
     highScores: s.highScores,
     submitScore: s.submitScore,
@@ -656,6 +756,25 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
       </div>
     );
   };
+
+  const isFinalEndingCinematicVisible =
+      (mode === GameMode.BATTLE || mode === GameMode.VICTORY) &&
+      finalEndingCinematic.phase !== 'inactive' &&
+      (finalEndingCinematic.phase !== 'complete' || mode !== GameMode.VICTORY) &&
+      (
+          mode === GameMode.VICTORY ||
+          finalEndingCinematic.narrationStarted ||
+          finalEndingCinematic.narrationEnded
+      );
+
+  if (isFinalEndingCinematicVisible) {
+      return (
+          <FinalEndingCinematicOverlay
+              cinematic={finalEndingCinematic}
+              onVideoEnded={markFinalEndingVideoEnded}
+          />
+      );
+  }
 
   // --- VICTORY SCREEN (NEW) ---
   if (mode === GameMode.VICTORY) {
@@ -2006,4 +2125,3 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     </div>
   );
 };
-

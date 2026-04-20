@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { ASSET_PATHS } from '../../assets';
+import { FINAL_ENDING_NARRATION_KEY, requestGaiaNarration } from '../game/AudioManager';
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
 
@@ -9,8 +11,10 @@ const STAGE_DEBUG_ALLOWED = import.meta.env.DEV;
 export const StageDebugPanel: React.FC = () => {
   const [enabled, setEnabled] = useState(false);
   const [pendingStage, setPendingStage] = useState<number | null>(null);
+  const [loadingEnding, setLoadingEnding] = useState(false);
   const activeStage = useGameStore((state) => state.activeStage);
   const debugJumpToStage = useGameStore((state) => state.debugJumpToStage);
+  const debugEnterEndingCinematic = useGameStore((state) => state.debugEnterEndingCinematic);
   const currentConfig = useAiDirectorStore((state) => state.currentConfig);
   const isGenerating = useAiDirectorStore((state) => state.isGenerating);
 
@@ -35,6 +39,18 @@ export const StageDebugPanel: React.FC = () => {
     }
   };
 
+  const triggerEndingScene = async () => {
+    setLoadingEnding(true);
+    try {
+      await debugEnterEndingCinematic();
+      requestGaiaNarration(ASSET_PATHS.audio.gaia.finalEnding, FINAL_ENDING_NARRATION_KEY);
+    } finally {
+      setLoadingEnding(false);
+    }
+  };
+
+  const isBusy = pendingStage !== null || isGenerating || loadingEnding;
+
   return (
     <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] left-1/2 z-[120] -translate-x-1/2 pointer-events-auto select-none">
       <div className="ui-panel border-2 border-cyan-400 bg-black/85 px-2 py-2 shadow-[0_0_0_2px_#000]">
@@ -53,7 +69,7 @@ export const StageDebugPanel: React.FC = () => {
                 key={stage}
                 type="button"
                 onClick={() => void jumpToStage(stage)}
-                disabled={pendingStage !== null || isGenerating}
+                disabled={isBusy}
                 className={`min-w-8 px-2 py-1 border-2 border-black text-[10px] font-black leading-none ${
                   isActive
                     ? 'bg-lime-400 text-black'
@@ -65,6 +81,17 @@ export const StageDebugPanel: React.FC = () => {
               </button>
             );
           })}
+        </div>
+        <div className="mt-1">
+          <button
+            type="button"
+            onClick={() => void triggerEndingScene()}
+            disabled={isBusy}
+            className="w-full px-2 py-1 border-2 border-black text-[10px] font-black leading-none bg-yellow-500 text-black hover:bg-yellow-300 disabled:opacity-60 disabled:cursor-wait"
+            title="Jump to stage 10 and trigger the full ending cinematic"
+          >
+            {loadingEnding ? '...' : 'ENDING SCENE'}
+          </button>
         </div>
       </div>
     </div>
