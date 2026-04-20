@@ -221,6 +221,7 @@ export interface Enemy {
   teleportState?: 'IDLE' | 'TELEGRAPH' | 'FADEOUT' | 'FADEIN';
   teleportTimer?: number;
   orbitDirection?: 1 | -1;
+  isHordeMob?: boolean;
 }
 
 export interface Projectile {

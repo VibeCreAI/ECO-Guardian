@@ -43,6 +43,7 @@ export const FAST_ENEMY_TYPES = flattenStageSlice(0, 2);
 export const MEDIUM_ENEMY_TYPES = flattenStageSlice(2, 4);
 export const TANK_ENEMY_TYPES = flattenStageSlice(4, 6);
 export const RANGED_ENEMY_TYPES = STAGE_ENEMY_POOLS.flatMap(stage => [stage[0], stage[2]]) as EnemyMobType[];
+export const HORDE_MELEE_TYPES = STAGE_ENEMY_POOLS.flatMap(stage => [stage[1], stage[3]]) as EnemyMobType[];
 export const LARGE_ENEMY_TYPES = [...TANK_ENEMY_TYPES];
 export const KNOCKBACK_RESISTANT_ENEMY_TYPES = [...TANK_ENEMY_TYPES];
 export const GHOST_ENEMY_TYPES = [

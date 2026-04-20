@@ -11,7 +11,7 @@ import { WEAPONS_DATA } from '../../constants';
 import { ASSET_PATHS } from '../../assets';
 import * as THREE from 'three';
 import { QuestArrow } from './QuestArrow';
-import { getEnemyCombatProfile, isKnockbackResistantEnemyType, isLargeEnemyType, STAGE_ENEMY_POOLS } from './enemyDrawing';
+import { getEnemyCombatProfile, isKnockbackResistantEnemyType, isLargeEnemyType, STAGE_ENEMY_POOLS, HORDE_MELEE_TYPES } from './enemyDrawing';
 import { requestGaiaNarration } from './AudioManager';
 
 interface BattleManagerProps {
@@ -408,6 +408,16 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const lootCollected = useRef(false); 
   
   const enemiesToSpawn = 10 + (battleDifficultyRef.current * 3);
+
+  const HORDE_EXTRA_COUNT = Math.min(6 + (activeStage - 1) * 3, 30);
+  const HORDE_HP_MULT = 0.45;
+  const HORDE_XP_MULT = 0.5;
+  const isHordeBattle =
+    !activeBattle.isBoss &&
+    Boolean(activeBattle.portalId) &&
+    activeBattle.portalId.includes('_r2');
+  const totalEnemiesToSpawn = enemiesToSpawn + (isHordeBattle ? HORDE_EXTRA_COUNT : 0);
+
   const weaponTimers = useRef({ magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 });
   
   const isPaused = (mode as any) === GameMode.REWARD || (mode as any) === GameMode.CHEST_REWARD || mode === GameMode.LOADING_LEVEL || mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || isQuizOpen || isImpactOpen;
@@ -491,9 +501,9 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                enemiesRef.current = enemiesRef.current.filter(en => en.id !== e.id); setRenderEnemies([...enemiesRef.current]);
            }
            
-           const stageXpMult = 1.0 + (activeStage * 0.5); 
-           let baseXp = e.type === 'BOSS' ? 1500 : 40; 
-           baseXp = Math.floor(baseXp * stageXpMult); 
+           const stageXpMult = 1.0 + (activeStage * 0.5);
+           let baseXp = e.type === 'BOSS' ? 1500 : 40;
+           baseXp = Math.floor(baseXp * stageXpMult * (e.isHordeMob ? HORDE_XP_MULT : 1));
            gainXp(baseXp);
            
            const co2Value = e.type === 'BOSS' ? 100 : Math.floor(Math.random() * 3) + 1;
@@ -545,12 +555,19 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
      setRenderEnemies([...enemiesRef.current]);
   };
 
-  const spawnEnemy = () => {
+  const spawnEnemy = (hordeMob = false) => {
     const angle = Math.random() * Math.PI * 2;
-    const r = 24; 
+    const r = 24;
     let type: Enemy['type'] = STAGE_ENEMY_POOLS[0][0];
-    
-    if (aiConfig && aiConfig.enemies.spawnPool && aiConfig.enemies.spawnPool.length > 0) {
+
+    if (hordeMob) {
+        const stageIdx = Math.max(0, activeStage - 1);
+        const stagePool = HORDE_MELEE_TYPES.filter(t =>
+            (STAGE_ENEMY_POOLS[stageIdx] as readonly string[]).includes(t)
+        );
+        const hordePool = stagePool.length > 0 ? stagePool : HORDE_MELEE_TYPES;
+        type = hordePool[Math.floor(Math.random() * hordePool.length)] as any;
+    } else if (aiConfig && aiConfig.enemies.spawnPool && aiConfig.enemies.spawnPool.length > 0) {
         const pool = aiConfig.enemies.spawnPool;
         type = pool[Math.floor(Math.random() * pool.length)] as any;
     } else {
@@ -581,14 +598,15 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         attackRange = profile.attackRange;
     }
 
-    const hp = baseHp * hpMult * hpMod * enemyHpMultiplier;
+    const hp = baseHp * hpMult * hpMod * enemyHpMultiplier * (hordeMob ? HORDE_HP_MULT : 1);
 
     enemiesRef.current.push({
         id: Math.random().toString(), x: Math.cos(angle) * r, z: Math.sin(angle) * r,
-        hp, maxHp: hp, 
-        type: type, speed: speed, attackRange: attackRange, 
+        hp, maxHp: hp,
+        type: type, speed: speed, attackRange: attackRange,
         damage: baseDmg * dmgMult * damageMod, attackCooldown: 0, dashCooldown: 0, facing: 1,
-        knockbackX: 0, knockbackZ: 0
+        knockbackX: 0, knockbackZ: 0,
+        isHordeMob: hordeMob,
     });
   };
 
@@ -807,10 +825,12 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         let densityMod = 1.0;
         if (aiConfig) densityMod = aiConfig.enemies.densityMultiplier;
         const spawnDelay = Math.max(0.3, (1.5 - (activeStage * 0.1) - (battleDifficultyRef.current * 0.05)) / densityMod);
-        if (enemiesRef.current.length + enemiesDefeated.current < enemiesToSpawn && spawnTimer.current > spawnDelay) {
-          spawnTimer.current = 0; spawnEnemy(); enemiesChanged = true;
+        if (enemiesRef.current.length + enemiesDefeated.current < totalEnemiesToSpawn && spawnTimer.current > spawnDelay) {
+          spawnTimer.current = 0;
+          const isHordeSpawn = isHordeBattle && (enemiesRef.current.length + enemiesDefeated.current >= enemiesToSpawn);
+          spawnEnemy(isHordeSpawn); enemiesChanged = true;
         }
-        if (enemiesDefeated.current >= enemiesToSpawn && enemiesRef.current.length === 0) { winBattle(); return; }
+        if (enemiesDefeated.current >= totalEnemiesToSpawn && enemiesRef.current.length === 0) { winBattle(); return; }
     }
 
     const poisonClouds = projectilesRef.current.filter(p => isVariant(p, 'POISON_CLOUD') || isVariant(p, 'PLAGUE_SPREADER'));
