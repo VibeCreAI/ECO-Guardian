@@ -151,6 +151,8 @@ export const ASSET_PATHS = {
       upgradeSelect: assetPath('audio/sfx/upgrade_select.mp3'),
       chestReward: assetPath('audio/sfx/chest_reward.mp3'),
       bossDefeat: assetPath('audio/sfx/boss_defeat.mp3'),
+      dashPlayer: assetPath('audio/sfx/dash_player.mp3'),
+      dashEnemy: assetPath('audio/sfx/dash_enemy.mp3'),
     },
   },
   images: {

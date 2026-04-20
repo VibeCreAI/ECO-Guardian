@@ -1028,6 +1028,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                             enemy.dashTime = 1.4; // 0.6 telegraph + 0.8 lunge
                             enemy.dashCooldown = 6.0;
                             enemy.dashVector = { x: dx / dist, z: dz / dist };
+                            requestSfx('dash_enemy');
                         }
                     }
                 }
@@ -1099,6 +1100,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                                  enemy.dashTime = 1.0;
                                  enemy.dashCooldown = Math.max(4.0, 9.0 - (activeStage * 0.5));
                                  enemy.dashVector = { x: nx, z: nz };
+                                 requestSfx('dash_enemy');
                              } else {
                                  // Re-try sooner instead of sitting on full cooldown
                                  enemy.dashCooldown = 1.5;
@@ -1233,6 +1235,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                         enemy.dashTime = 0.7;
                         enemy.dashCooldown = 3.5;
                         enemy.dashVector = { x: dx/distToPlayer, z: dz/distToPlayer };
+                        requestSfx('dash_enemy');
                     }
                 }
             }

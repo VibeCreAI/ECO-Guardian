@@ -17,7 +17,9 @@ export type SfxKey =
   | 'level_up'
   | 'upgrade_select'
   | 'chest_reward'
-  | 'boss_defeat';
+  | 'boss_defeat'
+  | 'dash_player'
+  | 'dash_enemy';
 
 const SFX_SOURCES: Record<SfxKey, string> = {
   hit_enemy: ASSET_PATHS.audio.sfx.hitEnemy,
@@ -28,6 +30,8 @@ const SFX_SOURCES: Record<SfxKey, string> = {
   upgrade_select: ASSET_PATHS.audio.sfx.upgradeSelect,
   chest_reward: ASSET_PATHS.audio.sfx.chestReward,
   boss_defeat: ASSET_PATHS.audio.sfx.bossDefeat,
+  dash_player: ASSET_PATHS.audio.sfx.dashPlayer,
+  dash_enemy: ASSET_PATHS.audio.sfx.dashEnemy,
 };
 
 // Min interval (ms) between repeated plays of the same key — prevents machine-gun sound
@@ -41,6 +45,8 @@ const SFX_MIN_INTERVAL_MS: Record<SfxKey, number> = {
   upgrade_select: 100,
   chest_reward: 200,
   boss_defeat: 500,
+  dash_player: 100,
+  dash_enemy: 80,
 };
 
 const SFX_POOL_SIZE = 4;
@@ -295,7 +301,7 @@ export const AudioManager: React.FC = () => {
 
     const narration = new Audio(detail.src);
     narration.preload = 'auto';
-    narration.volume = 0.9 * sfxVolume;
+    narration.volume = Math.min(1, 1.0 * sfxVolume);
     narrationRef.current = narration;
     narrationKeyRef.current = detail.key;
     applyMusicVolume(true);
@@ -529,7 +535,7 @@ export const AudioManager: React.FC = () => {
 
   useEffect(() => {
     if (narrationRef.current && !sfxMuted) {
-      narrationRef.current.volume = 0.9 * sfxVolume;
+      narrationRef.current.volume = Math.min(1, 1.0 * sfxVolume);
     }
   }, [sfxMuted, sfxVolume]);
 
