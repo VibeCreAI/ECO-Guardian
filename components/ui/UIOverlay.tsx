@@ -12,7 +12,7 @@ import { ShopModal } from './ShopModal';
 import { WEAPONS_DATA, EVOLUTION_RECIPES, PASSIVES_DATA } from '../../constants';
 import { ASSET_PATHS, preloadStartupAssets } from '../../assets';
 import { PortalVoteBadge } from './PortalVoteBadge';
-import { requestGaiaNarration } from '../game/AudioManager';
+import { requestGaiaNarration, requestSfx } from '../game/AudioManager';
 
 interface UIOverlayProps {
   onJoystickMove: (vector: Vector2) => void;
@@ -962,7 +962,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                               <button
                                   key={option.id}
                                   data-modal-btn=""
-                                  onClick={() => selectUpgrade(option)}
+                                  onClick={() => { requestSfx('upgrade_select'); selectUpgrade(option); }}
                                   className={`relative ui-card ${cardClass} p-4 transition-all group flex flex-col items-start text-left gap-2 h-full`}
                               >
                                   {isRecommended && (
@@ -1083,7 +1083,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                   <button
                       data-modal-btn=""
                       autoFocus
-                      onClick={claimChestReward}
+                      onClick={() => { requestSfx('chest_reward'); claimChestReward(); }}
                       className="w-full ui-button ui-button-warning py-4 font-bold text-xl z-10"
                   >
                       CLAIM LOOT

@@ -12,7 +12,7 @@ import { ASSET_PATHS } from '../../assets';
 import * as THREE from 'three';
 import { QuestArrow } from './QuestArrow';
 import { getEnemyCombatProfile, isKnockbackResistantEnemyType, isLargeEnemyType, STAGE_ENEMY_POOLS, HORDE_MELEE_TYPES } from './enemyDrawing';
-import { FINAL_ENDING_NARRATION_KEY, requestGaiaNarration } from './AudioManager';
+import { FINAL_ENDING_NARRATION_KEY, requestGaiaNarration, requestSfx } from './AudioManager';
 
 interface BattleManagerProps {
   playerPosition: THREE.Vector3;
@@ -471,9 +471,10 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
        // Invulnerable during fade out/in of teleport
        if (e.type === 'BOSS' && e.teleportState && e.teleportState !== 'IDLE' && e.teleportState !== 'TELEGRAPH') return;
 
-       e.hp -= amount; 
-       e.lastHit = currentTime; 
+       e.hp -= amount;
+       e.lastHit = currentTime;
        recordDamage(amount);
+       requestSfx('hit_enemy', { pitchJitter: true, volume: 0.35 });
 
        // --- KNOCKBACK LOGIC ---
        if (knockbackBase > 0) {
@@ -493,24 +494,27 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
            e.knockbackZ = (e.knockbackZ || 0) + (dz / len) * effectiveForce * 5;
        }
 
-       if (e.hp <= 0) { 
+       if (e.hp <= 0) {
            if (e.type === 'BOSS') {
                visualEffectsRef.current.push({ id: `boss_death_${Math.random()}`, x: e.x, z: e.z, life: 3.5, type: 'BOSS_DEATH' });
                visualEffectsRef.current = visualEffectsRef.current.filter(ef => ef.type !== 'THUNDER');
                setRenderEffects([...visualEffectsRef.current]);
                bossDeathTimer.current = 3.5; projectilesRef.current = []; setRenderProjectiles([]);
+               requestSfx('boss_defeat');
                requestBossDefeatNarration();
                enemiesRef.current = enemiesRef.current.filter(en => en.id !== e.id); setRenderEnemies([...enemiesRef.current]);
+           } else {
+               requestSfx('die_enemy', { pitchJitter: true, volume: 0.5 });
            }
-           
+
            const stageXpMult = 1.0 + (activeStage * 0.5);
            let baseXp = e.type === 'BOSS' ? 1500 : 40;
            baseXp = Math.floor(baseXp * stageXpMult * (e.isHordeMob ? HORDE_XP_MULT : 1));
            gainXp(baseXp);
-           
+
            const co2Value = e.type === 'BOSS' ? 100 : Math.floor(Math.random() * 3) + 1;
            spawnCo2Orb(e.x, e.z, co2Value);
-           
+
            recordKill(); enemiesDefeated.current++; e.hp = -1;
        }
   };
@@ -761,6 +765,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
 
             if (dist < collectRadius) {
                 collectCo2Orb(orb.value);
+                requestSfx('co2_orb_pickup', { pitchJitter: true });
                 orbsListChanged = true;
             } else {
                 activeOrbs.push(orb);
@@ -1310,7 +1315,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         const eType = enemy.type as string;
         const collisionRadius = eType === 'BOSS' || isLargeEnemyType(eType) ? 2.0 : 0.8;
         if (dist < collisionRadius && (eType !== 'BOSS' || (enemy.teleportState === 'IDLE' || enemy.teleportState === undefined))) {
-             takeDamage(eType === 'BOSS' ? 1.0 : 0.5); 
+             takeDamage(eType === 'BOSS' ? 1.0 : 0.5);
         }
         
         const limit = 24.5;

@@ -7,6 +7,58 @@ const GAIA_NARRATION_EVENT = 'eco-guardian:gaia-narration';
 export const GAIA_NARRATION_LIFECYCLE_EVENT = 'eco-guardian:gaia-narration-lifecycle';
 export const FINAL_ENDING_NARRATION_KEY = 'gaia:final-ending';
 
+const SFX_EVENT = 'eco-guardian:sfx';
+
+export type SfxKey =
+  | 'hit_enemy'
+  | 'die_enemy'
+  | 'hit_player'
+  | 'co2_orb_pickup'
+  | 'level_up'
+  | 'upgrade_select'
+  | 'chest_reward'
+  | 'boss_defeat';
+
+const SFX_SOURCES: Record<SfxKey, string> = {
+  hit_enemy: ASSET_PATHS.audio.sfx.hitEnemy,
+  die_enemy: ASSET_PATHS.audio.sfx.dieEnemy,
+  hit_player: ASSET_PATHS.audio.sfx.hitPlayer,
+  co2_orb_pickup: ASSET_PATHS.audio.sfx.co2OrbPickup,
+  level_up: ASSET_PATHS.audio.sfx.levelUp,
+  upgrade_select: ASSET_PATHS.audio.sfx.upgradeSelect,
+  chest_reward: ASSET_PATHS.audio.sfx.chestReward,
+  boss_defeat: ASSET_PATHS.audio.sfx.bossDefeat,
+};
+
+// Min interval (ms) between repeated plays of the same key — prevents machine-gun sound
+// when high-frequency weapons trigger damageEnemy many times per second.
+const SFX_MIN_INTERVAL_MS: Record<SfxKey, number> = {
+  hit_enemy: 45,
+  die_enemy: 40,
+  hit_player: 220,
+  co2_orb_pickup: 35,
+  level_up: 500,
+  upgrade_select: 100,
+  chest_reward: 200,
+  boss_defeat: 500,
+};
+
+const SFX_POOL_SIZE = 4;
+
+type SfxOptions = {
+  volume?: number;
+  pitchJitter?: boolean;
+};
+
+type SfxDetail = { key: SfxKey } & SfxOptions;
+
+export const requestSfx = (key: SfxKey, options: SfxOptions = {}) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<SfxDetail>(SFX_EVENT, {
+    detail: { key, ...options },
+  }));
+};
+
 type GaiaNarrationClip = {
   src: string;
   key: string;
@@ -106,6 +158,12 @@ export const AudioManager: React.FC = () => {
   const narrationNodesRef = useRef<AudioNode[]>([]);
   const introPlayedStagesRef = useRef<Set<number>>(new Set());
   const hasInteracted = useRef(false);
+  const sfxPoolRef = useRef<Map<SfxKey, { clones: HTMLAudioElement[]; cursor: number }> | null>(null);
+  const sfxLastPlayedRef = useRef<Map<SfxKey, number>>(new Map());
+  const playerLevel = useGameStore(s => s.playerStats.level);
+  const previousPlayerLevelRef = useRef(playerLevel);
+  const playerLastDamageTime = useGameStore(s => s.playerStats.lastDamageTime);
+  const previousPlayerLastDamageTimeRef = useRef(playerLastDamageTime);
 
   const applyMusicVolume = useCallback((narrationActive = Boolean(narrationRef.current)) => {
     const audio = audioRef.current;
@@ -386,6 +444,73 @@ export const AudioManager: React.FC = () => {
     window.addEventListener(GAIA_NARRATION_EVENT, handleNarrationRequest);
     return () => window.removeEventListener(GAIA_NARRATION_EVENT, handleNarrationRequest);
   }, [enqueueNarration]);
+
+  // Build preloaded SFX pool once on mount; wire event listener.
+  useEffect(() => {
+    const pool = new Map<SfxKey, { clones: HTMLAudioElement[]; cursor: number }>();
+    (Object.keys(SFX_SOURCES) as SfxKey[]).forEach((key) => {
+      const src = SFX_SOURCES[key];
+      const clones: HTMLAudioElement[] = [];
+      for (let i = 0; i < SFX_POOL_SIZE; i++) {
+        const audio = new Audio(src);
+        audio.preload = 'auto';
+        clones.push(audio);
+      }
+      pool.set(key, { clones, cursor: 0 });
+    });
+    sfxPoolRef.current = pool;
+
+    const handleSfxRequest = (event: Event) => {
+      const detail = (event as CustomEvent<SfxDetail>).detail;
+      if (!detail) return;
+
+      const { sfxMuted, sfxVolume } = useGameStore.getState();
+      if (sfxMuted || sfxVolume <= 0) return;
+      if (!hasInteracted.current) return;
+
+      const entry = sfxPoolRef.current?.get(detail.key);
+      if (!entry) return;
+
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const minInterval = SFX_MIN_INTERVAL_MS[detail.key] ?? 0;
+      const lastPlayed = sfxLastPlayedRef.current.get(detail.key) ?? -Infinity;
+      if (now - lastPlayed < minInterval) return;
+      sfxLastPlayedRef.current.set(detail.key, now);
+
+      const clone = entry.clones[entry.cursor];
+      entry.cursor = (entry.cursor + 1) % entry.clones.length;
+
+      try {
+        clone.currentTime = 0;
+      } catch {
+        // Some browsers throw if the clone hasn't loaded yet.
+      }
+      clone.volume = Math.min(1, Math.max(0, sfxVolume * (detail.volume ?? 1)));
+      clone.playbackRate = detail.pitchJitter ? 0.92 + Math.random() * 0.16 : 1;
+      clone.play().catch(() => { /* Autoplay rejection — harmless. */ });
+    };
+
+    window.addEventListener(SFX_EVENT, handleSfxRequest);
+    return () => window.removeEventListener(SFX_EVENT, handleSfxRequest);
+  }, []);
+
+  // Play level-up SFX when player level increments.
+  useEffect(() => {
+    if (playerLevel > previousPlayerLevelRef.current) {
+      requestSfx('level_up');
+    }
+    previousPlayerLevelRef.current = playerLevel;
+  }, [playerLevel]);
+
+  // Play hit_player SFX only when damage actually lands (lastDamageTime increases).
+  // The store's takeDamage applies a 200ms iframe; watching this field naturally
+  // avoids firing on blocked contact-frames.
+  useEffect(() => {
+    if (playerLastDamageTime > previousPlayerLastDamageTimeRef.current) {
+      requestSfx('hit_player');
+    }
+    previousPlayerLastDamageTimeRef.current = playerLastDamageTime;
+  }, [playerLastDamageTime]);
 
   useEffect(() => {
     if (mode === GameMode.MENU) {

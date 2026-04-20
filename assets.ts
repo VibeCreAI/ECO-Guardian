@@ -142,6 +142,16 @@ export const ASSET_PATHS = {
       explanation: (stageSlug: string, questionNumber: number) =>
         assetPath(`audio/quiz/${stageSlug}_ex${String(questionNumber).padStart(2, '0')}.mp3`),
     },
+    sfx: {
+      hitEnemy: assetPath('audio/sfx/hit_enemy.mp3'),
+      dieEnemy: assetPath('audio/sfx/die_enemy.mp3'),
+      hitPlayer: assetPath('audio/sfx/hit_player.mp3'),
+      co2OrbPickup: assetPath('audio/sfx/co2_orb_pickup.mp3'),
+      levelUp: assetPath('audio/sfx/level-up.mp3'),
+      upgradeSelect: assetPath('audio/sfx/upgrade_select.mp3'),
+      chestReward: assetPath('audio/sfx/chest_reward.mp3'),
+      bossDefeat: assetPath('audio/sfx/boss_defeat.mp3'),
+    },
   },
   images: {
     bosses: {
