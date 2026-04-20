@@ -389,10 +389,14 @@ export const AudioManager: React.FC = () => {
   const getTrackForState = () => {
     if (isCinematicActive) return null;
 
+    // Silence music during GAMEOVER so game_over.mp3 plays solo. Menu music
+    // resumes when the player hits TRY AGAIN (transition back to MENU).
+    if (mode === GameMode.GAMEOVER) return null;
+
     const isMenuLibrary = mode === GameMode.LIBRARY && previousMode === GameMode.MENU;
 
-    // Priority 1: Menu / Intro / Game Over / Leaderboard / Victory
-    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.GAMEOVER || mode === GameMode.LEADERBOARD || mode === GameMode.VICTORY || isMenuLibrary) {
+    // Priority 1: Menu / Intro / Leaderboard / Victory
+    if (mode === GameMode.MENU || mode === GameMode.DIFFICULTY_SELECT || mode === GameMode.INSTRUCTIONS || mode === GameMode.LEADERBOARD || mode === GameMode.VICTORY || isMenuLibrary) {
       return ASSET_PATHS.audio.music.menu;
     }
 
