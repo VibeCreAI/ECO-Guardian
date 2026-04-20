@@ -1609,7 +1609,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-xs font-bold text-cyan-200">Voice SFX</span>
+                              <span className="text-xs font-bold text-cyan-200">SFX</span>
                               <span className="text-[10px] ui-muted">{sfxMuted ? 'MUTED' : `${Math.round(sfxVolume * 100)}%`}</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1621,7 +1621,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                 value={Math.round(sfxVolume * 100)}
                                 onChange={(e) => setSfxVolume(Number(e.target.value) / 100)}
                                 className="w-full accent-cyan-300"
-                                aria-label="Voice SFX volume"
+                                aria-label="SFX volume"
                               />
                               <button
                                 data-modal-btn=""

@@ -45,6 +45,10 @@ const SFX_MIN_INTERVAL_MS: Record<SfxKey, number> = {
 
 const SFX_POOL_SIZE = 4;
 
+// Master attenuation applied to all SFX playback. Keeps gameplay SFX well below
+// Gaia narration (which also reads sfxVolume but at 0.9x and is voice-critical).
+const SFX_MASTER_GAIN = 0.45;
+
 type SfxOptions = {
   volume?: number;
   pitchJitter?: boolean;
@@ -485,7 +489,7 @@ export const AudioManager: React.FC = () => {
       } catch {
         // Some browsers throw if the clone hasn't loaded yet.
       }
-      clone.volume = Math.min(1, Math.max(0, sfxVolume * (detail.volume ?? 1)));
+      clone.volume = Math.min(1, Math.max(0, sfxVolume * SFX_MASTER_GAIN * (detail.volume ?? 1)));
       clone.playbackRate = detail.pitchJitter ? 0.92 + Math.random() * 0.16 : 1;
       clone.play().catch(() => { /* Autoplay rejection — harmless. */ });
     };
