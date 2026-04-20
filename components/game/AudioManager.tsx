@@ -19,7 +19,8 @@ export type SfxKey =
   | 'chest_reward'
   | 'boss_defeat'
   | 'dash_player'
-  | 'dash_enemy';
+  | 'dash_enemy'
+  | 'game_over';
 
 const SFX_SOURCES: Record<SfxKey, string> = {
   hit_enemy: ASSET_PATHS.audio.sfx.hitEnemy,
@@ -32,6 +33,7 @@ const SFX_SOURCES: Record<SfxKey, string> = {
   boss_defeat: ASSET_PATHS.audio.sfx.bossDefeat,
   dash_player: ASSET_PATHS.audio.sfx.dashPlayer,
   dash_enemy: ASSET_PATHS.audio.sfx.dashEnemy,
+  game_over: ASSET_PATHS.audio.sfx.gameOver,
 };
 
 // Min interval (ms) between repeated plays of the same key — prevents machine-gun sound
@@ -47,6 +49,7 @@ const SFX_MIN_INTERVAL_MS: Record<SfxKey, number> = {
   boss_defeat: 500,
   dash_player: 100,
   dash_enemy: 80,
+  game_over: 2000,
 };
 
 const SFX_POOL_SIZE = 4;
@@ -174,6 +177,7 @@ export const AudioManager: React.FC = () => {
   const previousPlayerLevelRef = useRef(playerLevel);
   const playerLastDamageTime = useGameStore(s => s.playerStats.lastDamageTime);
   const previousPlayerLastDamageTimeRef = useRef(playerLastDamageTime);
+  const previousModeRef = useRef(mode);
 
   const applyMusicVolume = useCallback((narrationActive = Boolean(narrationRef.current)) => {
     const audio = audioRef.current;
@@ -521,6 +525,14 @@ export const AudioManager: React.FC = () => {
     }
     previousPlayerLastDamageTimeRef.current = playerLastDamageTime;
   }, [playerLastDamageTime]);
+
+  // Play game_over SFX when transitioning into GAMEOVER from any other mode.
+  useEffect(() => {
+    if (mode === GameMode.GAMEOVER && previousModeRef.current !== GameMode.GAMEOVER) {
+      requestSfx('game_over');
+    }
+    previousModeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     if (mode === GameMode.MENU) {

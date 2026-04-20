@@ -5,11 +5,13 @@ import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
 
 const DEBUG_PARAM = 'stageDebug';
+const COLLAPSED_STORAGE_KEY = 'ecoGuardian.stageDebugCollapsed';
 const STAGES = Array.from({ length: 10 }, (_, index) => index + 1);
 const STAGE_DEBUG_ALLOWED = import.meta.env.DEV;
 
 export const StageDebugPanel: React.FC = () => {
   const [enabled, setEnabled] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [pendingStage, setPendingStage] = useState<number | null>(null);
   const [loadingEnding, setLoadingEnding] = useState(false);
   const activeStage = useGameStore((state) => state.activeStage);
@@ -21,14 +23,34 @@ export const StageDebugPanel: React.FC = () => {
   useEffect(() => {
     if (!STAGE_DEBUG_ALLOWED) {
       setEnabled(false);
+      setCollapsed(false);
       return;
     }
 
     const params = new URLSearchParams(window.location.search);
-    setEnabled(params.get(DEBUG_PARAM) === '1');
+    const isEnabled = params.get(DEBUG_PARAM) === '1';
+    setEnabled(isEnabled);
+
+    if (!isEnabled) return;
+
+    try {
+      setCollapsed(window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === '1');
+    } catch {
+      setCollapsed(false);
+    }
   }, []);
 
   if (!STAGE_DEBUG_ALLOWED || !enabled) return null;
+
+  const updateCollapsed = (nextCollapsed: boolean) => {
+    setCollapsed(nextCollapsed);
+
+    try {
+      window.localStorage.setItem(COLLAPSED_STORAGE_KEY, nextCollapsed ? '1' : '0');
+    } catch {
+      // Best-effort dev preference only.
+    }
+  };
 
   const jumpToStage = async (stage: number) => {
     setPendingStage(stage);
@@ -51,14 +73,41 @@ export const StageDebugPanel: React.FC = () => {
 
   const isBusy = pendingStage !== null || isGenerating || loadingEnding;
 
+  if (collapsed) {
+    return (
+      <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-3 z-[120] pointer-events-auto select-none">
+        <button
+          type="button"
+          onClick={() => updateCollapsed(false)}
+          className="ui-button ui-button-secondary-cyan px-3 py-2 text-[9px] font-black leading-none"
+          aria-expanded="false"
+          aria-label="Open stage debug controls"
+          title="Open stage debug controls"
+        >
+          DEBUG
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] left-1/2 z-[120] -translate-x-1/2 pointer-events-auto select-none">
       <div className="ui-panel border-2 border-cyan-400 bg-black/85 px-2 py-2 shadow-[0_0_0_2px_#000]">
-        <div className="flex items-center justify-between gap-3 text-[9px] leading-none text-cyan-100 mb-2">
+        <div className="mb-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-[9px] leading-none text-cyan-100">
           <span className="font-bold">STAGE DEBUG</span>
-          <span className="max-w-[42vw] truncate text-lime-200">
+          <span className="min-w-0 max-w-[42vw] truncate text-lime-200">
             {currentConfig?.stageName ?? `STAGE ${activeStage}`}
           </span>
+          <button
+            type="button"
+            onClick={() => updateCollapsed(true)}
+            className="border-2 border-black bg-cyan-950 px-1.5 py-1 text-[8px] font-black leading-none text-cyan-100 hover:bg-cyan-700"
+            aria-expanded="true"
+            aria-label="Collapse stage debug controls"
+            title="Collapse stage debug controls"
+          >
+            HIDE
+          </button>
         </div>
         <div className="grid grid-cols-5 gap-1">
           {STAGES.map((stage) => {
