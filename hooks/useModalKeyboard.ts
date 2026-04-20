@@ -25,6 +25,9 @@ function isRangeInput(target: EventTarget | null): boolean {
 const NAV_NEXT = new Set(['ArrowRight', 'ArrowDown', 's', 'S', 'd', 'D']);
 const NAV_PREV = new Set(['ArrowLeft', 'ArrowUp', 'w', 'W', 'a', 'A']);
 const CONFIRM  = new Set(['Enter', ' ']);
+const MODAL_CONTROL_KEYS = new Set([...NAV_NEXT, ...NAV_PREV, ...CONFIRM]);
+const MODAL_OPEN_INPUT_GRACE_MS = 280;
+const MODAL_NAV_REPEAT_MS = 140;
 
 // Modes where WASD/Arrow navigation is active (player is not moving)
 const MODAL_MODES = new Set([
@@ -48,6 +51,11 @@ const MODAL_MODES = new Set([
 // We include OVERWORLD/BATTLE in the set so nav keys still work for boss warning.
 const BOSS_NAV_MODES = new Set([GameMode.OVERWORLD, GameMode.BATTLE]);
 
+const getNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+const isModalKeyboardActive = (mode: GameMode, bossNarrativeOpen: boolean) =>
+  MODAL_MODES.has(mode) || (BOSS_NAV_MODES.has(mode) && bossNarrativeOpen);
+
 interface ModalKeyboardCallbacks {
   onEscapeOverworld: () => void;
   onEscapePaused: () => void;
@@ -59,6 +67,10 @@ interface ModalKeyboardCallbacks {
 
 export function useModalKeyboard(callbacks: ModalKeyboardCallbacks) {
   const focusedIndex = useRef(0);
+  const modalInputGraceUntil = useRef(0);
+  const pressedModalKeys = useRef<Set<string>>(new Set());
+  const suppressedModalKeys = useRef<Set<string>>(new Set());
+  const lastModalNavAt = useRef(0);
 
   // Helper: get all focusable modal elements (buttons + range inputs) in DOM order
   const getModalButtons = (): HTMLElement[] =>
@@ -71,8 +83,18 @@ export function useModalKeyboard(callbacks: ModalKeyboardCallbacks) {
     buttons[focusedIndex.current]?.focus();
   };
 
+  const startModalInputGrace = () => {
+    modalInputGraceUntil.current = getNow() + MODAL_OPEN_INPUT_GRACE_MS;
+    suppressedModalKeys.current = new Set(pressedModalKeys.current);
+    lastModalNavAt.current = 0;
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (MODAL_CONTROL_KEYS.has(e.key)) {
+        pressedModalKeys.current.add(e.key);
+      }
+
       if (isEditableTarget(e.target)) return;
 
       const mode = useGameStore.getState().mode;
@@ -115,10 +137,15 @@ export function useModalKeyboard(callbacks: ModalKeyboardCallbacks) {
 
       // --- Focus navigation (modal modes only) ---
       // In OVERWORLD/BATTLE, only allow nav when boss narrative is showing
-      const isModalMode = MODAL_MODES.has(mode);
-      const isBossNavMode = BOSS_NAV_MODES.has(mode) && useGameStore.getState().bossNarrativeOpen;
+      const isModalMode = isModalKeyboardActive(mode, useGameStore.getState().bossNarrativeOpen);
 
-      if (!isModalMode && !isBossNavMode) return;
+      if (!isModalMode) return;
+
+      const isModalControlKey = MODAL_CONTROL_KEYS.has(key);
+      if (isModalControlKey && (getNow() < modalInputGraceUntil.current || suppressedModalKeys.current.has(key))) {
+        e.preventDefault();
+        return;
+      }
 
       const buttons = getModalButtons();
       if (buttons.length === 0) return;
@@ -133,6 +160,9 @@ export function useModalKeyboard(callbacks: ModalKeyboardCallbacks) {
         // If a range input is focused, let the browser handle arrow keys natively
         if (isRangeInput(document.activeElement)) return;
         e.preventDefault();
+        const now = getNow();
+        if (e.repeat && now - lastModalNavAt.current < MODAL_NAV_REPEAT_MS) return;
+        lastModalNavAt.current = now;
         focusAt(focusedIndex.current + 1, buttons);
         return;
       }
@@ -140,6 +170,9 @@ export function useModalKeyboard(callbacks: ModalKeyboardCallbacks) {
       if (NAV_PREV.has(key)) {
         if (isRangeInput(document.activeElement)) return;
         e.preventDefault();
+        const now = getNow();
+        if (e.repeat && now - lastModalNavAt.current < MODAL_NAV_REPEAT_MS) return;
+        lastModalNavAt.current = now;
         focusAt(focusedIndex.current - 1, buttons);
         return;
       }
@@ -156,21 +189,43 @@ export function useModalKeyboard(callbacks: ModalKeyboardCallbacks) {
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (!MODAL_CONTROL_KEYS.has(e.key)) return;
+      pressedModalKeys.current.delete(e.key);
+      suppressedModalKeys.current.delete(e.key);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset focus index and auto-focus first button when mode changes
   useEffect(() => {
-    let prevMode = useGameStore.getState().mode;
+    const initialState = useGameStore.getState();
+    let prevMode = initialState.mode;
+    let prevBossNarrativeOpen = initialState.bossNarrativeOpen;
     const unsub = useGameStore.subscribe((state) => {
-      if (state.mode !== prevMode) {
+      const modeChanged = state.mode !== prevMode;
+      const bossNarrativeChanged = state.bossNarrativeOpen !== prevBossNarrativeOpen;
+      const modalKeyboardActive = isModalKeyboardActive(state.mode, state.bossNarrativeOpen);
+      const wasModalKeyboardActive = isModalKeyboardActive(prevMode, prevBossNarrativeOpen);
+
+      if (modeChanged || bossNarrativeChanged) {
+        if (modeChanged) focusedIndex.current = 0;
+        if (modalKeyboardActive && (modeChanged || !wasModalKeyboardActive)) {
+          startModalInputGrace();
+          setTimeout(() => {
+            const buttons = getModalButtons();
+            if (buttons.length > 0) buttons[0].focus();
+          }, 80);
+        }
+
         prevMode = state.mode;
-        focusedIndex.current = 0;
-        setTimeout(() => {
-          const buttons = getModalButtons();
-          if (buttons.length > 0) buttons[0].focus();
-        }, 80);
+        prevBossNarrativeOpen = state.bossNarrativeOpen;
       }
     });
     return unsub;
