@@ -474,7 +474,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
        e.hp -= amount;
        e.lastHit = currentTime;
        recordDamage(amount);
-       requestSfx('hit_enemy', { pitchJitter: true, volume: 0.35 });
+       requestSfx('hit_enemy', { volume: 0.35 });
 
        // --- KNOCKBACK LOGIC ---
        if (knockbackBase > 0) {
@@ -765,7 +765,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
 
             if (dist < collectRadius) {
                 collectCo2Orb(orb.value);
-                requestSfx('co2_orb_pickup', { pitchJitter: true });
+                requestSfx('co2_orb_pickup');
                 orbsListChanged = true;
             } else {
                 activeOrbs.push(orb);
