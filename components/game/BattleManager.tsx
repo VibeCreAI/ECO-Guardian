@@ -5,7 +5,7 @@ import { Enemy, Projectile, GameMode, ActiveBattleState, XpOrb, Chest } from '..
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
 import { SpriteBillboard, ExternalBossSprite } from './SpriteBillboard';
-import { ProjectileRender } from './ProjectileRender';
+import { ProjectilesInstanced, SpecialProjectiles } from './ProjectilesInstanced';
 import { PixelGround } from './PixelGround';
 import { WEAPONS_DATA } from '../../constants';
 import { ASSET_PATHS } from '../../assets';
@@ -392,13 +392,14 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const battleDifficultyRef = useRef(activeBattle.level);
   
   const [renderEnemies, setRenderEnemies] = useState<Enemy[]>([]);
-  const [renderProjectiles, setRenderProjectiles] = useState<Projectile[]>([]);
   const [renderEffects, setRenderEffects] = useState<any[]>([]);
   const [renderOrbs, setRenderOrbs] = useState<XpOrb[]>([]);
   const lastPlayerFacing = useRef<{x:number, z:number}>({x:0, z:1});
 
   const spawnTimer = useRef(0);
   const enemiesDefeated = useRef(0);
+  const hitPulseCountRef = useRef(0);
+  const hitPulseDamageRef = useRef(0);
   const bossSpawned = useRef(false);
   const bossPhaseTimer = useRef(0);
   const bossDeathTimer = useRef(0);
@@ -474,7 +475,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
        e.hp -= amount;
        e.lastHit = currentTime;
        recordDamage(amount);
-       requestSfx('hit_enemy', { volume: 0.35 });
+       hitPulseCountRef.current += 1;
+       hitPulseDamageRef.current += amount;
 
        // --- KNOCKBACK LOGIC ---
        if (knockbackBase > 0) {
@@ -499,7 +501,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                visualEffectsRef.current.push({ id: `boss_death_${Math.random()}`, x: e.x, z: e.z, life: 3.5, type: 'BOSS_DEATH' });
                visualEffectsRef.current = visualEffectsRef.current.filter(ef => ef.type !== 'THUNDER');
                setRenderEffects([...visualEffectsRef.current]);
-               bossDeathTimer.current = 3.5; projectilesRef.current = []; setRenderProjectiles([]);
+               bossDeathTimer.current = 3.5; projectilesRef.current = [];
                requestSfx('boss_defeat');
                requestBossDefeatNarration();
                enemiesRef.current = enemiesRef.current.filter(en => en.id !== e.id); setRenderEnemies([...enemiesRef.current]);
@@ -523,7 +525,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
       if (useGameStore.getState().mode === GameMode.REWARD) return;
       if (victoryTriggered.current) return;
       victoryTriggered.current = true;
-      projectilesRef.current = []; setRenderProjectiles([]);
+      projectilesRef.current = [];
       visualEffectsRef.current = visualEffectsRef.current.filter(ef => ef.type !== 'THUNDER'); setRenderEffects([...visualEffectsRef.current]);
   };
 
@@ -690,7 +692,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     bossDefeatNarrationTriggered.current = false; completionHandled.current = false; setChest(null); lootCollected.current = false;
     weaponTimers.current = { magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 };
     battleDifficultyRef.current = activeBattle.level;
-    setRenderProjectiles([]); setRenderEffects([]); setRenderOrbs([]);
+    setRenderEffects([]); setRenderOrbs([]);
     if (activeBattle.isBoss) {
         spawnBoss();
     } else {
@@ -813,7 +815,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
     
     if (bossDeathTimer.current > 0) {
         bossDeathTimer.current -= delta; updateVisuals(false); 
-        if (projectilesRef.current.length > 0) { projectilesRef.current = []; setRenderProjectiles([]); }
+        if (projectilesRef.current.length > 0) { projectilesRef.current = []; }
         if (bossDeathTimer.current <= 0) {
             winBattle();
             showQueuedLevelUp();
@@ -1761,16 +1763,20 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                              else {
                                  const pVar = p.variant as string;
                                  const piercing = p.type === 'ORBITAL' || pVar === 'CROSS' || pVar === 'JAVELIN' || pVar === 'SHURIKEN' || pVar === 'SPEAR' || pVar === 'BIBLE';
-                                 if (hit && !piercing) break; 
-                                 if (!piercing) hit = true; 
-                                 else if (Math.random() > 0.1) continue; 
-                                 
+                                 if (hit && !piercing) break;
+                                 if (!piercing) hit = true;
+                                 else {
+                                     const last = p.enemyHitTimes?.[e.id] ?? -Infinity;
+                                     if (time - last < 0.2) continue;
+                                     (p.enemyHitTimes ??= {})[e.id] = time;
+                                 }
+
                                  // Determine source for knockback:
                                  // Orbitals/Bible push away from Player center
                                  const isOrbital = p.type === 'ORBITAL' || pVar === 'BIBLE' || pVar === 'ORBITAL';
                                  const kbSourceX = isOrbital ? playerPosition.x : p.x;
                                  const kbSourceZ = isOrbital ? playerPosition.z : p.z;
-                                 
+
                                  damageEnemy(e, p.damage, p.knockbackValue || 1.0, kbSourceX, kbSourceZ, time);
                              }
                          }
@@ -1786,11 +1792,17 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
         if (keep) activeProjectiles.push(p);
     });
 
-    if (activeProjectiles.length !== projectilesRef.current.length) projectilesChanged = true;
     projectilesRef.current = activeProjectiles;
     updateVisuals(false);
     if (enemiesChanged) { enemiesRef.current = enemiesRef.current.filter(e => e.hp > -0.5); setRenderEnemies([...enemiesRef.current]); }
-    if (projectilesChanged) setRenderProjectiles([...projectilesRef.current]);
+
+    if (hitPulseCountRef.current > 0) {
+        const n = hitPulseCountRef.current;
+        const vol = Math.min(0.6, 0.18 + 0.14 * Math.log2(1 + n));
+        requestSfx('hit_enemy', { volume: vol });
+        hitPulseCountRef.current = 0;
+        hitPulseDamageRef.current = 0;
+    }
   });
 
   return (
@@ -1811,7 +1823,8 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
           }
           return <SpriteBillboard key={e.id} color={getEnemyColor(e.type, activeStage)} scale={eType === 'BOSS' ? 4.5 : eType === 'MISINFORMATION' ? 4.0 : 1.8} entity={e} type={e.type} variant={e.visualVariant || e.name} />;
       })}
-      {renderProjectiles.map(p => <ProjectileRender key={p.id} projectile={p} />)}
+      <ProjectilesInstanced projectilesRef={projectilesRef} />
+      <SpecialProjectiles projectilesRef={projectilesRef} />
       {renderEffects.map((ef: VisualEffect) => {
           if (ef.type === 'BOSS_DEATH') {
               return <BossDeathEffect key={ef.id} effect={ef} />;

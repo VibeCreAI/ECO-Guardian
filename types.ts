@@ -243,6 +243,7 @@ export interface Projectile {
   bouncesLeft?: number; // NEW: Slime ball physics
   turnsLeft?: number; // NEW: Javelin chain logic
   hitList?: string[]; // NEW: To avoid hitting the same enemy in a chain
+  enemyHitTimes?: Record<string, number>; // Per-enemy hit timestamps for piercing-projectile cooldown
   knockbackValue?: number; // Snapshot of knockback power at spawn
 }
 

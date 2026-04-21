@@ -166,6 +166,7 @@ export const AudioManager: React.FC = () => {
   const pendingNarrationQueueRef = useRef<GaiaNarrationClip[]>([]);
   const playNextNarrationRef = useRef<() => void>(() => {});
   const audioContextRef = useRef<AudioContext | null>(null);
+  const sfxBusRef = useRef<GainNode | null>(null);
   const sfxBuffersRef = useRef<Map<SfxKey, AudioBuffer>>(new Map());
   const narrationNodesRef = useRef<AudioNode[]>([]);
   const introPlayedStagesRef = useRef<Set<number>>(new Set());
@@ -473,6 +474,20 @@ export const AudioManager: React.FC = () => {
     const ctx = new Ctor();
     audioContextRef.current = ctx;
 
+    // SFX bus: per-play gains feed this, it feeds a compressor, then destination.
+    // Compressor tames peaks when overlapping voices stack (e.g., big CROSS sweep).
+    const bus = ctx.createGain();
+    bus.gain.value = 1;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.knee.value = 8;
+    comp.ratio.value = 6;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.12;
+    bus.connect(comp);
+    comp.connect(ctx.destination);
+    sfxBusRef.current = bus;
+
     (Object.keys(SFX_SOURCES) as SfxKey[]).forEach((key) => {
       fetch(SFX_SOURCES[key])
         .then((response) => response.arrayBuffer())
@@ -514,7 +529,7 @@ export const AudioManager: React.FC = () => {
       gain.gain.value = Math.min(1, Math.max(0, sfxVolume * SFX_MASTER_GAIN * (detail.volume ?? 1)));
 
       source.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(sfxBusRef.current ?? ctx.destination);
       source.start(0);
 
       source.onended = () => {
@@ -529,6 +544,7 @@ export const AudioManager: React.FC = () => {
       window.removeEventListener(SFX_EVENT, handleSfxRequest);
       sfxBuffersRef.current.clear();
       sfxLastPlayedRef.current.clear();
+      sfxBusRef.current = null;
       const current = audioContextRef.current;
       audioContextRef.current = null;
       if (current) {
