@@ -52,8 +52,6 @@ const SFX_MIN_INTERVAL_MS: Record<SfxKey, number> = {
   game_over: 2000,
 };
 
-const SFX_POOL_SIZE = 4;
-
 // Master attenuation applied to all SFX playback. Keeps gameplay SFX well below
 // Gaia narration (which also reads sfxVolume but at 0.9x and is voice-critical).
 const SFX_MASTER_GAIN = 0.45;
@@ -167,11 +165,11 @@ export const AudioManager: React.FC = () => {
   const narrationQueueRef = useRef<GaiaNarrationClip[]>([]);
   const pendingNarrationQueueRef = useRef<GaiaNarrationClip[]>([]);
   const playNextNarrationRef = useRef<() => void>(() => {});
-  const narrationAudioContextRef = useRef<AudioContext | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sfxBuffersRef = useRef<Map<SfxKey, AudioBuffer>>(new Map());
   const narrationNodesRef = useRef<AudioNode[]>([]);
   const introPlayedStagesRef = useRef<Set<number>>(new Set());
   const hasInteracted = useRef(false);
-  const sfxPoolRef = useRef<Map<SfxKey, { clones: HTMLAudioElement[]; cursor: number }> | null>(null);
   const sfxLastPlayedRef = useRef<Map<SfxKey, number>>(new Map());
   const playerLevel = useGameStore(s => s.playerStats.level);
   const previousPlayerLevelRef = useRef(playerLevel);
@@ -239,11 +237,8 @@ export const AudioManager: React.FC = () => {
   }, [applyMusicVolume, disconnectNarrationNodes]);
 
   const connectNarrationEcho = useCallback((narration: HTMLAudioElement) => {
-    const AudioContextCtor = getAudioContextConstructor();
-    if (!AudioContextCtor) return;
-
-    const context = narrationAudioContextRef.current ?? new AudioContextCtor();
-    narrationAudioContextRef.current = context;
+    const context = audioContextRef.current;
+    if (!context) return;
     if (context.state === 'suspended') {
       void context.resume();
     }
@@ -428,6 +423,12 @@ export const AudioManager: React.FC = () => {
   useEffect(() => {
     const handleInteraction = () => {
       hasInteracted.current = true;
+
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state === 'suspended') {
+        void ctx.resume().catch(() => {});
+      }
+
       if (pendingNarrationQueueRef.current.length > 0) {
         narrationQueueRef.current.push(...pendingNarrationQueueRef.current);
         pendingNarrationQueueRef.current = [];
@@ -463,20 +464,26 @@ export const AudioManager: React.FC = () => {
     return () => window.removeEventListener(GAIA_NARRATION_EVENT, handleNarrationRequest);
   }, [enqueueNarration]);
 
-  // Build preloaded SFX pool once on mount; wire event listener.
+  // AudioContext is shared with narration echo — a single context avoids browser
+  // resource limits and lets one user gesture unlock both SFX and narration.
   useEffect(() => {
-    const pool = new Map<SfxKey, { clones: HTMLAudioElement[]; cursor: number }>();
+    const Ctor = getAudioContextConstructor();
+    if (!Ctor) return;
+
+    const ctx = new Ctor();
+    audioContextRef.current = ctx;
+
     (Object.keys(SFX_SOURCES) as SfxKey[]).forEach((key) => {
-      const src = SFX_SOURCES[key];
-      const clones: HTMLAudioElement[] = [];
-      for (let i = 0; i < SFX_POOL_SIZE; i++) {
-        const audio = new Audio(src);
-        audio.preload = 'auto';
-        clones.push(audio);
-      }
-      pool.set(key, { clones, cursor: 0 });
+      fetch(SFX_SOURCES[key])
+        .then((response) => response.arrayBuffer())
+        .then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer))
+        .then((decoded) => {
+          sfxBuffersRef.current.set(key, decoded);
+        })
+        .catch(() => {
+          // Missing/undecodable SFX will silently no-op on request.
+        });
     });
-    sfxPoolRef.current = pool;
 
     const handleSfxRequest = (event: Event) => {
       const detail = (event as CustomEvent<SfxDetail>).detail;
@@ -486,8 +493,8 @@ export const AudioManager: React.FC = () => {
       if (sfxMuted || sfxVolume <= 0) return;
       if (!hasInteracted.current) return;
 
-      const entry = sfxPoolRef.current?.get(detail.key);
-      if (!entry) return;
+      const buffer = sfxBuffersRef.current.get(detail.key);
+      if (!buffer) return;
 
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       const minInterval = SFX_MIN_INTERVAL_MS[detail.key] ?? 0;
@@ -495,21 +502,39 @@ export const AudioManager: React.FC = () => {
       if (now - lastPlayed < minInterval) return;
       sfxLastPlayedRef.current.set(detail.key, now);
 
-      const clone = entry.clones[entry.cursor];
-      entry.cursor = (entry.cursor + 1) % entry.clones.length;
-
-      try {
-        clone.currentTime = 0;
-      } catch {
-        // Some browsers throw if the clone hasn't loaded yet.
+      if (ctx.state === 'suspended') {
+        void ctx.resume().catch(() => {});
       }
-      clone.volume = Math.min(1, Math.max(0, sfxVolume * SFX_MASTER_GAIN * (detail.volume ?? 1)));
-      clone.playbackRate = detail.pitchJitter ? 0.92 + Math.random() * 0.16 : 1;
-      clone.play().catch(() => { /* Autoplay rejection — harmless. */ });
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.value = detail.pitchJitter ? 0.92 + Math.random() * 0.16 : 1;
+
+      const gain = ctx.createGain();
+      gain.gain.value = Math.min(1, Math.max(0, sfxVolume * SFX_MASTER_GAIN * (detail.volume ?? 1)));
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(0);
+
+      source.onended = () => {
+        try { source.disconnect(); } catch { /* already disconnected */ }
+        try { gain.disconnect(); } catch { /* already disconnected */ }
+      };
     };
 
     window.addEventListener(SFX_EVENT, handleSfxRequest);
-    return () => window.removeEventListener(SFX_EVENT, handleSfxRequest);
+
+    return () => {
+      window.removeEventListener(SFX_EVENT, handleSfxRequest);
+      sfxBuffersRef.current.clear();
+      sfxLastPlayedRef.current.clear();
+      const current = audioContextRef.current;
+      audioContextRef.current = null;
+      if (current) {
+        try { void current.close(); } catch { /* already closed */ }
+      }
+    };
   }, []);
 
   // Play level-up SFX when player level increments.
