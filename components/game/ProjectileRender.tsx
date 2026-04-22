@@ -12,6 +12,7 @@ interface ProjectileRenderProps {
 const voxelCoreGeo = new THREE.BoxGeometry(1, 1, 1);
 const voxelBitGeo = new THREE.BoxGeometry(1, 1, 1);
 const mortarShellGeo = new THREE.SphereGeometry(0.3, 8, 8);
+const HOLY_BEAM_RENDER_ORDER = -20;
 
 export const VoxelProjectile = ({ projectile }: { projectile: Projectile }) => {
     const groupRef = useRef<THREE.Group>(null);
@@ -19,7 +20,7 @@ export const VoxelProjectile = ({ projectile }: { projectile: Projectile }) => {
     useFrame((state, delta) => { if (groupRef.current) { groupRef.current.position.set(projectile.x, 1, projectile.z); groupRef.current.rotation.x += delta * 2.5; groupRef.current.rotation.z += delta * 1.5; } if (bitsRef.current) { bitsRef.current.rotation.y -= delta * 4; } });
     const mainColor = projectile.color; const secondaryColor = '#1a1a1a'; const scale = 0.35;
     return (
-        <group ref={groupRef} position={[projectile.x, 1, projectile.z]} scale={[scale, scale, scale]}><mesh geometry={voxelCoreGeo}><meshStandardMaterial color={mainColor} emissive={mainColor} emissiveIntensity={0.8} roughness={0.2} /></mesh><group ref={bitsRef}><mesh position={[0.8, 0, 0]} geometry={voxelBitGeo} scale={[0.4, 0.4, 0.4]}><meshStandardMaterial color={secondaryColor} /></mesh><mesh position={[-0.8, 0, 0]} geometry={voxelBitGeo} scale={[0.4, 0.4, 0.4]}><meshStandardMaterial color={secondaryColor} /></mesh></group></group>
+        <group ref={groupRef} position={[projectile.x, 1, projectile.z]} scale={[scale, scale, scale]}><mesh geometry={voxelCoreGeo}><meshStandardMaterial color={mainColor} emissive={mainColor} emissiveIntensity={0.8} roughness={0.2} transparent opacity={1} /></mesh><group ref={bitsRef}><mesh position={[0.8, 0, 0]} geometry={voxelBitGeo} scale={[0.4, 0.4, 0.4]}><meshStandardMaterial color={secondaryColor} transparent opacity={1} /></mesh><mesh position={[-0.8, 0, 0]} geometry={voxelBitGeo} scale={[0.4, 0.4, 0.4]}><meshStandardMaterial color={secondaryColor} transparent opacity={1} /></mesh></group></group>
     );
 };
 
@@ -48,7 +49,7 @@ export const HolyBeamRender = ({ projectile }: { projectile: Projectile }) => {
         if (ringRef.current) { ringRef.current.scale.set(width * 1.5, width * 1.5, 1); (ringRef.current.material as THREE.MeshBasicMaterial).opacity = opacity * 0.8; ringRef.current.rotation.z += 0.1; }
     });
     return (
-        <group position={[projectile.x, 0, projectile.z]}><mesh ref={meshRef} position={[0, 15, 0]}><cylinderGeometry args={[1, 1, 30, 16, 1, true]} /><meshBasicMaterial color="#fef08a" transparent blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} /></mesh><mesh ref={coreRef} position={[0, 15, 0]}><cylinderGeometry args={[1, 1, 30, 16, 1, true]} /><meshBasicMaterial color="#ffffff" transparent blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} /></mesh><mesh ref={ringRef} rotation={[-Math.PI/2, 0, 0]} position={[0, 0.1, 0]}><ringGeometry args={[0.5, 1, 32]} /><meshBasicMaterial color="#fef08a" transparent blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} /></mesh></group>
+        <group position={[projectile.x, 0, projectile.z]}><mesh ref={meshRef} position={[0, 15, 0]} renderOrder={HOLY_BEAM_RENDER_ORDER}><cylinderGeometry args={[1, 1, 30, 16, 1, true]} /><meshBasicMaterial color="#fef08a" transparent blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} /></mesh><mesh ref={coreRef} position={[0, 15, 0]} renderOrder={HOLY_BEAM_RENDER_ORDER}><cylinderGeometry args={[1, 1, 30, 16, 1, true]} /><meshBasicMaterial color="#ffffff" transparent blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} /></mesh><mesh ref={ringRef} rotation={[-Math.PI/2, 0, 0]} position={[0, 0.1, 0]} renderOrder={HOLY_BEAM_RENDER_ORDER}><ringGeometry args={[0.5, 1, 32]} /><meshBasicMaterial color="#fef08a" transparent blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} /></mesh></group>
     );
 };
 

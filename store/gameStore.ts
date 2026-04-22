@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameMode, PlayerStats, UpgradeOption, Portal, ActiveBattleState, HighScore, ImpactLogEntry, QuizDifficulty, AdviceResult } from '../types';
+import { GameMode, PlayerStats, UpgradeOption, Portal, ActiveBattleState, HighScore, ImpactLogEntry, QuizDifficulty, AdviceResult, AiStageConfig } from '../types';
 import { useAiDirectorStore } from './aiDirectorStore';
 import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint, PassiveDef } from '../constants';
 import type { EnemySnapshotEntry, PeerState, MultiplayerMessage } from '../multiplayer/sync';
@@ -12,6 +12,8 @@ export const SHOP_REFRESH_COST = 50;
 export const CAMERA_ZOOM_MIN = 0.5;
 export const CAMERA_ZOOM_MAX = 2.0;
 const SAVE_KEY = 'pixel_realm_save_v1';
+const RUN_SAVE_KEY = 'eco_guardian_run_save_v1';
+const RUN_SAVE_VERSION = 1;
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
 const getOverworldSpawn = () => ({ x: 0, z: 6 });
 
@@ -296,6 +298,8 @@ interface GameState {
   
   setBossStats: (stats: { currentHp: number; maxHp: number; name: string } | null) => void;
   
+  saveRunProgress: () => boolean;
+  clearRunProgress: () => void;
   resetGame: () => void;
   
   completePortal: (portalId: string) => void;
@@ -305,10 +309,148 @@ interface GameState {
   preloadGame: (difficulty: QuizDifficulty) => void;
   preloadGameFromPortal: (refUrl: string | null) => void;
   startGame: () => void;
+  debugGrantWeapon: (weaponKey: string) => void;
+  debugGrantPassive: (passiveKey: string) => void;
+  debugGrantHolyBeamKit: () => void;
   debugJumpToStage: (stage: number) => Promise<void>;
   debugEnterEndingCinematic: () => Promise<void>;
   setHighlightedPortal: (id: string | null) => void;
 }
+
+type RunSaveState = Pick<
+  GameState,
+  | 'mode'
+  | 'previousMode'
+  | 'lastGameplayMode'
+  | 'playerStats'
+  | 'worldPosition'
+  | 'savedOverworldPosition'
+  | 'activeStage'
+  | 'portals'
+  | 'activeBattle'
+  | 'battleWon'
+  | 'finalEndingCinematic'
+  | 'quizResult'
+  | 'bossStats'
+  | 'bossNarrativeOpen'
+  | 'dashCooldownCurrent'
+  | 'levelUpOptions'
+  | 'queuedLevelUp'
+  | 'shopOptions'
+  | 'chestReward'
+  | 'isStageReady'
+  | 'showNarrative'
+  | 'narrativeDismissed'
+  | 'highlightedPortalId'
+  | 'isMuted'
+  | 'musicMuted'
+  | 'sfxMuted'
+  | 'musicVolume'
+  | 'sfxVolume'
+  | 'cameraZoom'
+  | 'playMode'
+>;
+
+type RunSaveData = {
+  version: number;
+  savedAt: number;
+  game: RunSaveState;
+  aiDirector: {
+    currentConfig: AiStageConfig;
+    usedQuizQuestions: string[];
+  };
+};
+
+const buildRunSaveState = (state: GameState): RunSaveState => ({
+  mode: state.mode,
+  previousMode: state.previousMode,
+  lastGameplayMode: state.lastGameplayMode,
+  playerStats: state.playerStats,
+  worldPosition: state.worldPosition,
+  savedOverworldPosition: state.savedOverworldPosition,
+  activeStage: state.activeStage,
+  portals: state.portals,
+  activeBattle: state.activeBattle,
+  battleWon: state.battleWon,
+  finalEndingCinematic: state.finalEndingCinematic,
+  quizResult: state.quizResult,
+  bossStats: state.bossStats,
+  bossNarrativeOpen: state.bossNarrativeOpen,
+  dashCooldownCurrent: state.dashCooldownCurrent,
+  levelUpOptions: state.levelUpOptions,
+  queuedLevelUp: state.queuedLevelUp,
+  shopOptions: state.shopOptions,
+  chestReward: state.chestReward,
+  isStageReady: state.isStageReady,
+  showNarrative: state.showNarrative,
+  narrativeDismissed: state.narrativeDismissed,
+  highlightedPortalId: state.highlightedPortalId,
+  isMuted: state.isMuted,
+  musicMuted: state.musicMuted,
+  sfxMuted: state.sfxMuted,
+  musicVolume: state.musicVolume,
+  sfxVolume: state.sfxVolume,
+  cameraZoom: state.cameraZoom,
+  playMode: state.playMode,
+});
+
+const isValidRunSave = (data: any): data is RunSaveData =>
+  data?.version === RUN_SAVE_VERSION &&
+  data?.game?.playerStats &&
+  Number.isFinite(data.game.activeStage) &&
+  Array.isArray(data.game.portals) &&
+  data?.aiDirector?.currentConfig;
+
+const loadRunProgress = (): RunSaveData | null => {
+  try {
+    const saved = localStorage.getItem(RUN_SAVE_KEY);
+    if (!saved) return null;
+
+    const parsed = JSON.parse(saved);
+    if (!isValidRunSave(parsed)) {
+      localStorage.removeItem(RUN_SAVE_KEY);
+      return null;
+    }
+
+    return parsed;
+  } catch (e) {
+    try { localStorage.removeItem(RUN_SAVE_KEY); } catch (_) { /* ignore */ }
+    return null;
+  }
+};
+
+const clearSavedRunProgress = () => {
+  try {
+    localStorage.removeItem(RUN_SAVE_KEY);
+  } catch (e) { /* storage unavailable */ }
+};
+
+const saveRunProgressSnapshot = (state: GameState): boolean => {
+  if (state.mode === GameMode.MENU || state.mode === GameMode.GAMEOVER || state.mode === GameMode.VICTORY) {
+    return false;
+  }
+
+  const aiState = useAiDirectorStore.getState();
+  if (!aiState.currentConfig) return false;
+
+  const snapshot: RunSaveData = {
+    version: RUN_SAVE_VERSION,
+    savedAt: Date.now(),
+    game: buildRunSaveState(state),
+    aiDirector: {
+      currentConfig: aiState.currentConfig,
+      usedQuizQuestions: aiState.usedQuizQuestions,
+    },
+  };
+
+  try {
+    saveMetaStats(state.playerStats);
+    localStorage.setItem(RUN_SAVE_KEY, JSON.stringify(snapshot));
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
 
 const loadMetaStats = () => {
   try {
@@ -551,6 +693,84 @@ const getPassiveUpgradeDescription = (passive: PassiveDef, currentLevel: number)
       return passive.description;
   }
 };
+
+const DEBUG_MAX_ITEM_LEVEL = 5;
+
+const cloneStatsForDebugGrant = (stats: PlayerStats): PlayerStats => ({
+  ...stats,
+  unlockedWeapons: { ...stats.unlockedWeapons },
+  unlockedPassives: { ...stats.unlockedPassives },
+  modifiers: { ...stats.modifiers },
+  statUpgrades: {
+    hp: stats.statUpgrades?.hp || 0,
+    attack: stats.statUpgrades?.attack || 0,
+    speed: stats.statUpgrades?.speed || 0,
+  },
+});
+
+const applyDebugWeaponGrant = (
+  stats: PlayerStats,
+  weaponKey: string,
+  targetLevel?: number,
+) => {
+  const weapon = WEAPONS_DATA[weaponKey];
+  if (!weapon) return false;
+
+  const currentLevel = stats.unlockedWeapons[weaponKey] || 0;
+  if (currentLevel >= DEBUG_MAX_ITEM_LEVEL) return false;
+
+  const nextLevel = targetLevel === undefined
+    ? currentLevel + 1
+    : Math.max(1, Math.min(DEBUG_MAX_ITEM_LEVEL, Math.floor(targetLevel)));
+
+  if (nextLevel <= currentLevel) return false;
+
+  if (currentLevel === 0) {
+    const weaponCount = Object.keys(stats.unlockedWeapons).length;
+    if (weaponCount >= stats.maxWeaponSlots) {
+      stats.maxWeaponSlots = weaponCount + 1;
+    }
+  }
+
+  stats.unlockedWeapons[weaponKey] = nextLevel;
+  return true;
+};
+
+const applyDebugPassiveGrant = (
+  stats: PlayerStats,
+  passiveKey: string,
+  targetLevel?: number,
+) => {
+  const passive = PASSIVES_DATA[passiveKey];
+  if (!passive) return false;
+
+  const maxLevel = passive.key === 'BACKPACK' ? 1 : DEBUG_MAX_ITEM_LEVEL;
+  const currentLevel = stats.unlockedPassives[passiveKey] || 0;
+  const nextLevel = targetLevel === undefined
+    ? Math.min(maxLevel, currentLevel + 1)
+    : Math.max(1, Math.min(maxLevel, Math.floor(targetLevel)));
+
+  if (nextLevel <= currentLevel) return false;
+
+  for (let level = currentLevel; level < nextLevel; level += 1) {
+    if (passive.key === 'DUPLICATOR') stats.modifiers.projectileCount += 1;
+    if (passive.key === 'SPINACH') stats.modifiers.damage += (passive.value || 0.1);
+    if (passive.key === 'TOME') stats.modifiers.cooldown = Math.max(0.4, stats.modifiers.cooldown - (passive.value || 0.1));
+    if (passive.key === 'CANDLE') stats.modifiers.area += (passive.value || 0.1);
+    if (passive.key === 'BACKPACK') stats.maxWeaponSlots += 1;
+    if (passive.key === 'GAUNTLET') stats.modifiers.knockback += (passive.value || 0.2);
+  }
+
+  stats.unlockedPassives[passiveKey] = nextLevel;
+  return true;
+};
+
+const getDebugGrantUpdate = (state: GameState, stats: PlayerStats) => ({
+  playerStats: stats,
+  shopOptions: generateShopOptions(stats),
+  levelUpOptions: state.mode === GameMode.REWARD ? generateOptions(stats) : state.levelUpOptions,
+  adviceResult: null,
+});
 
 const generateOptions = (stats: PlayerStats): UpgradeOption[] => {
   const pool: UpgradeOption[] = [
@@ -1109,6 +1329,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  saveRunProgress: () => saveRunProgressSnapshot(get()),
+
+  clearRunProgress: () => clearSavedRunProgress(),
+
   setMode: (mode) => set((state) => ({
     mode,
     previousMode: state.mode,
@@ -1194,6 +1418,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const freshStats = getInitialStats(false);
       freshStats.quizDifficulty = difficulty;
       localStorage.removeItem(SAVE_KEY);
+      clearSavedRunProgress();
       useAiDirectorStore.getState().resetQuizHistory();
 
       set({ 
@@ -1221,7 +1446,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           narrativeDismissed: false,
           lastGameplayMode: GameMode.OVERWORLD,
           highlightedPortalId: null,
-          cameraZoom: 1.0
+          cameraZoom: 1.0,
+          isPortalEntry: false,
+          portalRefUrl: null
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
@@ -1243,9 +1470,76 @@ export const useGameStore = create<GameState>((set, get) => ({
   preloadGameFromPortal: (refUrl) => {
       // Same as preloadGame('MEDIUM') but marks this session as a portal entry
       // so the in-game VibeJam portals render correctly and the grace period applies.
+      const savedRun = loadRunProgress();
+      if (savedRun) {
+          const saved = savedRun.game;
+          useAiDirectorStore.setState({
+              currentConfig: savedRun.aiDirector.currentConfig,
+              usedQuizQuestions: savedRun.aiDirector.usedQuizQuestions || [],
+              gameOverMessage: null,
+              isGenerating: false,
+              error: null,
+          });
+
+          set((state) => ({
+              mode: GameMode.OVERWORLD,
+              previousMode: GameMode.OVERWORLD,
+              lastGameplayMode: GameMode.OVERWORLD,
+              isStageReady: true,
+              isOverworldSceneReady: false,
+              playerStats: saved.playerStats,
+              activeStage: saved.activeStage,
+              portals: saved.portals.length > 0 ? saved.portals : generatePortals(saved.activeStage),
+              worldPosition: saved.worldPosition || getOverworldSpawn(),
+              savedOverworldPosition: saved.savedOverworldPosition || getOverworldSpawn(),
+              activeBattle: saved.activeBattle || { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
+              battleWon: false,
+              finalEndingCinematic: createFinalEndingCinematicState(),
+              bossStats: saved.bossStats,
+              bossNarrativeOpen: saved.bossNarrativeOpen,
+              dashCooldownCurrent: saved.dashCooldownCurrent || 0,
+              levelUpOptions: saved.levelUpOptions || [],
+              queuedLevelUp: saved.queuedLevelUp || false,
+              shopOptions: saved.shopOptions?.length ? saved.shopOptions : generateShopOptions(saved.playerStats),
+              chestReward: saved.chestReward || null,
+              quizResult: null,
+              isQuizOpen: false,
+              isImpactOpen: false,
+              showNarrative: saved.showNarrative || false,
+              narrativeDismissed: saved.narrativeDismissed || false,
+              highlightedPortalId: null,
+              adviceLoading: false,
+              adviceResult: null,
+              isMuted: saved.isMuted ?? state.isMuted,
+              musicMuted: saved.musicMuted ?? state.musicMuted,
+              sfxMuted: saved.sfxMuted ?? state.sfxMuted,
+              musicVolume: typeof saved.musicVolume === 'number' ? clampUnitVolume(saved.musicVolume) : state.musicVolume,
+              sfxVolume: typeof saved.sfxVolume === 'number' ? clampUnitVolume(saved.sfxVolume) : state.sfxVolume,
+              cameraZoom: typeof saved.cameraZoom === 'number' ? clampCameraZoom(saved.cameraZoom) : 1.0,
+              playMode: 'solo',
+              isPortalEntry: true,
+              portalRefUrl: refUrl,
+              multiplayer: {
+                  ...state.multiplayer,
+                  joinedAt: null,
+                  groupId: null,
+                  isHost: true,
+                  slotIndex: 0,
+                  peers: {},
+                  enemyStates: {},
+                  portalVotes: {},
+                  guideMessage: null,
+                  connectionStatus: 'idle',
+                  livingCount: 1,
+                  quizStageSeed: null,
+                  stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+              },
+          }));
+          return;
+      }
+
       const freshStats = getInitialStats(false);
       freshStats.quizDifficulty = 'MEDIUM';
-      localStorage.removeItem(SAVE_KEY);
       useAiDirectorStore.getState().resetQuizHistory();
 
       set({
@@ -1309,6 +1603,43 @@ export const useGameStore = create<GameState>((set, get) => ({
             finalEndingCinematic: createFinalEndingCinematicState(),
           });
       }
+  },
+
+  debugGrantWeapon: (weaponKey) => {
+      if (!import.meta.env.DEV) return;
+
+      set((state) => {
+          const stats = cloneStatsForDebugGrant(state.playerStats);
+          const changed = applyDebugWeaponGrant(stats, weaponKey);
+          return changed ? getDebugGrantUpdate(state, stats) : {};
+      });
+  },
+
+  debugGrantPassive: (passiveKey) => {
+      if (!import.meta.env.DEV) return;
+
+      set((state) => {
+          const stats = cloneStatsForDebugGrant(state.playerStats);
+          const changed = applyDebugPassiveGrant(stats, passiveKey);
+          return changed ? getDebugGrantUpdate(state, stats) : {};
+      });
+  },
+
+  debugGrantHolyBeamKit: () => {
+      if (!import.meta.env.DEV) return;
+
+      set((state) => {
+          const stats = cloneStatsForDebugGrant(state.playerStats);
+          let changed = false;
+
+          changed = applyDebugWeaponGrant(stats, 'CROSS', DEBUG_MAX_ITEM_LEVEL) || changed;
+          changed = applyDebugWeaponGrant(stats, 'BIBLE', DEBUG_MAX_ITEM_LEVEL) || changed;
+          changed = applyDebugWeaponGrant(stats, 'HOLY_BEAM', DEBUG_MAX_ITEM_LEVEL) || changed;
+          changed = applyDebugPassiveGrant(stats, 'DUPLICATOR', 5) || changed;
+          changed = applyDebugPassiveGrant(stats, 'TOME', 5) || changed;
+
+          return changed ? getDebugGrantUpdate(state, stats) : {};
+      });
   },
 
   debugJumpToStage: async (stage) => {
@@ -1607,6 +1938,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const newHp = Math.max(0, state.playerStats.hp - amount);
     
     if (newHp === 0 && state.mode !== GameMode.GAMEOVER) {
+        clearSavedRunProgress();
         useAiDirectorStore.getState().generateDeathMessage(state.playerStats, state.activeStage, state.activeBattle.isBoss ? "Boss" : "Mob");
         return {
              playerStats: { ...state.playerStats, hp: newHp, lastDamageTime: now },
@@ -2103,6 +2435,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const state = get();
       
       if (state.activeStage >= 10) {
+          clearSavedRunProgress();
           saveMetaStats(state.playerStats);
           set({ mode: GameMode.VICTORY, lastGameplayMode: GameMode.VICTORY });
           return;
@@ -2194,6 +2527,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => {
     const freshStats = getInitialStats(false);
     localStorage.removeItem(SAVE_KEY);
+    clearSavedRunProgress();
     useAiDirectorStore.getState().resetQuizHistory();
 
     set({
@@ -2231,6 +2565,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       musicVolume: 1,
       sfxVolume: 1,
       cameraZoom: 1.0,
+      isPortalEntry: false,
+      portalRefUrl: null,
     });
   },
 

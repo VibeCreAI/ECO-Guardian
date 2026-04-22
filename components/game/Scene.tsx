@@ -923,6 +923,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
         // VibeJam Next portal (green) — always present, sends player to vibej.am webring
         if (mode === GameMode.OVERWORLD && !vjGraceActive && playerRef.current.position.distanceTo(_vjNextVec.current) < 1.5) {
+          updatePosition(playerRef.current.position.x, playerRef.current.position.z);
+          useGameStore.getState().saveRunProgress();
           const params = new URLSearchParams();
           params.set('portal', 'true');
           params.set('ref', window.location.hostname);
@@ -933,6 +935,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
         // VibeJam Return portal (red) — only when player entered via ?portal=true
         if (mode === GameMode.OVERWORLD && isPortalEntry && !vjGraceActive && playerRef.current.position.distanceTo(_vjReturnVec.current) < 1.5) {
+          updatePosition(playerRef.current.position.x, playerRef.current.position.z);
+          useGameStore.getState().saveRunProgress();
           const destination = portalRefUrl ?? 'https://vibej.am/portal/2026';
           try {
             const url = new URL(destination);
