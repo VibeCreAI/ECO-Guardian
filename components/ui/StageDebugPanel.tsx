@@ -24,6 +24,7 @@ export const StageDebugPanel: React.FC = () => {
   const debugGrantWeapon = useGameStore((state) => state.debugGrantWeapon);
   const debugGrantPassive = useGameStore((state) => state.debugGrantPassive);
   const debugGrantHolyBeamKit = useGameStore((state) => state.debugGrantHolyBeamKit);
+  const debugResetLoadout = useGameStore((state) => state.debugResetLoadout);
   const debugJumpToStage = useGameStore((state) => state.debugJumpToStage);
   const debugEnterEndingCinematic = useGameStore((state) => state.debugEnterEndingCinematic);
   const currentConfig = useAiDirectorStore((state) => state.currentConfig);
@@ -187,14 +188,24 @@ export const StageDebugPanel: React.FC = () => {
               + PASS
             </button>
           </div>
-          <button
-            type="button"
-            onClick={debugGrantHolyBeamKit}
-            className="w-full border-2 border-black bg-fuchsia-500 px-2 py-1 text-[10px] font-black leading-none text-black hover:bg-fuchsia-300"
-            title="Grant Holy Beam, Cross, Bible, Duplicator, and Tome for quick beam testing"
-          >
-            HOLY BEAM KIT
-          </button>
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              type="button"
+              onClick={debugGrantHolyBeamKit}
+              className="w-full border-2 border-black bg-fuchsia-500 px-2 py-1 text-[10px] font-black leading-none text-black hover:bg-fuchsia-300"
+              title="Grant Holy Beam, Cross, Bible, Duplicator, and Tome for quick beam testing"
+            >
+              HOLY BEAM KIT
+            </button>
+            <button
+              type="button"
+              onClick={debugResetLoadout}
+              className="w-full border-2 border-black bg-rose-600 px-2 py-1 text-[10px] font-black leading-none text-white hover:bg-rose-400 hover:text-black"
+              title="Reset weapons and passives to the base loadout"
+            >
+              RESET LOADOUT
+            </button>
+          </div>
         </div>
         <div className="mt-1">
           <button

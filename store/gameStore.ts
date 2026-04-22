@@ -312,6 +312,7 @@ interface GameState {
   debugGrantWeapon: (weaponKey: string) => void;
   debugGrantPassive: (passiveKey: string) => void;
   debugGrantHolyBeamKit: () => void;
+  debugResetLoadout: () => void;
   debugJumpToStage: (stage: number) => Promise<void>;
   debugEnterEndingCinematic: () => Promise<void>;
   setHighlightedPortal: (id: string | null) => void;
@@ -770,6 +771,20 @@ const getDebugGrantUpdate = (state: GameState, stats: PlayerStats) => ({
   shopOptions: generateShopOptions(stats),
   levelUpOptions: state.mode === GameMode.REWARD ? generateOptions(stats) : state.levelUpOptions,
   adviceResult: null,
+});
+
+const getDebugResetLoadoutStats = (stats: PlayerStats): PlayerStats => ({
+  ...cloneStatsForDebugGrant(stats),
+  maxWeaponSlots: 4,
+  unlockedWeapons: { MAGIC_MISSILE: 1 },
+  unlockedPassives: {},
+  modifiers: {
+    projectileCount: 0,
+    damage: 1.0,
+    area: 1.0,
+    cooldown: 1.0,
+    knockback: 1.0,
+  },
 });
 
 const generateOptions = (stats: PlayerStats): UpgradeOption[] => {
@@ -1639,6 +1654,15 @@ export const useGameStore = create<GameState>((set, get) => ({
           changed = applyDebugPassiveGrant(stats, 'TOME', 5) || changed;
 
           return changed ? getDebugGrantUpdate(state, stats) : {};
+      });
+  },
+
+  debugResetLoadout: () => {
+      if (!import.meta.env.DEV) return;
+
+      set((state) => {
+          const stats = getDebugResetLoadoutStats(state.playerStats);
+          return getDebugGrantUpdate(state, stats);
       });
   },
 
