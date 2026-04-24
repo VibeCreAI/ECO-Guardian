@@ -293,6 +293,9 @@ const buildYesNoQuiz = (
     const questionNumber = Math.max(1, questionIndex + 1);
     const audioSlug = QUIZ_AUDIO_STAGE_SLUGS[stageName];
     const audioId = audioSlug ? `${audioSlug}_${String(questionNumber).padStart(2, '0')}` : undefined;
+    const explanationImageSrc = audioSlug === 'plastic_woods'
+        ? ASSET_PATHS.images.quiz.explanation(audioSlug, questionNumber)
+        : undefined;
 
     return {
         question: template.q,
@@ -300,6 +303,7 @@ const buildYesNoQuiz = (
         correctOption,
         explanation: template.e,
         impactValue: 100,
+        explanationImageSrc,
         audioId,
         audioQuestionSrc: audioSlug ? ASSET_PATHS.audio.quiz.question(audioSlug, questionNumber) : undefined,
         audioExplanationSrc: audioSlug ? ASSET_PATHS.audio.quiz.explanation(audioSlug, questionNumber) : undefined,

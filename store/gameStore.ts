@@ -161,6 +161,7 @@ interface GameState {
     carbonValue: number;
     streak: number;
     lostStreak: number;
+    explanationImageSrc?: string;
     explanationAudioSrc?: string;
     explanationAudioKey?: string;
   } | null;
@@ -1880,6 +1881,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                  carbonValue: isCorrect ? impact : 0,
                  streak: newStreak,
                  lostStreak: comboLostStreak,
+                 explanationImageSrc: aiConfig.quiz.explanationImageSrc,
                  explanationAudioSrc: aiConfig.quiz.audioExplanationSrc,
                  explanationAudioKey: aiConfig.quiz.audioId ? `quiz-explanation:${aiConfig.quiz.audioId}` : undefined
              };

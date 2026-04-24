@@ -1760,33 +1760,33 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   if (mode === GameMode.QUIZ_RESULT && quizResult) {
       return (
           <div className="absolute inset-0 flex items-center justify-center ui-backdrop z-[100] p-4 animate-in fade-in duration-300">
-              <div className={`flex flex-col w-full max-w-lg max-h-[90vh] ui-panel ${quizResult.correct ? 'ui-card-highlight' : 'ui-card-danger'}`}>
+              <div className={`flex flex-col w-full max-w-xl max-h-[90vh] ui-panel ${quizResult.correct ? 'ui-card-highlight' : 'ui-card-danger'}`}>
                   
                   {/* Header */}
-                  <div className="p-6 pb-2 shrink-0 text-center">
-                    <h2 className={`text-2xl md:text-4xl mb-2 font-bold ${quizResult.correct ? 'text-green-300' : 'text-red-300'}`}>
+                  <div className="p-4 pb-1 shrink-0 text-center">
+                    <h2 className={`text-xl md:text-3xl mb-1 font-bold ${quizResult.correct ? 'text-green-300' : 'text-red-300'}`}>
                         {quizResult.correct ? "GAIA APPROVES!" : "OOPS!"}
                     </h2>
                   </div>
                   
                   {/* Scrollable Body */}
-                  <div ref={resultScrollRef} className="overflow-y-auto p-6 pt-0 flex-1 text-center">
+                  <div ref={resultScrollRef} className="overflow-y-auto px-4 md:px-6 pt-0 pb-2 flex-1 text-center">
                     {!!quizResult.bonus && (
-                        <div className="text-yellow-300 font-bold animate-pulse mb-4 text-lg">
+                        <div className="text-yellow-300 font-bold animate-pulse mb-2 text-sm md:text-base">
                             ★ BONUS CHEST UNLOCKED ★
                         </div>
                     )}
 
-                    <p className="text-white text-base mb-2">You answered: <span className="font-bold text-xl">{quizResult.answerLabel}</span></p>
+                    <p className="text-white text-sm mb-1">You answered: <span className="font-bold text-base">{quizResult.answerLabel}</span></p>
 
                     {quizResult.correct ? (
                         <>
                             {quizResult.streak > 1 && (
-                                <div className="text-orange-300 font-bold text-lg mb-1 animate-pulse">
+                                <div className="text-orange-300 font-bold text-base mb-1 animate-pulse">
                                     COMBO x{quizResult.streak}!
                                 </div>
                             )}
-                            <div className="text-green-400 font-bold text-sm mb-4">
+                            <div className="text-green-400 font-bold text-xs md:text-sm mb-3">
                                 +{quizResult.carbonValue}kg CO2 Saved!
                                 {quizResult.streak > 1 && (
                                     <span className="text-orange-300 ml-1">(+{(quizResult.streak - 1) * 20} bonus)</span>
@@ -1795,12 +1795,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                         </>
                     ) : (
                         <>
-                            <div className="text-red-400 font-bold text-sm mb-2">
+                            <div className="text-red-400 font-bold text-xs md:text-sm mb-1">
                                 The oceans felt that one.
                             </div>
-                            <div className="ui-card ui-card-danger p-3 mb-4">
+                            <div className="ui-card ui-card-danger p-2 mb-3">
                                 {quizResult.lostStreak > 1 && (
-                                    <div className="text-red-300 font-bold text-lg mb-1">
+                                    <div className="text-red-300 font-bold text-base mb-1">
                                         STREAK LOST! x{quizResult.lostStreak}
                                     </div>
                                 )}
@@ -1811,13 +1811,27 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                         </>
                     )}
 
-                    <div className="bg-black/40 p-4 mb-2 text-sm md:text-base ui-copy border-4 border-black">
-                        {quizResult.explanation}
+                    <div className="bg-black/40 p-3 mb-2 ui-copy border-4 border-black">
+                        <div className="flex flex-col items-center gap-2 text-center">
+                            {quizResult.explanationImageSrc && (
+                                <img
+                                    src={quizResult.explanationImageSrc}
+                                    alt=""
+                                    aria-hidden="true"
+                                    className="w-full max-w-80 aspect-square max-h-[42vh] shrink-0 border-4 border-black bg-black/50 object-cover [image-rendering:pixelated]"
+                                    loading="lazy"
+                                    decoding="async"
+                                />
+                            )}
+                            <p className="w-full max-h-24 sm:max-h-28 overflow-y-auto px-1 text-sm md:text-base leading-relaxed">
+                                {quizResult.explanation}
+                            </p>
+                        </div>
                     </div>
                   </div>
 
                   {/* Footer */}
-                  <div className="p-6 pt-4 shrink-0">
+                  <div className="p-4 pt-3 shrink-0">
                     <button
                         data-modal-btn=""
                         autoFocus

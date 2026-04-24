@@ -177,6 +177,10 @@ export const ASSET_PATHS = {
       byTheme: (themeName: string, mode = 'OVERWORLD') =>
         assetPath(`images/ground/${themeName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_${mode.toLowerCase()}.png`),
     },
+    quiz: {
+      explanation: (stageSlug: string, questionNumber: number) =>
+        assetPath(`images/ui/quiz/${stageSlug}_ex${String(questionNumber).padStart(2, '0')}.png`),
+    },
     start: {
       background: assetPath('images/start/background.png'),
       favicon: assetPath('images/start/favicon.png'),
