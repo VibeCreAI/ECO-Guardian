@@ -1607,7 +1607,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
                   {selectedImpactQuiz && (
                       <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 p-3">
-                          <div className={`ui-panel w-full max-w-lg max-h-full flex flex-col ${selectedImpactQuiz.isCorrect ? 'ui-card-highlight' : 'ui-card-danger'}`}>
+                          <div className={`ui-panel w-full max-w-lg max-h-full flex flex-col overflow-hidden ${selectedImpactQuiz.isCorrect ? 'ui-card-highlight' : 'ui-card-danger'}`}>
                               <div className="p-4 pb-2 flex items-start justify-between gap-3 ui-panel-header">
                                   <div>
                                       <div className="text-xs ui-muted uppercase mb-1">Stage {selectedImpactQuiz.stage} Quiz Explanation</div>
