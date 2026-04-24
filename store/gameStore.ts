@@ -1901,6 +1901,8 @@ export const useGameStore = create<GameState>((set, get) => ({
                          yourAnswer: answerLabel,
                          correctAnswer: correctAnswerLabel || "",
                          isCorrect: isCorrect,
+                         explanation: aiConfig.quiz.explanation,
+                         explanationImageSrc: aiConfig.quiz.explanationImageSrc,
                          carbonValue: isCorrect ? impact : 0,
                          timestamp: Date.now()
                      };

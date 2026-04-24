@@ -283,6 +283,12 @@ const QUIZ_AUDIO_STAGE_SLUGS: Record<string, string> = {
     "Digital Hell": "digital_hell",
 };
 
+const QUIZ_IMAGE_STAGE_SLUGS = new Set([
+    'plastic_woods',
+    'e_waste_graveyard',
+    'frozen_server_farm',
+]);
+
 const buildYesNoQuiz = (
     stageName: string,
     stagePool: YesNoTemplate[],
@@ -293,7 +299,7 @@ const buildYesNoQuiz = (
     const questionNumber = Math.max(1, questionIndex + 1);
     const audioSlug = QUIZ_AUDIO_STAGE_SLUGS[stageName];
     const audioId = audioSlug ? `${audioSlug}_${String(questionNumber).padStart(2, '0')}` : undefined;
-    const explanationImageSrc = audioSlug === 'plastic_woods'
+    const explanationImageSrc = audioSlug && QUIZ_IMAGE_STAGE_SLUGS.has(audioSlug)
         ? ASSET_PATHS.images.quiz.explanation(audioSlug, questionNumber)
         : undefined;
 

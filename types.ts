@@ -47,6 +47,8 @@ export interface ImpactLogEntry {
   yourAnswer?: string;
   correctAnswer?: string;
   isCorrect?: boolean;
+  explanation?: string;
+  explanationImageSrc?: string;
 }
 
 export type QuizDifficulty = 'EASY' | 'MEDIUM' | 'HARD';

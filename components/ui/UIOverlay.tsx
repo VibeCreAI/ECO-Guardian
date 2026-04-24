@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, type FinalEndingCinematicState, type SavedRunSummary, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
-import { GameMode, HighScore, UpgradeOption, Vector2 } from '../../types';
+import { GameMode, HighScore, ImpactLogEntry, UpgradeOption, Vector2 } from '../../types';
 import { useModalKeyboard } from '../../hooks/useModalKeyboard';
 import { VirtualJoystick } from './VirtualJoystick';
 import { StatusModal } from './StatusModal';
@@ -343,6 +343,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   const [startupAssetsReady, setStartupAssetsReady] = useState(false);
   const [missionStartPending, setMissionStartPending] = useState(false);
   const [menuBackgroundReady, setMenuBackgroundReady] = useState(false);
+  const [selectedImpactQuiz, setSelectedImpactQuiz] = useState<ImpactLogEntry | null>(null);
   const mpPeers = useGameStore((s) => s.multiplayer.peers);
   const mpPortalVotes = useGameStore((s) => s.multiplayer.portalVotes);
   const mpGuideMessage = useGameStore((s) => s.multiplayer.guideMessage);
@@ -364,6 +365,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     });
     return map;
   }, [mpPeers, mpLocalPlayerId, mpSlotIndex]);
+
+  useEffect(() => {
+    if (!isImpactOpen) {
+      setSelectedImpactQuiz(null);
+    }
+  }, [isImpactOpen]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1569,7 +1576,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                                               <span className="text-gray-400 text-xs">Stage {entry.stage} • QUIZ</span>
                                               <span className="text-gray-500 text-xs">{new Date(entry.timestamp).toLocaleTimeString()}</span>
                                           </div>
-                                          <p className="text-white font-bold mb-2 text-sm md:text-base">"{entry.question}"</p>
+                                          <button
+                                              type="button"
+                                              onClick={() => setSelectedImpactQuiz(entry)}
+                                              className="w-full text-left text-white font-bold mb-2 text-sm md:text-base hover:text-green-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-300"
+                                          >
+                                              "{entry.question}"
+                                          </button>
                                           <div className="flex justify-between items-center text-sm">
                                               <div>
                                                   <div className={`font-bold ${entry.isCorrect ? 'text-green-300' : 'text-red-300'}`}>
@@ -1591,6 +1604,68 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                           ))
                       )}
                   </div>
+
+                  {selectedImpactQuiz && (
+                      <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 p-3">
+                          <div className={`ui-panel w-full max-w-lg max-h-full flex flex-col ${selectedImpactQuiz.isCorrect ? 'ui-card-highlight' : 'ui-card-danger'}`}>
+                              <div className="p-4 pb-2 flex items-start justify-between gap-3 ui-panel-header">
+                                  <div>
+                                      <div className="text-xs ui-muted uppercase mb-1">Stage {selectedImpactQuiz.stage} Quiz Explanation</div>
+                                      <h3 className="text-base md:text-lg font-bold text-white leading-snug">"{selectedImpactQuiz.question}"</h3>
+                                  </div>
+                                  <button
+                                      data-modal-btn=""
+                                      type="button"
+                                      onClick={() => setSelectedImpactQuiz(null)}
+                                      className="ui-modal-close text-lg px-3 py-1 shrink-0"
+                                  >
+                                      X
+                                  </button>
+                              </div>
+
+                              <div className="overflow-y-auto p-4 pt-3 text-center">
+                                  <div className="bg-black/40 p-3 mb-3 ui-copy border-4 border-black">
+                                      <div className="flex flex-col items-center gap-2">
+                                          {selectedImpactQuiz.explanationImageSrc && (
+                                              <img
+                                                  src={selectedImpactQuiz.explanationImageSrc}
+                                                  alt=""
+                                                  aria-hidden="true"
+                                                  className="w-full max-w-80 aspect-square max-h-[42vh] shrink-0 border-4 border-black bg-black/50 object-cover [image-rendering:pixelated]"
+                                                  loading="lazy"
+                                                  decoding="async"
+                                              />
+                                          )}
+                                          <p className="w-full max-h-28 overflow-y-auto px-1 text-sm md:text-base leading-relaxed">
+                                              {selectedImpactQuiz.explanation || 'Explanation details were not saved for this earlier history entry.'}
+                                          </p>
+                                      </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-3 text-sm">
+                                      <div className={`font-bold ${selectedImpactQuiz.isCorrect ? 'text-green-300' : 'text-red-300'}`}>
+                                          You chose: {selectedImpactQuiz.yourAnswer}
+                                      </div>
+                                      {!selectedImpactQuiz.isCorrect && selectedImpactQuiz.correctAnswer && (
+                                          <div className="text-gray-300 text-xs">Correct: {selectedImpactQuiz.correctAnswer}</div>
+                                      )}
+                                      {selectedImpactQuiz.isCorrect && (
+                                          <div className="text-green-400 font-bold">+{selectedImpactQuiz.carbonValue} kg</div>
+                                      )}
+                                  </div>
+                              </div>
+
+                              <button
+                                  data-modal-btn=""
+                                  type="button"
+                                  onClick={() => setSelectedImpactQuiz(null)}
+                                  className="ui-button ui-button-secondary p-3 font-bold border-t-4 border-black"
+                              >
+                                  BACK TO REPORT
+                              </button>
+                          </div>
+                      </div>
+                  )}
                   
                   <button onClick={() => setImpactOpen(false)} className="ui-button ui-button-secondary p-4 font-bold border-t-4 border-black">
                       CLOSE REPORT
