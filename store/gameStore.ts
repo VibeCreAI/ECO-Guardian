@@ -141,6 +141,8 @@ interface GameState {
   mode: GameMode;
   previousMode: GameMode;
   lastGameplayMode: GameMode;
+  hasSavedRun: boolean;
+  savedRunSummary: SavedRunSummary | null;
   playerStats: PlayerStats;
   worldPosition: { x: number; z: number };
   savedOverworldPosition: { x: number; z: number };
@@ -299,6 +301,9 @@ interface GameState {
   setBossStats: (stats: { currentHp: number; maxHp: number; name: string } | null) => void;
   
   saveRunProgress: () => boolean;
+  refreshSavedRunSummary: () => void;
+  resumeSavedRun: () => boolean;
+  discardSavedRun: () => void;
   clearRunProgress: () => void;
   resetGame: () => void;
   
@@ -359,6 +364,131 @@ type RunSaveData = {
   aiDirector: {
     currentConfig: AiStageConfig;
     usedQuizQuestions: string[];
+  };
+};
+
+export type SavedRunSummary = {
+  stage: number;
+  scene: 'overworld' | 'battle';
+  savedAt: number;
+  sourcePlayMode: 'multiplayer' | 'solo';
+};
+
+const createDefaultActiveBattle = (): ActiveBattleState => ({
+  portalId: '',
+  level: 1,
+  isBoss: false,
+  isBonus: false,
+  lostStreak: 0,
+});
+
+const createResetMultiplayerState = (multiplayer: GameState['multiplayer']): GameState['multiplayer'] => ({
+  ...multiplayer,
+  joinedAt: null,
+  groupId: null,
+  isHost: true,
+  slotIndex: 0,
+  peers: {},
+  enemyStates: {},
+  portalVotes: {},
+  guideMessage: null,
+  connectionStatus: 'idle',
+  livingCount: 1,
+  quizStageSeed: null,
+  stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
+});
+
+const isBattleContextMode = (mode: GameMode) =>
+  mode === GameMode.BATTLE ||
+  mode === GameMode.QUIZ_RESULT ||
+  mode === GameMode.REWARD ||
+  mode === GameMode.CHEST_REWARD;
+
+const normalizeSavedRunMode = (saved: RunSaveState): GameMode => {
+  if (saved.mode === GameMode.PAUSED || saved.mode === GameMode.STATUS || saved.mode === GameMode.LIBRARY) {
+    return saved.lastGameplayMode === GameMode.BATTLE ? GameMode.BATTLE : GameMode.OVERWORLD;
+  }
+
+  return saved.mode;
+};
+
+const getSavedRunSummary = (snapshot: RunSaveData | null): SavedRunSummary | null => {
+  if (!snapshot) return null;
+
+  const normalizedMode = normalizeSavedRunMode(snapshot.game);
+  return {
+    stage: Math.max(1, Math.floor(snapshot.game.activeStage || 1)),
+    scene: isBattleContextMode(normalizedMode) ? 'battle' : 'overworld',
+    savedAt: snapshot.savedAt,
+    sourcePlayMode: snapshot.game.playMode === 'multiplayer' ? 'multiplayer' : 'solo',
+  };
+};
+
+const hydrateAiDirectorFromRunSave = (savedRun: RunSaveData) => {
+  useAiDirectorStore.setState({
+    currentConfig: savedRun.aiDirector.currentConfig,
+    usedQuizQuestions: savedRun.aiDirector.usedQuizQuestions || [],
+    gameOverMessage: null,
+    isGenerating: false,
+    error: null,
+  });
+};
+
+const createHydratedRunState = (
+  state: GameState,
+  savedRun: RunSaveData,
+  options: { isPortalEntry: boolean; portalRefUrl: string | null },
+): Partial<GameState> => {
+  const saved = savedRun.game;
+  const resumeMode = normalizeSavedRunMode(saved);
+  const shouldRestartBattleEncounter = resumeMode === GameMode.BATTLE;
+  const lastGameplayMode = isBattleContextMode(resumeMode) ? GameMode.BATTLE : GameMode.OVERWORLD;
+  const savedSummary = getSavedRunSummary(savedRun);
+
+  return {
+    mode: resumeMode,
+    previousMode:
+      saved.mode === GameMode.PAUSED || saved.mode === GameMode.STATUS || saved.mode === GameMode.LIBRARY
+        ? lastGameplayMode
+        : saved.previousMode,
+    lastGameplayMode,
+    hasSavedRun: Boolean(savedSummary),
+    savedRunSummary: savedSummary,
+    isStageReady: true,
+    isOverworldSceneReady: false,
+    playerStats: saved.playerStats,
+    activeStage: saved.activeStage,
+    portals: saved.portals.length > 0 ? saved.portals : generatePortals(saved.activeStage),
+    worldPosition: saved.worldPosition || getOverworldSpawn(),
+    savedOverworldPosition: saved.savedOverworldPosition || getOverworldSpawn(),
+    activeBattle: saved.activeBattle || createDefaultActiveBattle(),
+    battleWon: shouldRestartBattleEncounter ? false : saved.battleWon,
+    finalEndingCinematic: createFinalEndingCinematicState(),
+    bossStats: shouldRestartBattleEncounter ? null : saved.bossStats,
+    bossNarrativeOpen: shouldRestartBattleEncounter ? false : saved.bossNarrativeOpen,
+    dashCooldownCurrent: shouldRestartBattleEncounter ? 0 : saved.dashCooldownCurrent || 0,
+    levelUpOptions: shouldRestartBattleEncounter ? [] : saved.levelUpOptions || [],
+    queuedLevelUp: shouldRestartBattleEncounter ? false : saved.queuedLevelUp || false,
+    shopOptions: saved.shopOptions?.length ? saved.shopOptions : generateShopOptions(saved.playerStats),
+    chestReward: shouldRestartBattleEncounter ? null : saved.chestReward || null,
+    quizResult: shouldRestartBattleEncounter ? null : saved.quizResult,
+    isQuizOpen: false,
+    isImpactOpen: false,
+    showNarrative: saved.showNarrative || false,
+    narrativeDismissed: saved.narrativeDismissed || false,
+    highlightedPortalId: saved.highlightedPortalId || null,
+    adviceLoading: false,
+    adviceResult: null,
+    isMuted: saved.isMuted ?? state.isMuted,
+    musicMuted: saved.musicMuted ?? state.musicMuted,
+    sfxMuted: saved.sfxMuted ?? state.sfxMuted,
+    musicVolume: typeof saved.musicVolume === 'number' ? clampUnitVolume(saved.musicVolume) : state.musicVolume,
+    sfxVolume: typeof saved.sfxVolume === 'number' ? clampUnitVolume(saved.sfxVolume) : state.sfxVolume,
+    cameraZoom: typeof saved.cameraZoom === 'number' ? clampCameraZoom(saved.cameraZoom) : 1.0,
+    playMode: 'solo',
+    isPortalEntry: options.isPortalEntry,
+    portalRefUrl: options.portalRefUrl,
+    multiplayer: createResetMultiplayerState(state.multiplayer),
   };
 };
 
@@ -452,6 +582,8 @@ const saveRunProgressSnapshot = (state: GameState): boolean => {
     return false;
   }
 };
+
+const initialSavedRunSummary = getSavedRunSummary(loadRunProgress());
 
 const loadMetaStats = () => {
   try {
@@ -901,6 +1033,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   mode: GameMode.MENU,
   previousMode: GameMode.MENU,
   lastGameplayMode: GameMode.OVERWORLD,
+  hasSavedRun: Boolean(initialSavedRunSummary),
+  savedRunSummary: initialSavedRunSummary,
   playerStats: getInitialStats(true),
   worldPosition: getOverworldSpawn(),
   savedOverworldPosition: getOverworldSpawn(),
@@ -1326,27 +1460,41 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   resetMultiplayerSession: () => {
     set((state) => ({
-      multiplayer: {
-        ...state.multiplayer,
-        groupId: null,
-        joinedAt: null,
-        isHost: true,
-        slotIndex: 0,
-        peers: {},
-        enemyStates: {},
-        portalVotes: {},
-        guideMessage: null,
-        connectionStatus: 'idle',
-        livingCount: 1,
-        quizStageSeed: null,
-        stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
-      },
+      multiplayer: createResetMultiplayerState(state.multiplayer),
     }));
   },
 
   saveRunProgress: () => saveRunProgressSnapshot(get()),
 
-  clearRunProgress: () => clearSavedRunProgress(),
+  refreshSavedRunSummary: () => {
+    const savedRunSummary = getSavedRunSummary(loadRunProgress());
+    set({
+      hasSavedRun: Boolean(savedRunSummary),
+      savedRunSummary,
+    });
+  },
+
+  resumeSavedRun: () => {
+    const savedRun = loadRunProgress();
+    if (!savedRun) {
+      set({ hasSavedRun: false, savedRunSummary: null });
+      return false;
+    }
+
+    hydrateAiDirectorFromRunSave(savedRun);
+    set((state) => createHydratedRunState(state, savedRun, { isPortalEntry: false, portalRefUrl: null }));
+    return true;
+  },
+
+  discardSavedRun: () => {
+    clearSavedRunProgress();
+    set({ hasSavedRun: false, savedRunSummary: null });
+  },
+
+  clearRunProgress: () => {
+    clearSavedRunProgress();
+    set({ hasSavedRun: false, savedRunSummary: null });
+  },
 
   setMode: (mode) => set((state) => ({
     mode,
@@ -1463,7 +1611,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           highlightedPortalId: null,
           cameraZoom: 1.0,
           isPortalEntry: false,
-          portalRefUrl: null
+          portalRefUrl: null,
+          hasSavedRun: false,
+          savedRunSummary: null,
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
@@ -1487,69 +1637,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       // so the in-game VibeJam portals render correctly and the grace period applies.
       const savedRun = loadRunProgress();
       if (savedRun) {
-          const saved = savedRun.game;
-          useAiDirectorStore.setState({
-              currentConfig: savedRun.aiDirector.currentConfig,
-              usedQuizQuestions: savedRun.aiDirector.usedQuizQuestions || [],
-              gameOverMessage: null,
-              isGenerating: false,
-              error: null,
-          });
-
-          set((state) => ({
-              mode: GameMode.OVERWORLD,
-              previousMode: GameMode.OVERWORLD,
-              lastGameplayMode: GameMode.OVERWORLD,
-              isStageReady: true,
-              isOverworldSceneReady: false,
-              playerStats: saved.playerStats,
-              activeStage: saved.activeStage,
-              portals: saved.portals.length > 0 ? saved.portals : generatePortals(saved.activeStage),
-              worldPosition: saved.worldPosition || getOverworldSpawn(),
-              savedOverworldPosition: saved.savedOverworldPosition || getOverworldSpawn(),
-              activeBattle: saved.activeBattle || { portalId: '', level: 1, isBoss: false, isBonus: false, lostStreak: 0 },
-              battleWon: false,
-              finalEndingCinematic: createFinalEndingCinematicState(),
-              bossStats: saved.bossStats,
-              bossNarrativeOpen: saved.bossNarrativeOpen,
-              dashCooldownCurrent: saved.dashCooldownCurrent || 0,
-              levelUpOptions: saved.levelUpOptions || [],
-              queuedLevelUp: saved.queuedLevelUp || false,
-              shopOptions: saved.shopOptions?.length ? saved.shopOptions : generateShopOptions(saved.playerStats),
-              chestReward: saved.chestReward || null,
-              quizResult: null,
-              isQuizOpen: false,
-              isImpactOpen: false,
-              showNarrative: saved.showNarrative || false,
-              narrativeDismissed: saved.narrativeDismissed || false,
-              highlightedPortalId: null,
-              adviceLoading: false,
-              adviceResult: null,
-              isMuted: saved.isMuted ?? state.isMuted,
-              musicMuted: saved.musicMuted ?? state.musicMuted,
-              sfxMuted: saved.sfxMuted ?? state.sfxMuted,
-              musicVolume: typeof saved.musicVolume === 'number' ? clampUnitVolume(saved.musicVolume) : state.musicVolume,
-              sfxVolume: typeof saved.sfxVolume === 'number' ? clampUnitVolume(saved.sfxVolume) : state.sfxVolume,
-              cameraZoom: typeof saved.cameraZoom === 'number' ? clampCameraZoom(saved.cameraZoom) : 1.0,
-              playMode: 'solo',
-              isPortalEntry: true,
-              portalRefUrl: refUrl,
-              multiplayer: {
-                  ...state.multiplayer,
-                  joinedAt: null,
-                  groupId: null,
-                  isHost: true,
-                  slotIndex: 0,
-                  peers: {},
-                  enemyStates: {},
-                  portalVotes: {},
-                  guideMessage: null,
-                  connectionStatus: 'idle',
-                  livingCount: 1,
-                  quizStageSeed: null,
-                  stageSync: { pendingStage: null, expectedPlayerIds: [], ackedByPlayerId: {} },
-              },
-          }));
+          hydrateAiDirectorFromRunSave(savedRun);
+          set((state) => createHydratedRunState(state, savedRun, { isPortalEntry: true, portalRefUrl: refUrl }));
           return;
       }
 
@@ -1585,6 +1674,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           cameraZoom: 1.0,
           isPortalEntry: true,
           portalRefUrl: refUrl,
+          hasSavedRun: false,
+          savedRunSummary: null,
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
@@ -1966,7 +2057,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         useAiDirectorStore.getState().generateDeathMessage(state.playerStats, state.activeStage, state.activeBattle.isBoss ? "Boss" : "Mob");
         return {
              playerStats: { ...state.playerStats, hp: newHp, lastDamageTime: now },
-             mode: GameMode.GAMEOVER
+             mode: GameMode.GAMEOVER,
+             hasSavedRun: false,
+             savedRunSummary: null,
         };
     }
 
@@ -2461,7 +2554,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (state.activeStage >= 10) {
           clearSavedRunProgress();
           saveMetaStats(state.playerStats);
-          set({ mode: GameMode.VICTORY, lastGameplayMode: GameMode.VICTORY });
+          set({ mode: GameMode.VICTORY, lastGameplayMode: GameMode.VICTORY, hasSavedRun: false, savedRunSummary: null });
           return;
       }
 
@@ -2583,6 +2676,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       highlightedPortalId: null,
       adviceLoading: false,
       adviceResult: null,
+      hasSavedRun: false,
+      savedRunSummary: null,
       isMuted: false,
       musicMuted: false,
       sfxMuted: false,

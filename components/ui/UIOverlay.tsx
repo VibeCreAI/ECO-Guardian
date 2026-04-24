@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, type FinalEndingCinematicState, useGameStore } from '../../store/gameStore';
+import { CAMERA_ZOOM_MAX, CAMERA_ZOOM_MIN, type FinalEndingCinematicState, type SavedRunSummary, useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
 import { GameMode, HighScore, UpgradeOption, Vector2 } from '../../types';
 import { useModalKeyboard } from '../../hooks/useModalKeyboard';
@@ -252,9 +252,24 @@ const findSubmittedScoreIndex = (scores: HighScore[], submitted: HighScore) => {
     }).index;
 };
 
+const formatSavedRunTimestamp = (savedAt: number) => {
+    const date = new Date(savedAt);
+    if (Number.isNaN(date.getTime())) return 'Recently';
+
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    }).format(date);
+};
+
+const getSavedRunSceneLabel = (scene: SavedRunSummary['scene']) =>
+    scene === 'battle' ? 'Battle checkpoint' : 'Overworld checkpoint';
+
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode } = useGameStore(useShallow((s) => ({
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode, hasSavedRun, savedRunSummary, resumeSavedRun, discardSavedRun } = useGameStore(useShallow((s) => ({
     mode: s.mode,
     playerStats: s.playerStats,
     dashCooldownCurrent: s.dashCooldownCurrent,
@@ -309,6 +324,10 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     isPortalEntry: s.isPortalEntry,
     playMode: s.playMode,
     setPlayMode: s.setPlayMode,
+    hasSavedRun: s.hasSavedRun,
+    savedRunSummary: s.savedRunSummary,
+    resumeSavedRun: s.resumeSavedRun,
+    discardSavedRun: s.discardSavedRun,
   })));
   const { currentConfig, gameOverMessage, isGenerating } = useAiDirectorStore();
   const [playerName, setPlayerNameInput] = useState('');
@@ -334,6 +353,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   // UI Scaling for short screens (mobile landscape)
   const [uiScale, setUiScale] = useState(1);
   const [isShortHeight, setIsShortHeight] = useState(false);
+  const [isMenuCompact, setIsMenuCompact] = useState(false);
+  const [isMenuScrollFallback, setIsMenuScrollFallback] = useState(false);
   const hasMpPeers = Object.keys(mpPeers).length > 0;
   const activePlayers = 1 + Object.keys(mpPeers).length;
   const voterSlotsByPlayerId = React.useMemo(() => {
@@ -350,6 +371,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
         const targetH = 800; // Target height for 100% scale
         
         setIsShortHeight(h < 500);
+        setIsMenuCompact(h < 1080);
+        setIsMenuScrollFallback(h < 720);
 
         if (h < targetH) {
             // Scale down, but cap at 0.5 to remain usable
@@ -638,6 +661,16 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
       setSubmittedRunRank(null);
       setScoreSubmitError(null);
       resetGame();
+  };
+
+  const handleResumeMission = () => {
+      if (missionStartPending) return;
+      resumeSavedRun();
+  };
+
+  const handleDiscardSave = () => {
+      if (missionStartPending) return;
+      discardSavedRun();
   };
 
   const submittedRunRowIndex = submittedRunScore
@@ -1267,6 +1300,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   // --- MAIN MENU ---
   if (mode === GameMode.MENU) {
     const menuContentClass = menuBackgroundReady ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none';
+    const menuUsesCompactLayout = isMenuCompact && hasSavedRun;
+    const menuNeedsFallbackScroll = isMenuScrollFallback && hasSavedRun;
 
     return (
       <div 
@@ -1317,14 +1352,14 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
         {/* --- MAIN INTERFACE (Scalable) --- */}
         <div 
-            className={`relative z-10 flex flex-col items-center justify-center h-full w-full px-4 transition-[opacity,transform] duration-200 ease-out ${menuContentClass}`}
-            style={{ transform: `scale(${uiScale})` }}
+            className={`relative z-10 flex h-full w-full flex-col items-center px-4 transition-[opacity,transform] duration-200 ease-out ${menuNeedsFallbackScroll ? 'justify-start overflow-y-auto overflow-x-hidden py-3' : 'justify-center overflow-hidden'} ${menuContentClass}`}
+            style={{ transform: menuNeedsFallbackScroll ? `scale(${uiScale})` : undefined, transformOrigin: 'top center' }}
         >
-            <div className="max-w-lg w-full flex flex-col items-center mt-16 md:mt-24">
+            <div className={`max-w-lg w-full flex flex-col items-center ${menuNeedsFallbackScroll ? 'pt-8 pb-6' : menuUsesCompactLayout ? 'mt-6 md:mt-10' : 'mt-16 md:mt-24'}`}>
                 
                 {/* TITLE IMAGE - CLICKABLE FOR AUDIO START */}
                 <button 
-                    className="mb-12 cursor-pointer focus:outline-none hover:scale-105 transition-transform duration-500" 
+                    className={`${menuUsesCompactLayout ? 'mb-5' : 'mb-12'} cursor-pointer focus:outline-none hover:scale-105 transition-transform duration-500`}
                     onClick={() => {
                         const audio = document.querySelector('audio');
                         if (audio && audio.paused) audio.play().catch(e => console.log(e));
@@ -1339,7 +1374,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                 </button>
 
                 {/* CONTROL PANEL */}
-                <div className="relative mb-6 w-full ui-panel ui-scanlines p-8">
+                <div className={`relative mb-6 w-full ui-panel ui-scanlines ${menuUsesCompactLayout ? 'p-5' : 'p-8'}`}>
 
                 {/* Pixel corners */}
                 <div className="absolute top-2 left-2 w-2 h-2 bg-green-300 border border-black" />
@@ -1347,22 +1382,74 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                 <div className="absolute bottom-2 left-2 w-2 h-2 bg-green-300 border border-black" />
                 <div className="absolute bottom-2 right-2 w-2 h-2 bg-green-300 border border-black" />
 
-                <p className="text-center text-green-200 text-xs mb-6 uppercase border-b-4 border-black pb-4 font-mono">
+                <p className={`text-center text-green-200 text-xs uppercase border-b-4 border-black font-mono ${menuUsesCompactLayout ? 'mb-4 pb-3' : 'mb-6 pb-4'}`}>
                     <span className="text-green-400 mr-2">●</span> GAIA PROTOCOL ACTIVE <span className="text-green-400 ml-2">●</span>
                 </p>
 
-                <div className="space-y-4">
-                    <button
-                    data-modal-btn=""
-                    autoFocus
-                    onClick={beginMissionStartup}
-                    disabled={missionStartPending}
-                    className={`group relative w-full ui-button ui-menu-primary py-5 font-extrabold transition-all overflow-hidden ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
-                    >
-                    <span className="flex items-center justify-center gap-3 text-xl">
-                        <span className="animate-pulse">{missionStartPending ? ' STARTING...' : ' START MISSION'}</span>
-                    </span>
-                    </button>
+                <div className={menuUsesCompactLayout ? 'space-y-3' : 'space-y-4'}>
+                    {hasSavedRun && savedRunSummary ? (
+                      <div className={menuUsesCompactLayout ? 'space-y-2' : 'space-y-3'}>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            data-modal-btn=""
+                            autoFocus
+                            onClick={handleResumeMission}
+                            disabled={missionStartPending}
+                            className={`group relative ui-button ui-button-warning font-extrabold transition-all overflow-hidden ${menuUsesCompactLayout ? 'py-3' : 'py-5'} ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
+                          >
+                            <span className={`flex items-center justify-center gap-3 ${menuUsesCompactLayout ? 'text-sm' : 'text-lg'}`}>
+                              <span>CONTINUE</span>
+                            </span>
+                          </button>
+
+                          <button
+                            data-modal-btn=""
+                            onClick={beginMissionStartup}
+                            disabled={missionStartPending}
+                            className={`group relative ui-button ui-menu-primary font-extrabold transition-all overflow-hidden ${menuUsesCompactLayout ? 'py-3' : 'py-5'} ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
+                          >
+                            <span className={`flex items-center justify-center gap-3 ${menuUsesCompactLayout ? 'text-sm' : 'text-lg'}`}>
+                              <span className="animate-pulse">{missionStartPending ? 'STARTING...' : 'START'}</span>
+                            </span>
+                          </button>
+                        </div>
+
+                        <div className={`ui-chip border border-black/50 bg-black/25 text-left ${menuUsesCompactLayout ? 'px-2 py-2' : 'px-3 py-2'}`}>
+                          <div className={`flex items-center justify-between gap-3 uppercase text-green-200 ${menuUsesCompactLayout ? 'text-[9px]' : 'text-[10px] tracking-widest'}`}>
+                            <span>Stage {savedRunSummary.stage}</span>
+                            <span>{menuUsesCompactLayout ? (savedRunSummary.scene === 'battle' ? 'Battle' : 'Overworld') : getSavedRunSceneLabel(savedRunSummary.scene)}</span>
+                          </div>
+                          <div className={`${menuUsesCompactLayout ? 'mt-1 text-[9px]' : 'mt-1 text-[10px]'} uppercase ui-muted`}>
+                            Saved {formatSavedRunTimestamp(savedRunSummary.savedAt)}
+                          </div>
+                          {savedRunSummary.sourcePlayMode === 'multiplayer' && !menuUsesCompactLayout && (
+                            <div className="mt-1 text-[10px] uppercase text-cyan-200">
+                              Co-op snapshot resumes in solo mode
+                            </div>
+                          )}
+                          <button
+                            data-modal-btn=""
+                            onClick={handleDiscardSave}
+                            disabled={missionStartPending}
+                            className={`${menuUsesCompactLayout ? 'mt-2 py-1 text-[10px]' : 'mt-2 py-1 text-xs'} w-full ui-button ui-button-secondary font-bold ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
+                          >
+                            DISCARD SAVE
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                        <button
+                          data-modal-btn=""
+                          autoFocus
+                          onClick={beginMissionStartup}
+                          disabled={missionStartPending}
+                          className={`group relative w-full ui-button ui-menu-primary font-extrabold transition-all overflow-hidden ${menuUsesCompactLayout ? 'py-3' : 'py-5'} ${missionStartPending ? 'ui-button-disabled pointer-events-none' : ''}`}
+                        >
+                          <span className={`flex items-center justify-center gap-3 ${menuUsesCompactLayout ? 'text-base' : 'text-xl'}`}>
+                            <span className="animate-pulse">{missionStartPending ? ' STARTING...' : ' START MISSION'}</span>
+                          </span>
+                        </button>
+                    )}
 
                     <div className="ui-chip p-2 border border-black/50 bg-black/25">
                       <div className="text-[10px] uppercase ui-muted mb-2 text-center">Play Mode</div>

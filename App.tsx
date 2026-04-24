@@ -11,12 +11,15 @@ import { useGameStore } from './store/gameStore';
 import { useMultiplayer } from './multiplayer/useMultiplayer';
 import { useHostPortalVoteTick } from './multiplayer/useHostPortalVoteTick';
 
+const RUN_AUTOSAVE_THROTTLE_MS = 800;
+
 const App: React.FC = () => {
   // Input References (mutable ref to avoid re-renders on every frame input)
   const inputVector = useRef<Vector2>({ x: 0, y: 0 });
   const keyboardVector = useRef<Vector2>({ x: 0, y: 0 });
   const joystickVector = useRef<Vector2>({ x: 0, y: 0 });
   const dashTrigger = useRef<boolean>(false);
+  const autosaveTimeoutRef = useRef<number | null>(null);
   
   const [isMobile, setIsMobile] = useState(false);
 
@@ -42,6 +45,72 @@ const App: React.FC = () => {
 
   useMultiplayer(multiplayerRuntimeEnabled);
   useHostPortalVoteTick();
+
+  useEffect(() => {
+    const clearPendingAutosave = () => {
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current);
+        autosaveTimeoutRef.current = null;
+      }
+    };
+
+    const flushRunAutosave = () => {
+      clearPendingAutosave();
+      useGameStore.getState().saveRunProgress();
+    };
+
+    useGameStore.getState().refreshSavedRunSummary();
+
+    const unsub = useGameStore.subscribe((state) => {
+      const isResumableRun =
+        state.mode === GameMode.OVERWORLD ||
+        state.mode === GameMode.BATTLE ||
+        state.mode === GameMode.QUIZ_RESULT ||
+        state.mode === GameMode.REWARD ||
+        state.mode === GameMode.CHEST_REWARD ||
+        state.mode === GameMode.LOADING_LEVEL ||
+        state.mode === GameMode.PAUSED ||
+        state.mode === GameMode.SHOP ||
+        state.mode === GameMode.STATUS ||
+        state.mode === GameMode.LIBRARY;
+
+      if (!isResumableRun) {
+        clearPendingAutosave();
+        return;
+      }
+
+      if (autosaveTimeoutRef.current !== null) return;
+
+      autosaveTimeoutRef.current = window.setTimeout(() => {
+        autosaveTimeoutRef.current = null;
+        useGameStore.getState().saveRunProgress();
+      }, RUN_AUTOSAVE_THROTTLE_MS);
+    });
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushRunAutosave();
+      }
+    };
+
+    window.addEventListener('pagehide', flushRunAutosave);
+    window.addEventListener('beforeunload', flushRunAutosave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearPendingAutosave();
+      unsub();
+      window.removeEventListener('pagehide', flushRunAutosave);
+      window.removeEventListener('beforeunload', flushRunAutosave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gameMode === GameMode.MENU) {
+      useGameStore.getState().refreshSavedRunSummary();
+    }
+  }, [gameMode]);
 
   useEffect(() => {
     if (playMode === 'multiplayer' && inRun && !mpGroupId && mpStatus === 'idle') {
