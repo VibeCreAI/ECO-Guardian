@@ -119,14 +119,24 @@ const dispatchGaiaNarrationLifecycle = (
 
 const clampStageNumber = (stageNumber: number) => Math.min(10, Math.max(1, stageNumber));
 
+const MENU_MUSIC_VOLUME = 0.24;
+const DEFAULT_MUSIC_VOLUME = 0.4;
+const DUCKED_MUSIC_VOLUME = 0.15;
+
 const getMusicVolumeForMode = (mode: GameMode) =>
   mode === GameMode.PAUSED ||
   mode === GameMode.STATUS ||
   mode === GameMode.LIBRARY ||
   mode === GameMode.SHOP ||
   mode === GameMode.REWARD
-    ? 0.15
-    : 0.4;
+    ? DUCKED_MUSIC_VOLUME
+    : mode === GameMode.MENU ||
+      mode === GameMode.DIFFICULTY_SELECT ||
+      mode === GameMode.INSTRUCTIONS ||
+      mode === GameMode.LEADERBOARD ||
+      mode === GameMode.VICTORY
+      ? MENU_MUSIC_VOLUME
+      : DEFAULT_MUSIC_VOLUME;
 
 export const requestGaiaNarrationSequence = (clips: GaiaNarrationClipInput[]) => {
   if (typeof window === 'undefined') return;
