@@ -439,6 +439,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const cameraZoom = useGameStore(s => s.cameraZoom);
   const isPortalEntry = useGameStore(s => s.isPortalEntry);
   const portalRefUrl = useGameStore(s => s.portalRefUrl);
+  const hideVibeJam = useGameStore(s => s.hideVibeJam);
   const enterBattle = useGameStore(s => s.enterBattle);
   const setDashCooldown = useGameStore(s => s.setDashCooldown);
   const updatePosition = useGameStore(s => s.updatePosition);
@@ -1131,9 +1132,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
             <VoxelLandmark type={landmarkType} position={[LANDMARK_POS.x, 0, LANDMARK_POS.z]} />
             <VoxelShop position={[SHOP_POS.x, 0, SHOP_POS.z]} />
             {/* VibeJam Next portal — always present, sends player to the VibeJam webring */}
-            <VoxelPortal position={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]} color="#22d3ee" tintStructure isBoss={false} label="Vibe" />
+            {!hideVibeJam && <VoxelPortal position={[VIBEJAM_NEXT_POS.x, 0, VIBEJAM_NEXT_POS.z]} color="#22d3ee" tintStructure isBoss={false} label="Vibe" />}
             {/* VibeJam Return portal — only when player arrived via ?portal=true */}
-            {isPortalEntry && (
+            {!hideVibeJam && isPortalEntry && (
               <VoxelPortal position={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]} color="#fb923c" innerColor="#a78bfa" tintStructure isBoss={false} label="Return" />
             )}
             <PropSpriteBatch items={propSprites} />
@@ -1155,6 +1156,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
               isPortalEntry={isPortalEntry}
               vibeJamReturnPos={[VIBEJAM_RETURN_POS.x, 0, VIBEJAM_RETURN_POS.z]}
               portalRefUrl={portalRefUrl}
+              hideVibeJam={hideVibeJam}
               highlights={groundTextHighlights}
             />
             {arrowTarget && ( <QuestArrow playerRef={playerRef} target={{ x: arrowTarget.x, z: arrowTarget.z }} /> )}

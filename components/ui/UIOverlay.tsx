@@ -269,7 +269,7 @@ const getSavedRunSceneLabel = (scene: SavedRunSummary['scene']) =>
 
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, playMode, setPlayMode, hasSavedRun, savedRunSummary, resumeSavedRun, discardSavedRun } = useGameStore(useShallow((s) => ({
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, hideVibeJam, playMode, setPlayMode, hasSavedRun, savedRunSummary, resumeSavedRun, discardSavedRun } = useGameStore(useShallow((s) => ({
     mode: s.mode,
     playerStats: s.playerStats,
     dashCooldownCurrent: s.dashCooldownCurrent,
@@ -322,6 +322,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     cameraZoom: s.cameraZoom,
     setCameraZoom: s.setCameraZoom,
     isPortalEntry: s.isPortalEntry,
+    hideVibeJam: s.hideVibeJam,
     playMode: s.playMode,
     setPlayMode: s.setPlayMode,
     hasSavedRun: s.hasSavedRun,
@@ -738,7 +739,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
             ♻️
         </div>
 
-        <div
+        {!hideVibeJam && <div
             className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 border border-black bg-cyan-400 text-[7px] leading-[10px] text-black text-center font-bold"
             style={{
                 top: center + vibeNextPinY,
@@ -747,8 +748,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
             title="Vibe Portal"
         >
             V
-        </div>
-        {isPortalEntry && (
+        </div>}
+        {!hideVibeJam && isPortalEntry && (
             <div
                 className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 border border-black bg-orange-400 text-[7px] leading-[10px] text-black text-center font-bold"
                 style={{

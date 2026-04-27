@@ -130,6 +130,23 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Hide all VibeJam UI on competition-clean routes (e.g. /runway)
+  useEffect(() => {
+    if (window.location.pathname === '/runway') {
+      useGameStore.getState().setHideVibeJam(true);
+    }
+  }, []);
+
+  // Inject VibeJam widget dynamically so it's skipped on clean routes
+  useEffect(() => {
+    if (window.location.pathname !== '/runway') {
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://vibej.am/2026/widget.js';
+      document.head.appendChild(s);
+    }
+  }, []);
+
   // Platform detection
   useEffect(() => {
     const checkMobile = () => {

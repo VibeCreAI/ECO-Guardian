@@ -201,6 +201,7 @@ interface GameState {
 
   isPortalEntry: boolean;
   portalRefUrl: string | null;
+  hideVibeJam: boolean;
 
   multiplayer: {
     localPlayerId: string;
@@ -322,6 +323,7 @@ interface GameState {
   debugJumpToStage: (stage: number) => Promise<void>;
   debugEnterEndingCinematic: () => Promise<void>;
   setHighlightedPortal: (id: string | null) => void;
+  setHideVibeJam: (v: boolean) => void;
 }
 
 type RunSaveState = Pick<
@@ -1080,6 +1082,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   isPortalEntry: false,
   portalRefUrl: null,
+  hideVibeJam: false,
 
   multiplayer: {
     localPlayerId: getOrCreateLocalPlayerId(),
@@ -2693,7 +2696,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  setHighlightedPortal: (id) => set({ highlightedPortalId: id })
+  setHighlightedPortal: (id) => set({ highlightedPortalId: id }),
+
+  setHideVibeJam: (v) => set({ hideVibeJam: v }),
 }));
 
 

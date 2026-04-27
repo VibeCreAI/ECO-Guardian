@@ -55,6 +55,7 @@ interface InWorldTextProps {
   isPortalEntry: boolean;
   vibeJamReturnPos: [number, number, number];
   portalRefUrl: string | null;
+  hideVibeJam?: boolean;
   highlights?: GroundTextHighlights;
 }
 
@@ -174,6 +175,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   isPortalEntry,
   vibeJamReturnPos,
   portalRefUrl,
+  hideVibeJam = false,
   highlights,
 }) => {
   const narrativeDoneRef = useRef(false);
@@ -424,7 +426,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       </group>
 
       {/* ── VibeJam Next Portal ground label ── */}
-      <group position={vibeJamNextTextPos} rotation={[-Math.PI / 2, 0, 0]}>
+      {!hideVibeJam && <group position={vibeJamNextTextPos} rotation={[-Math.PI / 2, 0, 0]}>
         <GroundTextPanel
           width={VIBEJAM_GROUND_TEXT_PANEL.width}
           height={VIBEJAM_GROUND_TEXT_PANEL.height}
@@ -465,10 +467,10 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
         >
           Travel to other worlds in the VibeJam universe
         </Text>
-      </group>
+      </group>}
 
       {/* ── VibeJam Return Portal ground label (portal entry only) ── */}
-      {isPortalEntry && (
+      {!hideVibeJam && isPortalEntry && (
         <group position={vibeJamReturnTextPos} rotation={[-Math.PI / 2, 0, 0]}>
           <GroundTextPanel
             width={VIBEJAM_GROUND_TEXT_PANEL.width}
