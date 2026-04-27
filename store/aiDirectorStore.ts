@@ -289,6 +289,7 @@ const QUIZ_IMAGE_STAGE_SLUGS = new Set([
     'frozen_server_farm',
     'magma_refinery',
     'silicon_dunes',
+    'toxic_swamp',
 ]);
 
 const buildYesNoQuiz = (
