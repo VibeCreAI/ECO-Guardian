@@ -21,10 +21,11 @@ export const StageDebugPanel: React.FC = () => {
   const [selectedPassive, setSelectedPassive] = useState('DUPLICATOR');
   const activeStage = useGameStore((state) => state.activeStage);
   const playerStats = useGameStore((state) => state.playerStats);
-  const debugGrantWeapon = useGameStore((state) => state.debugGrantWeapon);
+  const debugAdjustWeaponLevel = useGameStore((state) => state.debugAdjustWeaponLevel);
   const debugGrantPassive = useGameStore((state) => state.debugGrantPassive);
   const debugGrantHolyBeamKit = useGameStore((state) => state.debugGrantHolyBeamKit);
   const debugResetLoadout = useGameStore((state) => state.debugResetLoadout);
+  const debugAddHealth = useGameStore((state) => state.debugAddHealth);
   const debugJumpToStage = useGameStore((state) => state.debugJumpToStage);
   const debugEnterEndingCinematic = useGameStore((state) => state.debugEnterEndingCinematic);
   const currentConfig = useAiDirectorStore((state) => state.currentConfig);
@@ -142,7 +143,7 @@ export const StageDebugPanel: React.FC = () => {
           })}
         </div>
         <div className="mt-2 grid gap-1 border-t-2 border-cyan-900/70 pt-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-1">
             <select
               value={selectedWeapon}
               onChange={(event) => setSelectedWeapon(event.target.value)}
@@ -158,7 +159,15 @@ export const StageDebugPanel: React.FC = () => {
             </select>
             <button
               type="button"
-              onClick={() => debugGrantWeapon(selectedWeapon)}
+              onClick={() => debugAdjustWeaponLevel(selectedWeapon, -1)}
+              className="border-2 border-black bg-amber-500 px-2 py-1 text-[9px] font-black leading-none text-black hover:bg-amber-300"
+              title="Remove one level of the selected weapon"
+            >
+              - WPN
+            </button>
+            <button
+              type="button"
+              onClick={() => debugAdjustWeaponLevel(selectedWeapon, 1)}
               className="border-2 border-black bg-lime-500 px-2 py-1 text-[9px] font-black leading-none text-black hover:bg-lime-300"
               title="Add one level of the selected weapon"
             >
@@ -189,6 +198,14 @@ export const StageDebugPanel: React.FC = () => {
             </button>
           </div>
           <div className="grid grid-cols-2 gap-1">
+            <button
+              type="button"
+              onClick={() => debugAddHealth(50)}
+              className="w-full border-2 border-black bg-emerald-500 px-2 py-1 text-[10px] font-black leading-none text-black hover:bg-emerald-300"
+              title="Increase Max HP by 50 and heal 50 HP"
+            >
+              +50 HP/MAX ({Math.ceil(playerStats.hp)}/{Math.ceil(playerStats.maxHp)})
+            </button>
             <button
               type="button"
               onClick={debugGrantHolyBeamKit}

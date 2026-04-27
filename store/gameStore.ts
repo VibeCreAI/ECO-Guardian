@@ -317,9 +317,11 @@ interface GameState {
   preloadGameFromPortal: (refUrl: string | null) => void;
   startGame: () => void;
   debugGrantWeapon: (weaponKey: string) => void;
+  debugAdjustWeaponLevel: (weaponKey: string, delta: number) => void;
   debugGrantPassive: (passiveKey: string) => void;
   debugGrantHolyBeamKit: () => void;
   debugResetLoadout: () => void;
+  debugAddHealth: (amount: number) => void;
   debugJumpToStage: (stage: number) => Promise<void>;
   debugEnterEndingCinematic: () => Promise<void>;
   setHighlightedPortal: (id: string | null) => void;
@@ -844,31 +846,36 @@ const cloneStatsForDebugGrant = (stats: PlayerStats): PlayerStats => ({
   },
 });
 
-const applyDebugWeaponGrant = (
+const applyDebugWeaponLevelDelta = (
   stats: PlayerStats,
   weaponKey: string,
-  targetLevel?: number,
+  delta: number,
 ) => {
   const weapon = WEAPONS_DATA[weaponKey];
   if (!weapon) return false;
 
   const currentLevel = stats.unlockedWeapons[weaponKey] || 0;
-  if (currentLevel >= DEBUG_MAX_ITEM_LEVEL) return false;
+  const normalizedDelta = Math.trunc(delta);
+  if (normalizedDelta === 0) return false;
 
-  const nextLevel = targetLevel === undefined
-    ? currentLevel + 1
-    : Math.max(1, Math.min(DEBUG_MAX_ITEM_LEVEL, Math.floor(targetLevel)));
+  const nextLevel = Math.max(
+    0,
+    Math.min(DEBUG_MAX_ITEM_LEVEL, currentLevel + normalizedDelta),
+  );
+  if (nextLevel === currentLevel) return false;
 
-  if (nextLevel <= currentLevel) return false;
-
-  if (currentLevel === 0) {
+  if (currentLevel === 0 && nextLevel > 0) {
     const weaponCount = Object.keys(stats.unlockedWeapons).length;
     if (weaponCount >= stats.maxWeaponSlots) {
       stats.maxWeaponSlots = weaponCount + 1;
     }
   }
 
-  stats.unlockedWeapons[weaponKey] = nextLevel;
+  if (nextLevel <= 0) {
+    delete stats.unlockedWeapons[weaponKey];
+  } else {
+    stats.unlockedWeapons[weaponKey] = nextLevel;
+  }
   return true;
 };
 
@@ -1720,7 +1727,17 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       set((state) => {
           const stats = cloneStatsForDebugGrant(state.playerStats);
-          const changed = applyDebugWeaponGrant(stats, weaponKey);
+          const changed = applyDebugWeaponLevelDelta(stats, weaponKey, 1);
+          return changed ? getDebugGrantUpdate(state, stats) : {};
+      });
+  },
+
+  debugAdjustWeaponLevel: (weaponKey, delta) => {
+      if (!import.meta.env.DEV) return;
+
+      set((state) => {
+          const stats = cloneStatsForDebugGrant(state.playerStats);
+          const changed = applyDebugWeaponLevelDelta(stats, weaponKey, delta);
           return changed ? getDebugGrantUpdate(state, stats) : {};
       });
   },
@@ -1742,9 +1759,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           const stats = cloneStatsForDebugGrant(state.playerStats);
           let changed = false;
 
-          changed = applyDebugWeaponGrant(stats, 'CROSS', DEBUG_MAX_ITEM_LEVEL) || changed;
-          changed = applyDebugWeaponGrant(stats, 'BIBLE', DEBUG_MAX_ITEM_LEVEL) || changed;
-          changed = applyDebugWeaponGrant(stats, 'HOLY_BEAM', DEBUG_MAX_ITEM_LEVEL) || changed;
+          changed = applyDebugWeaponLevelDelta(stats, 'CROSS', DEBUG_MAX_ITEM_LEVEL) || changed;
+          changed = applyDebugWeaponLevelDelta(stats, 'BIBLE', DEBUG_MAX_ITEM_LEVEL) || changed;
+          changed = applyDebugWeaponLevelDelta(stats, 'HOLY_BEAM', DEBUG_MAX_ITEM_LEVEL) || changed;
           changed = applyDebugPassiveGrant(stats, 'DUPLICATOR', 5) || changed;
           changed = applyDebugPassiveGrant(stats, 'TOME', 5) || changed;
 
@@ -1759,6 +1776,19 @@ export const useGameStore = create<GameState>((set, get) => ({
           const stats = getDebugResetLoadoutStats(state.playerStats);
           return getDebugGrantUpdate(state, stats);
       });
+  },
+
+  debugAddHealth: (amount) => {
+      if (!import.meta.env.DEV) return;
+
+      const normalizedAmount = Math.max(1, Math.floor(amount));
+      set((state) => ({
+          playerStats: {
+              ...state.playerStats,
+              maxHp: state.playerStats.maxHp + normalizedAmount,
+              hp: state.playerStats.hp + normalizedAmount,
+          },
+      }));
   },
 
   debugJumpToStage: async (stage) => {
