@@ -291,6 +291,9 @@ const QUIZ_IMAGE_STAGE_SLUGS = new Set([
     'silicon_dunes',
     'toxic_swamp',
     'cyber_city_ruins',
+    'null_void',
+    'cloud_data_center',
+    'digital_hell',
 ]);
 
 const buildYesNoQuiz = (
