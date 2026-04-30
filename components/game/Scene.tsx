@@ -96,43 +96,67 @@ const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }
 
 const PORTRAIT_CAMERA_BOOST = 14;
 const PORTRAIT_ZOOM_RANGE_SCALE = 1.45;
-const OVERWORLD_SKY_BACKGROUND_ASSET_VERSION = 'stage-sky-v1';
+const OVERWORLD_SKY_BACKGROUND_ASSET_VERSION = 'stage-sky-v2';
+const SKY_BACKDROP_DISTANCE = 160;
 
 const versionOverworldSkyBackgroundUrl = (url: string) =>
   `${url}${url.includes('?') ? '&' : '?'}v=${OVERWORLD_SKY_BACKGROUND_ASSET_VERSION}`;
 
-const TexturedSceneBackground = ({ url }: { url: string }) => {
+const CameraCoverBackdrop = ({ url, visible }: { url: string; visible: boolean }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
   const texture = useTexture(versionOverworldSkyBackgroundUrl(url));
-  const viewportSize = useThree((state) => state.size);
+  const { camera, size } = useThree();
+  const cameraDirection = useRef(new THREE.Vector3());
 
   useEffect(() => {
-    const image = texture.image as { width?: number; height?: number } | undefined;
-    const imageAspect = image?.width && image?.height ? image.width / image.height : 16 / 9;
-    const viewportAspect = viewportSize.width / Math.max(1, viewportSize.height);
-
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    texture.offset.set(0, 0);
-    texture.repeat.set(1, 1);
+    texture.needsUpdate = true;
+  }, [texture]);
 
-    if (viewportAspect < imageAspect) {
-      const repeatX = viewportAspect / imageAspect;
-      texture.repeat.x = repeatX;
-      texture.offset.x = (1 - repeatX) / 2;
-    } else {
-      const repeatY = imageAspect / viewportAspect;
-      texture.repeat.y = repeatY;
-      texture.offset.y = (1 - repeatY) / 2;
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh || !visible) return;
+
+    camera.getWorldDirection(cameraDirection.current);
+    mesh.position.copy(camera.position).addScaledVector(cameraDirection.current, SKY_BACKDROP_DISTANCE);
+    mesh.quaternion.copy(camera.quaternion);
+
+    const image = texture.image as { width?: number; height?: number } | undefined;
+    const imageAspect = image?.width && image?.height ? image.width / image.height : 16 / 9;
+    const viewportAspect = size.width / Math.max(1, size.height);
+
+    let viewWidth = 120;
+    let viewHeight = viewWidth / Math.max(0.01, viewportAspect);
+
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      const perspectiveCamera = camera as THREE.PerspectiveCamera;
+      viewHeight = 2 * Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov) / 2) * SKY_BACKDROP_DISTANCE;
+      viewWidth = viewHeight * perspectiveCamera.aspect;
     }
 
-    texture.updateMatrix();
-    texture.needsUpdate = true;
-  }, [texture, viewportSize.width, viewportSize.height]);
+    if (viewWidth / viewHeight > imageAspect) {
+      mesh.scale.set(viewWidth, viewWidth / imageAspect, 1);
+    } else {
+      mesh.scale.set(viewHeight * imageAspect, viewHeight, 1);
+    }
+  });
 
-  return <primitive attach="background" object={texture} />;
+  return (
+    <mesh ref={meshRef} visible={visible} renderOrder={-1000} frustumCulled={false}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        map={texture}
+        depthTest={false}
+        depthWrite={false}
+        fog={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
 };
 
 const CLOUD_CONFIGS = [
@@ -555,7 +579,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const fogColor = React.useMemo(() => THEME_FOG_COLORS[sceneTheme], [sceneTheme]);
   const backgroundColor = React.useMemo(() => THEME_BACKGROUND_COLORS[sceneTheme], [sceneTheme]);
   const overworldSkyBackgroundUrl = React.useMemo(
-    () => (sceneTheme === 'FOREST' ? getOverworldSkyBackgroundPath(sceneTheme) : null),
+    () => getOverworldSkyBackgroundPath(sceneTheme),
     [sceneTheme]
   );
   const hemisphereColors = React.useMemo(() => THEME_HEMISPHERE_COLORS[sceneTheme], [sceneTheme]);
@@ -1153,10 +1177,9 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
   return (
     <>
-      {showOverworldScene && !showBattleScene && overworldSkyBackgroundUrl ? (
-        <TexturedSceneBackground url={overworldSkyBackgroundUrl} />
-      ) : (
-        <color attach="background" args={[backgroundColor]} />
+      <color attach="background" args={[backgroundColor]} />
+      {(showOverworldScene || showBattleScene) && overworldSkyBackgroundUrl && (
+        <CameraCoverBackdrop url={overworldSkyBackgroundUrl} visible />
       )}
       {showDefaultSky && !useMutedGameplayBackdrop && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
       {sceneTheme === 'SKY' && !useMutedGameplayBackdrop && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}

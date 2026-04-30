@@ -6,6 +6,19 @@ const assetSlug = (value: string) =>
 const assetPath = (relativePath: string) =>
   `${assetRoot}/${relativePath.replace(/^\/+/, '')}`;
 
+const OVERWORLD_SKY_BACKGROUND_THEMES = [
+  'FOREST',
+  'SKULL',
+  'ICE',
+  'VOLCANO',
+  'PYRAMID',
+  'MUSHROOM',
+  'CYBER',
+  'VOID',
+  'SKY',
+  'HELL',
+] as const;
+
 const ENEMY_SPRITE_SHEET_PATHS = {
   BOTTLE_SPRITE: assetPath('images/enemies/stage_1_plastic_woods/water_bottle.png'),
   WRAPPER_MOTH: assetPath('images/enemies/stage_1_plastic_woods/plastic_bag.png'),
@@ -220,7 +233,9 @@ export const STARTUP_PRELOAD_ASSETS = [
   ASSET_PATHS.images.player.walkNorth,
   ASSET_PATHS.images.player.walkEast,
   ASSET_PATHS.images.player.walkWest,
-  ASSET_PATHS.images.backgrounds.overworldSkyByTheme('FOREST'),
+  ...OVERWORLD_SKY_BACKGROUND_THEMES.map((themeName) =>
+    ASSET_PATHS.images.backgrounds.overworldSkyByTheme(themeName)
+  ),
   ...Object.values(ENEMY_SPRITE_SHEET_PATHS),
   ASSET_PATHS.audio.music.menu,
   ASSET_PATHS.audio.music.stage(1),
