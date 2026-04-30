@@ -40,7 +40,7 @@ const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {
 const EXTERNAL_GROUND_VARIANT_COUNT = 4;
 const EXTERNAL_GROUND_TILE_PIXELS = 1024;
 const PROCEDURAL_OVERLAY_TILE_PIXELS = 128;
-const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v12';
+const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v13';
 
 const usesExternalOverlayTile = (themeType: ThemeName) =>
     themeType === 'VOLCANO' || themeType === 'CYBER' || themeType === 'HELL';
@@ -174,6 +174,12 @@ const createGroundTileMosaic = (
 
     return canvas;
 };
+
+const getExternalGroundTileRepeat = (width: number, height: number, tileWorldSize: number) =>
+    new THREE.Vector2(
+        Math.max(1, Math.ceil(width / tileWorldSize)),
+        Math.max(1, Math.ceil(height / tileWorldSize)),
+    );
 
 const maybeApplyExternalGroundTile = (
     texture: THREE.Texture,
@@ -783,8 +789,12 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
     const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
     const externalTileWorldSize = mode === 'BATTLE' ? 14 : 16;
     const uvScale = useMemo(() => new THREE.Vector2(width / tileWorldSize, height / tileWorldSize), [width, height, tileWorldSize]);
-    const overlayTileWorldSize = usesExternalOverlayTile(themeType) ? externalTileWorldSize : tileWorldSize;
-    const overlayUvScale = useMemo(() => new THREE.Vector2(width / overlayTileWorldSize, height / overlayTileWorldSize), [width, height, overlayTileWorldSize]);
+    const overlayUvScale = useMemo(
+        () => usesExternalOverlayTile(themeType)
+            ? getExternalGroundTileRepeat(width, height, externalTileWorldSize)
+            : new THREE.Vector2(width / tileWorldSize, height / tileWorldSize),
+        [themeType, width, height, externalTileWorldSize, tileWorldSize],
+    );
 
     const texture = useMemo(() => {
         const size = 128;

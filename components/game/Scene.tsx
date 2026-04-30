@@ -402,13 +402,18 @@ const getThemePropPool = (theme: ThemeName, primaryProp?: string) => {
   return primaryProp ? Array.from(new Set([primaryProp, ...pool])) : pool;
 };
 
+const OVERWORLD_PROP_SCALE_MULTIPLIER = 1.5;
+
 const getPropScale = (type: string) => {
-    if (type === 'TREE' || type === 'PALM' || type === 'SWAMP_TREE' || type === 'SNOW_TREE') return 3.5;
-    if (type.includes('PILLAR') || type === 'RUIN' || type.includes('SERVER') || type.includes('GATE') || type === 'NEON_SIGN' || type === 'BILLBOARD_RUIN' || type === 'HELL_OBELISK') return 3.0;
-    if (type === 'SATELLITE_DISH' || type === 'SILICON_SPIRE' || type === 'STATIC_RIFT') return 2.7;
-    if (type === 'MUSHROOM' || type.includes('CRYSTAL') || type === 'CACTUS' || type.includes('GRAVE') || type === 'TRASH_CAN' || type.includes('BARREL') || type === 'OIL_DRUM') return 2.2;
-    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'BONE_TRASH_PILE' || type === 'FROZEN_CABLE_PILE' || type === 'SCORCHED_EWASTE_PILE' || type === 'SILICON_EWASTE_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') return 1.8;
-    return 2.0;
+    let baseScale = 2.0;
+
+    if (type === 'TREE' || type === 'PALM' || type === 'SWAMP_TREE' || type === 'SNOW_TREE') baseScale = 3.5;
+    else if (type.includes('PILLAR') || type === 'RUIN' || type.includes('SERVER') || type.includes('GATE') || type === 'NEON_SIGN' || type === 'BILLBOARD_RUIN' || type === 'HELL_OBELISK') baseScale = 3.0;
+    else if (type === 'SATELLITE_DISH' || type === 'SILICON_SPIRE' || type === 'STATIC_RIFT') baseScale = 2.7;
+    else if (type === 'MUSHROOM' || type.includes('CRYSTAL') || type === 'CACTUS' || type.includes('GRAVE') || type === 'TRASH_CAN' || type.includes('BARREL') || type === 'OIL_DRUM') baseScale = 2.2;
+    else if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'BONE_TRASH_PILE' || type === 'FROZEN_CABLE_PILE' || type === 'SCORCHED_EWASTE_PILE' || type === 'SILICON_EWASTE_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') baseScale = 1.8;
+
+    return baseScale * OVERWORLD_PROP_SCALE_MULTIPLIER;
 };
 
 const isBattlePresenceMode = (mode: GameMode) =>
