@@ -58,7 +58,10 @@ interface ExternalBossSpriteProps {
 }
 
 const textureCache: Record<string, THREE.Texture> = {};
-const propSpriteAvailabilityCache: Record<string, Promise<boolean>> = {};
+const propSpriteImageCache: Record<string, Promise<HTMLImageElement | null>> = {};
+const proceduralPropTextureCacheKeys = new Set<string>();
+const propSpriteTextureUrlByTexture = new WeakMap<THREE.Texture, string>();
+const EXTERNAL_PROP_ASSET_VERSION = 'stage-props-512-v1';
 const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
 const OUTLINE_HEX = '#f8fafc';
@@ -115,27 +118,53 @@ const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize
     return { p, r };
 };
 
-const maybeApplyExternalPropSprite = (texture: THREE.Texture, type: string) => {
-    const spriteUrl = getPropSpritePath(type);
-    if (!spriteUrl || typeof window === 'undefined' || typeof fetch !== 'function' || typeof Image === 'undefined') return;
+const versionPropSpriteUrl = (url: string) =>
+    `${url}${url.includes('?') ? '&' : '?'}v=${EXTERNAL_PROP_ASSET_VERSION}`;
 
-    if (!propSpriteAvailabilityCache[spriteUrl]) {
-        propSpriteAvailabilityCache[spriteUrl] = fetch(spriteUrl, { method: 'HEAD', cache: 'force-cache' })
-            .then((response) => {
-                const contentType = response.headers.get('content-type') ?? '';
-                return response.ok && contentType.toLowerCase().startsWith('image/');
-            })
-            .catch(() => false);
+const loadExternalPropImage = (url: string) => {
+    if (!propSpriteImageCache[url]) {
+        propSpriteImageCache[url] = new Promise<HTMLImageElement | null>((resolve) => {
+            const image = new Image();
+
+            const finish = (loadedImage: HTMLImageElement | null) => {
+                image.onload = null;
+                image.onerror = null;
+                resolve(loadedImage);
+            };
+
+            image.onload = () => finish(image);
+            image.onerror = () => finish(null);
+            image.decoding = 'async';
+            image.src = url;
+
+            if (image.complete) {
+                finish(image.naturalWidth > 0 ? image : null);
+            }
+        }).then((image) => {
+            if (!image) delete propSpriteImageCache[url];
+            return image;
+        });
     }
 
-    propSpriteAvailabilityCache[spriteUrl].then((available) => {
-        if (!available) return;
-        const image = new Image();
-        image.onload = () => {
-            texture.image = image;
-            texture.needsUpdate = true;
-        };
-        image.src = spriteUrl;
+    return propSpriteImageCache[url];
+};
+
+const maybeApplyExternalPropSprite = (texture: THREE.Texture, type: string) => {
+    const rawSpriteUrl = getPropSpritePath(type);
+    if (!rawSpriteUrl || typeof window === 'undefined' || typeof Image === 'undefined') return;
+
+    const spriteUrl = versionPropSpriteUrl(rawSpriteUrl);
+    if (propSpriteTextureUrlByTexture.get(texture) === spriteUrl) return;
+
+    propSpriteTextureUrlByTexture.set(texture, spriteUrl);
+    loadExternalPropImage(spriteUrl).then((image) => {
+        if (!image) {
+            propSpriteTextureUrlByTexture.delete(texture);
+            return;
+        }
+
+        texture.image = image;
+        texture.needsUpdate = true;
     });
 };
 
@@ -335,7 +364,13 @@ const drawProceduralProp = (ctx: CanvasRenderingContext2D, type: string) => {
 const generateTexture = (type: string, color: string, variant: string = '') => {
     const externalSpriteUrl = getEnemySpriteSheetPath(type);
     const cacheKey = externalSpriteUrl ? `external_${externalSpriteUrl}` : `${type}_${color}_${variant}`;
-    if (textureCache[cacheKey]) return textureCache[cacheKey];
+    if (textureCache[cacheKey]) {
+        const cachedTexture = textureCache[cacheKey];
+        if (proceduralPropTextureCacheKeys.has(cacheKey)) {
+            maybeApplyExternalPropSprite(cachedTexture, type);
+        }
+        return cachedTexture;
+    }
 
     if (externalSpriteUrl) {
         const tex = textureLoader.load(externalSpriteUrl, (loadedTexture) => {
@@ -591,6 +626,7 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace;
     if (isProceduralProp) {
+        proceduralPropTextureCacheKeys.add(cacheKey);
         maybeApplyExternalPropSprite(tex, type);
     }
     textureCache[cacheKey] = tex;

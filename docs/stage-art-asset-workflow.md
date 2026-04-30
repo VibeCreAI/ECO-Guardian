@@ -52,6 +52,9 @@ Props:
   uses `6px` bottom padding.
 - Props use pitch-only billboarding in `SpriteBillboard.tsx` so they keep the
   vertical camera view without leaning left/right during subtle side camera yaw.
+- When replacing same-name prop files, bump `EXTERNAL_PROP_ASSET_VERSION` in
+  `components/game/SpriteBillboard.tsx` so browsers do not keep using cached
+  PNGs.
 
 ## Ground Workflow
 
