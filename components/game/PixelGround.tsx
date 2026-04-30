@@ -40,10 +40,10 @@ const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {
 const EXTERNAL_GROUND_VARIANT_COUNT = 4;
 const EXTERNAL_GROUND_TILE_PIXELS = 1024;
 const PROCEDURAL_OVERLAY_TILE_PIXELS = 128;
-const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v11';
+const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v12';
 
 const usesExternalOverlayTile = (themeType: ThemeName) =>
-    themeType === 'VOLCANO' || themeType === 'CYBER';
+    themeType === 'VOLCANO' || themeType === 'CYBER' || themeType === 'HELL';
 
 const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
     FOREST:   { side: '#7AA64B', bottom: '#4E7130' },
@@ -430,9 +430,10 @@ const getAnimatedOverlaySpecs = (themeType: ThemeName, mode: 'OVERWORLD' | 'BATT
     }
 
     if (themeType === 'HELL') {
+        const hellSpeedScale = mode === 'BATTLE' ? 4 / 14 : 5 / 16;
         return [
-            { key: 'hell-vertical', speedX: 0, speedY: -0.12, opacity: 0.28 * combatFade, pulse: 0.1 * combatFade, pulseSpeed: 2.1 },
-            { key: 'hell-horizontal', speedX: 0.14, speedY: 0, opacity: 0.22 * combatFade, pulse: 0.08 * combatFade, pulseSpeed: 2.5 },
+            { key: 'hell-vertical', speedX: 0, speedY: -0.12 * hellSpeedScale, opacity: 0.28 * combatFade, pulse: 0.1 * combatFade, pulseSpeed: 2.1 },
+            { key: 'hell-horizontal', speedX: 0.14 * hellSpeedScale, speedY: 0, opacity: 0.22 * combatFade, pulse: 0.08 * combatFade, pulseSpeed: 2.5 },
         ];
     }
 
@@ -507,6 +508,31 @@ const drawGroundOverlayLayer = (
         }
     };
 
+    const drawHellGridPulse = (orientation: 'vertical' | 'horizontal') => {
+        const blockStep = size / 5;
+        const lineThickness = Math.max(4, Math.round(size / 160));
+        const segmentLength = Math.round(blockStep * 0.2);
+        const segmentGap = Math.round(blockStep * 0.42);
+        const lineCount = 5;
+
+        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+            const lineCenter = lineIndex * blockStep;
+            const lineStart = lineIndex === 0 ? 0 : Math.round(lineCenter - lineThickness / 2);
+
+            for (let offset = -segmentGap; offset < size + segmentGap; offset += segmentGap) {
+                if (orientation === 'vertical') {
+                    rawRect(lineStart, offset, lineThickness, segmentLength, '#facc15');
+                    rawRect(lineStart - lineThickness, offset + Math.round(segmentLength * 0.25), lineThickness * 3, segmentLength * 0.45, 'rgba(251,146,60,0.78)');
+                    rawRect(lineStart + lineThickness * 2, offset + Math.round(segmentLength * 0.65), lineThickness, segmentLength * 0.45, 'rgba(239,68,68,0.74)');
+                } else {
+                    rawRect(offset, lineStart, segmentLength, lineThickness, '#fde047');
+                    rawRect(offset + Math.round(segmentLength * 0.2), lineStart - lineThickness, segmentLength * 0.6, lineThickness * 3, 'rgba(251,146,60,0.72)');
+                    rawRect(offset + Math.round(segmentLength * 0.8), lineStart + lineThickness * 2, segmentLength * 0.45, lineThickness, 'rgba(239,68,68,0.6)');
+                }
+            }
+        }
+    };
+
     if (themeType === 'FOREST') {
         rect(7, 9, 1, 1, 'rgba(254,240,138,0.8)');
         rect(19, 6, 1, 1, 'rgba(187,247,208,0.8)');
@@ -564,17 +590,9 @@ const drawGroundOverlayLayer = (
         rect(28, 19, 1, 1, 'rgba(255,255,255,0.58)');
     } else if (themeType === 'HELL') {
         if (layerKey === 'hell-vertical') {
-            for (let y = -4; y < grid + 4; y += 7) {
-                rect(9, y, 1, 4, '#facc15');
-                rect(8, y + 1, 3, 2, 'rgba(251,146,60,0.78)');
-                rect(27, y + 3, 1, 3, 'rgba(239,68,68,0.74)');
-            }
+            drawHellGridPulse('vertical');
         } else {
-            for (let x = -4; x < grid + 4; x += 7) {
-                rect(x, 19, 4, 1, '#fde047');
-                rect(x + 1, 18, 3, 3, 'rgba(251,146,60,0.72)');
-                rect(x + 4, 6, 3, 1, 'rgba(239,68,68,0.6)');
-            }
+            drawHellGridPulse('horizontal');
         }
     }
 };
