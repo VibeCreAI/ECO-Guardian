@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AiStageConfig } from '../../types';
-import { getGroundTilePath } from '../../assets';
+import { getGroundTilePath, getGroundTileVariantPath } from '../../assets';
 
 interface PixelGroundProps {
     width: number;
@@ -36,6 +36,10 @@ type OverlayParticle = {
 };
 
 const groundTileAvailabilityCache: Record<string, Promise<boolean>> = {};
+const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {};
+const EXTERNAL_GROUND_VARIANT_COUNT = 4;
+const EXTERNAL_GROUND_TILE_PIXELS = 1024;
+const EXTERNAL_GROUND_ASSET_VERSION = 'stage1-ground-1024-trash-v1';
 
 const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
     FOREST:   { side: '#7AA64B', bottom: '#4E7130' },
@@ -86,12 +90,17 @@ const createSeededRandom = (seedInput: string) => {
     };
 };
 
-const maybeApplyExternalGroundTile = (texture: THREE.Texture, themeType: ThemeName, mode: 'OVERWORLD' | 'BATTLE') => {
-    const tileUrl = getGroundTilePath(themeType, mode);
-    if (!tileUrl || typeof window === 'undefined' || typeof fetch !== 'function' || typeof Image === 'undefined') return;
+const versionGroundTileUrl = (url: string) =>
+    `${url}${url.includes('?') ? '&' : '?'}v=${EXTERNAL_GROUND_ASSET_VERSION}`;
 
-    if (!groundTileAvailabilityCache[tileUrl]) {
-        groundTileAvailabilityCache[tileUrl] = fetch(tileUrl, { method: 'HEAD', cache: 'force-cache' })
+const getExternalGroundTileUrls = (themeType: ThemeName, mode: 'OVERWORLD' | 'BATTLE') =>
+    Array.from({ length: EXTERNAL_GROUND_VARIANT_COUNT }, (_, index) =>
+        versionGroundTileUrl(index === 0 ? getGroundTilePath(themeType, mode) : getGroundTileVariantPath(themeType, mode, index))
+    );
+
+const checkGroundTileAvailable = (url: string) => {
+    if (!groundTileAvailabilityCache[url]) {
+        groundTileAvailabilityCache[url] = fetch(url, { method: 'HEAD', cache: 'force-cache' })
             .then((response) => {
                 const contentType = response.headers.get('content-type') ?? '';
                 return response.ok && contentType.toLowerCase().startsWith('image/');
@@ -99,14 +108,109 @@ const maybeApplyExternalGroundTile = (texture: THREE.Texture, themeType: ThemeNa
             .catch(() => false);
     }
 
-    groundTileAvailabilityCache[tileUrl].then((available) => {
-        if (!available) return;
-        const image = new Image();
-        image.onload = () => {
-            texture.image = image;
-            texture.needsUpdate = true;
-        };
-        image.src = tileUrl;
+    return groundTileAvailabilityCache[url];
+};
+
+const loadGroundTileImage = (url: string) => {
+    if (!groundTileImageCache[url]) {
+        groundTileImageCache[url] = new Promise((resolve) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => resolve(null);
+            image.src = url;
+        });
+    }
+
+    return groundTileImageCache[url];
+};
+
+const createGroundTileMosaic = (
+    images: HTMLImageElement[],
+    width: number,
+    height: number,
+    tileWorldSize: number,
+    seed: string,
+) => {
+    const columns = Math.max(1, Math.ceil(width / tileWorldSize));
+    const rows = Math.max(1, Math.ceil(height / tileWorldSize));
+    const canvas = document.createElement('canvas');
+    canvas.width = columns * EXTERNAL_GROUND_TILE_PIXELS;
+    canvas.height = rows * EXTERNAL_GROUND_TILE_PIXELS;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const rand = createSeededRandom(seed);
+    const placed: number[] = [];
+    ctx.imageSmoothingEnabled = false;
+
+    for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < columns; column += 1) {
+            let imageIndex = Math.floor(rand() * images.length);
+            const leftIndex = column > 0 ? placed[row * columns + column - 1] : -1;
+            const topIndex = row > 0 ? placed[(row - 1) * columns + column] : -1;
+
+            if (images.length > 1 && (imageIndex === leftIndex || imageIndex === topIndex)) {
+                imageIndex = (imageIndex + 1 + Math.floor(rand() * (images.length - 1))) % images.length;
+            }
+
+            placed[row * columns + column] = imageIndex;
+
+            const x = column * EXTERNAL_GROUND_TILE_PIXELS;
+            const y = row * EXTERNAL_GROUND_TILE_PIXELS;
+            ctx.drawImage(
+                images[imageIndex],
+                x,
+                y,
+                EXTERNAL_GROUND_TILE_PIXELS,
+                EXTERNAL_GROUND_TILE_PIXELS,
+            );
+        }
+    }
+
+    return canvas;
+};
+
+const maybeApplyExternalGroundTile = (
+    texture: THREE.Texture,
+    themeType: ThemeName,
+    mode: 'OVERWORLD' | 'BATTLE',
+    width: number,
+    height: number,
+    tileWorldSize: number,
+) => {
+    if (typeof window === 'undefined' || typeof fetch !== 'function' || typeof Image === 'undefined') return;
+
+    const tileUrls = getExternalGroundTileUrls(themeType, mode);
+    Promise.all(tileUrls.map(async (url) => {
+        const available = await checkGroundTileAvailable(url);
+        if (!available) return null;
+        return loadGroundTileImage(url);
+    })).then((loadedImages) => {
+        const images = loadedImages.filter((image): image is HTMLImageElement => Boolean(image));
+        if (images.length === 0) return;
+
+        texture.minFilter = THREE.NearestFilter;
+        texture.magFilter = THREE.NearestFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.repeat.set(1, 1);
+
+        if (images.length === 1) {
+            texture.image = images[0];
+        } else {
+            const mosaic = createGroundTileMosaic(
+                images,
+                width,
+                height,
+                tileWorldSize,
+                `external-ground:${themeType}:${mode}:${width}x${height}`,
+            );
+            if (!mosaic) return;
+            texture.image = mosaic;
+        }
+
+        texture.needsUpdate = true;
     });
 };
 
@@ -618,6 +722,7 @@ const AnimatedGroundOverlay: React.FC<{
 export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId, mode = 'OVERWORLD', aiConfig }) => {
     const themeType = useMemo(() => resolveThemeType(themeId, aiConfig), [themeId, aiConfig]);
     const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
+    const externalTileWorldSize = mode === 'BATTLE' ? 14 : 16;
     const uvScale = useMemo(() => new THREE.Vector2(width / tileWorldSize, height / tileWorldSize), [width, height, tileWorldSize]);
 
     const texture = useMemo(() => {
@@ -638,10 +743,10 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
         tex.colorSpace = THREE.SRGBColorSpace;
         
         tex.repeat.set(uvScale.x, uvScale.y);
-        maybeApplyExternalGroundTile(tex, themeType, mode);
+        maybeApplyExternalGroundTile(tex, themeType, mode, width, height, externalTileWorldSize);
         
         return tex;
-    }, [themeType, width, height, mode, uvScale]);
+    }, [themeType, width, height, mode, uvScale, externalTileWorldSize]);
 
     const boxDepth = mode === 'BATTLE' ? 2.0 : 3.0;
     const sideColors = THEME_SIDE_COLORS[themeType] || THEME_SIDE_COLORS.FOREST;
@@ -649,9 +754,10 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
     const sideMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: sideColors.side, roughness: 0.95, metalness: 0.05 }), [sideColors.side]);
     const bottomMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: sideColors.bottom, roughness: 1.0, metalness: 0.0 }), [sideColors.bottom]);
 
-    // Box material order: +X, -X, +Y (top), -Y (bottom), +Z, -Z
+    // Box material order: +X, -X, +Y (top), -Y (bottom), +Z, -Z.
+    // Keep generated ground art unlit so scene lighting does not darken the grass.
     const topMaterial = useMemo(() => {
-        return new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0.1 });
+        return new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
     }, [texture]);
 
     const boxMaterials = useMemo(() => {

@@ -32,3 +32,6 @@ Thumbs.db
 
 # Dev Decumulation
 docs/
+!docs/
+docs/*
+!docs/stage-art-asset-workflow.md

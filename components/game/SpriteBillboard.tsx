@@ -969,9 +969,9 @@ const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchI
     const meshRef = useRef<THREE.InstancedMesh>(null);
     const shadowMeshRef = useRef<THREE.InstancedMesh>(null);
     const glowMeshRef = useRef<THREE.InstancedMesh>(null);
-    const lastCameraQuaternion = useRef(new THREE.Quaternion());
-    const hasCameraQuaternion = useRef(false);
     const tempObject = useMemo(() => new THREE.Object3D(), []);
+    const cameraPitchOnlyEuler = useMemo(() => new THREE.Euler(0, 0, 0, 'XYZ'), []);
+    const propBillboardQuaternion = useMemo(() => new THREE.Quaternion(), []);
     const texture = useMemo(() => generateTexture(type, '#ffffff'), [type]);
     const grounding = useMemo(() => getPropGroundingStyle(type), [type]);
     const material = useMemo(() => {
@@ -1016,9 +1016,11 @@ const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchI
         const shadowMesh = shadowMeshRef.current;
         const glowMesh = glowMeshRef.current;
         if (!mesh || !shadowMesh) return;
-        if (hasCameraQuaternion.current && lastCameraQuaternion.current.angleTo(camera.quaternion) < 0.0001) return;
-        hasCameraQuaternion.current = true;
-        lastCameraQuaternion.current.copy(camera.quaternion);
+
+        cameraPitchOnlyEuler.setFromQuaternion(camera.quaternion, 'XYZ');
+        cameraPitchOnlyEuler.y = 0;
+        cameraPitchOnlyEuler.z = 0;
+        propBillboardQuaternion.setFromEuler(cameraPitchOnlyEuler);
 
         items.forEach((item, index) => {
             const scale = item.scale;
@@ -1037,7 +1039,7 @@ const PropSpriteInstancedGroup: React.FC<{ type: string; items: PropSpriteBatchI
             }
 
             tempObject.position.set(item.x, scale * 0.5, item.z);
-            tempObject.quaternion.copy(camera.quaternion);
+            tempObject.quaternion.copy(propBillboardQuaternion);
             tempObject.scale.set(scale, scale, 1);
             tempObject.updateMatrix();
             mesh.setMatrixAt(index, tempObject.matrix);

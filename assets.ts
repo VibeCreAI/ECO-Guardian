@@ -1,5 +1,8 @@
 const assetRoot = `${import.meta.env.BASE_URL}assets`;
 
+const assetSlug = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
 const assetPath = (relativePath: string) =>
   `${assetRoot}/${relativePath.replace(/^\/+/, '')}`;
 
@@ -174,8 +177,10 @@ export const ASSET_PATHS = {
       byType: (propType: string) => assetPath(`images/props/${PROP_SPRITE_FILE_NAMES[propType as keyof typeof PROP_SPRITE_FILE_NAMES] ?? `${propType.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}.png`}`),
     },
     ground: {
-      byTheme: (themeName: string, mode = 'OVERWORLD') =>
-        assetPath(`images/ground/${themeName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_${mode.toLowerCase()}.png`),
+      byTheme: (themeName: string, _mode = 'OVERWORLD') =>
+        assetPath(`images/ground/${assetSlug(themeName)}_overworld.png`),
+      byThemeVariant: (themeName: string, _mode = 'OVERWORLD', variantIndex = 0) =>
+        assetPath(`images/ground/${assetSlug(themeName)}_overworld${variantIndex > 0 ? `_v${variantIndex + 1}` : ''}.png`),
     },
     quiz: {
       explanation: (stageSlug: string, questionNumber: number) =>
@@ -212,6 +217,9 @@ export const getPropSpritePath = (propType: string) =>
 
 export const getGroundTilePath = (themeName: string, mode: string) =>
   ASSET_PATHS.images.ground.byTheme(themeName, mode);
+
+export const getGroundTileVariantPath = (themeName: string, mode: string, variantIndex: number) =>
+  ASSET_PATHS.images.ground.byThemeVariant(themeName, mode, variantIndex);
 
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);
 

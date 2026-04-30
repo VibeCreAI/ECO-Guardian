@@ -11,3 +11,11 @@ Use transparent PNG files named after the prop type in snake_case, for example:
 
 The game renders a procedural pixel-art fallback first. If a matching PNG exists,
 the runtime swaps that texture in while keeping the same prop placement and scale.
+
+Stage props should be full-resolution transparent PNGs with a cartoon pixel-art
+style generated into the artwork itself, not downsampled by post-processing.
+Keep each prop on a square canvas with the visible base close to the lower edge
+so billboards sit on the ground instead of appearing to float.
+For polluted forest stages, integrate readable trash accents into multiple props
+instead of isolating all litter in one pile: bottles, bags, cans, wrappers, and
+cardboard should be bold enough to read at gameplay scale.
