@@ -47,6 +47,11 @@ consistent glowing orange/yellow lava conduit grid. Keep charred e-waste as
 small flat accents: burned batteries, black cable scraps, circuit chips, soot,
 and oil stains.
 
+For Stage 5 silicon dunes ground, use warm golden sand mixed with carved
+sandstone or pyramid floor slabs. Keep silicon/e-waste as small flat accents:
+solar-cell shards, circuit chips, glass pieces, battery caps, and teal silicon
+glints.
+
 The top ground surface renders the image with an unlit material so scene lights
 and shadows do not darken the authored texture. Side and bottom faces remain lit to
 keep the slab depth readable.

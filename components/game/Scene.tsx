@@ -389,7 +389,7 @@ const THEME_PROP_POOLS: Record<ThemeName, string[]> = {
   SKULL: ['GRAVE', 'RUIN', 'BATTERY_GRAVE', 'CABLE_ROOTS', 'SKULL_STONE', 'BONE_TRASH_PILE'],
   ICE: ['SNOW_TREE', 'CRYSTAL', 'FROZEN_SERVER', 'ICE_SHARD', 'ICE_STONE', 'FROZEN_CABLE_PILE'],
   VOLCANO: ['MAGMA_ROCK', 'LAVA_PILLAR', 'OIL_DRUM', 'EMBER_VENT', 'SPIKE_ROCK', 'SCORCHED_EWASTE_PILE'],
-  PYRAMID: ['CACTUS', 'PALM', 'GLASS_DUNE', 'SILICON_SPIRE', 'STONE'],
+  PYRAMID: ['CACTUS', 'PALM', 'GLASS_DUNE', 'SILICON_SPIRE', 'PYRAMID_STONE', 'SILICON_EWASTE_PILE'],
   MUSHROOM: ['SWAMP_TREE', 'VINE', 'MUSHROOM', 'TOXIC_BARREL', 'SLUDGE_POOL'],
   CYBER: ['SERVER', 'NEON_SIGN', 'CABLE_POST', 'TRASH_CAN', 'BILLBOARD_RUIN'],
   VOID: ['VOID_ROCK', 'STAR_PILLAR', 'NULL_CRYSTAL', 'STATIC_RIFT'],
@@ -407,7 +407,7 @@ const getPropScale = (type: string) => {
     if (type.includes('PILLAR') || type === 'RUIN' || type.includes('SERVER') || type.includes('GATE') || type === 'NEON_SIGN' || type === 'BILLBOARD_RUIN' || type === 'HELL_OBELISK') return 3.0;
     if (type === 'SATELLITE_DISH' || type === 'SILICON_SPIRE' || type === 'STATIC_RIFT') return 2.7;
     if (type === 'MUSHROOM' || type.includes('CRYSTAL') || type === 'CACTUS' || type.includes('GRAVE') || type === 'TRASH_CAN' || type.includes('BARREL') || type === 'OIL_DRUM') return 2.2;
-    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'BONE_TRASH_PILE' || type === 'FROZEN_CABLE_PILE' || type === 'SCORCHED_EWASTE_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') return 1.8;
+    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'BONE_TRASH_PILE' || type === 'FROZEN_CABLE_PILE' || type === 'SCORCHED_EWASTE_PILE' || type === 'SILICON_EWASTE_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') return 1.8;
     return 2.0;
 };
 

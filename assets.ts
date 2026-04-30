@@ -98,6 +98,8 @@ const PROP_SPRITE_FILE_NAMES = {
   PALM: 'palm.png',
   GLASS_DUNE: 'glass_dune.png',
   SILICON_SPIRE: 'silicon_spire.png',
+  PYRAMID_STONE: 'pyramid_stone.png',
+  SILICON_EWASTE_PILE: 'silicon_ewaste_pile.png',
   SWAMP_TREE: 'swamp_tree.png',
   VINE: 'vine.png',
   TOXIC_BARREL: 'toxic_barrel.png',

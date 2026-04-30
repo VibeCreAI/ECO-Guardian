@@ -80,11 +80,15 @@ Props:
    consistent glowing orange/yellow lava conduit grid. Keep charred e-waste as
    small flat accents: burned batteries, black cable scraps, circuit chips, soot,
    and oil stains.
-8. Keep all variants in the same color family. If needed, normalize only the
+8. For Stage 5 silicon dunes, use warm golden sand mixed with carved sandstone
+   or pyramid floor slabs. Keep glass/silicon and solar-trash accents small:
+   solar-cell shards, circuit chips, glass pieces, battery caps, and teal silicon
+   glints.
+9. Keep all variants in the same color family. If needed, normalize only the
    base terrain color so flowers, litter, or e-waste remain readable.
-9. Check final stats. Variant luminance should be close enough that random tile
+10. Check final stats. Variant luminance should be close enough that random tile
    placement does not create a checkerboard effect.
-10. Save only `_overworld` files. Do not create separate battle copies.
+11. Save only `_overworld` files. Do not create separate battle copies.
 
 Suggested ground prompt shape:
 
@@ -95,8 +99,10 @@ readable detail, mostly open walkable terrain. Match the stage material:
 Stage 1 uses controlled forest grass with small plastic litter and flowers;
 Stage 2 uses gray paving stones with tiny electronic trash accents; Stage 3 uses
 pale blue ice floor slabs with frozen e-waste; Stage 4 uses dark red-brown metal
-floor panels with a glowing lava conduit grid and charred e-waste. Avoid visible
-borders, large props, trees, characters, shadows, labels, or UI.
+floor panels with a glowing lava conduit grid and charred e-waste; Stage 5 uses
+warm golden silicon dunes with carved sandstone slabs, solar-cell shards, glass,
+circuit chips, and teal silicon glints. Avoid visible borders, large props,
+trees, characters, shadows, labels, or UI.
 After the first tile is approved, use it as the reference for variants 2-4 and
 preserve its palette, brightness, material scale, line weight, density, and
 direction while changing only layout and small detail placement.
