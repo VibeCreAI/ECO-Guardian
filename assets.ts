@@ -173,6 +173,10 @@ export const ASSET_PATHS = {
     },
   },
   images: {
+    backgrounds: {
+      overworldSkyByTheme: (themeName: string) =>
+        assetPath(`images/backgrounds/${assetSlug(themeName)}_overworld_sky.png`),
+    },
     bosses: {
       byStage: (stageNumber: number) => assetPath(`images/bosses/boss_${stageNumber}.png`),
     },
@@ -216,6 +220,7 @@ export const STARTUP_PRELOAD_ASSETS = [
   ASSET_PATHS.images.player.walkNorth,
   ASSET_PATHS.images.player.walkEast,
   ASSET_PATHS.images.player.walkWest,
+  ASSET_PATHS.images.backgrounds.overworldSkyByTheme('FOREST'),
   ...Object.values(ENEMY_SPRITE_SHEET_PATHS),
   ASSET_PATHS.audio.music.menu,
   ASSET_PATHS.audio.music.stage(1),
@@ -233,6 +238,9 @@ export const getGroundTilePath = (themeName: string, mode: string) =>
 
 export const getGroundTileVariantPath = (themeName: string, mode: string, variantIndex: number) =>
   ASSET_PATHS.images.ground.byThemeVariant(themeName, mode, variantIndex);
+
+export const getOverworldSkyBackgroundPath = (themeName: string) =>
+  ASSET_PATHS.images.backgrounds.overworldSkyByTheme(themeName);
 
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);
 

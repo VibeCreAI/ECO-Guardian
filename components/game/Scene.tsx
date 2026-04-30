@@ -1,13 +1,13 @@
 
 import React, { useRef, useEffect, useState, Suspense, useMemo, useLayoutEffect } from 'react';
-import { Billboard, Cloud, Clouds, Sky, Stars, Text } from '@react-three/drei';
+import { Billboard, Cloud, Clouds, Sky, Stars, Text, useTexture } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, Vector2, AiStageConfig } from '../../types';
-import { ASSET_PATHS } from '../../assets';
+import { ASSET_PATHS, getOverworldSkyBackgroundPath } from '../../assets';
 import { PropSpriteBatch, PlayerSpriteBillboard } from './SpriteBillboard';
 import { RemotePlayer } from './RemotePlayer';
 import { BattleManager } from './BattleManager';
@@ -96,6 +96,44 @@ const THEME_HEMISPHERE_COLORS: Record<ThemeName, { sky: string; ground: string }
 
 const PORTRAIT_CAMERA_BOOST = 14;
 const PORTRAIT_ZOOM_RANGE_SCALE = 1.45;
+const OVERWORLD_SKY_BACKGROUND_ASSET_VERSION = 'stage-sky-v1';
+
+const versionOverworldSkyBackgroundUrl = (url: string) =>
+  `${url}${url.includes('?') ? '&' : '?'}v=${OVERWORLD_SKY_BACKGROUND_ASSET_VERSION}`;
+
+const TexturedSceneBackground = ({ url }: { url: string }) => {
+  const texture = useTexture(versionOverworldSkyBackgroundUrl(url));
+  const viewportSize = useThree((state) => state.size);
+
+  useEffect(() => {
+    const image = texture.image as { width?: number; height?: number } | undefined;
+    const imageAspect = image?.width && image?.height ? image.width / image.height : 16 / 9;
+    const viewportAspect = viewportSize.width / Math.max(1, viewportSize.height);
+
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.offset.set(0, 0);
+    texture.repeat.set(1, 1);
+
+    if (viewportAspect < imageAspect) {
+      const repeatX = viewportAspect / imageAspect;
+      texture.repeat.x = repeatX;
+      texture.offset.x = (1 - repeatX) / 2;
+    } else {
+      const repeatY = imageAspect / viewportAspect;
+      texture.repeat.y = repeatY;
+      texture.offset.y = (1 - repeatY) / 2;
+    }
+
+    texture.updateMatrix();
+    texture.needsUpdate = true;
+  }, [texture, viewportSize.width, viewportSize.height]);
+
+  return <primitive attach="background" object={texture} />;
+};
 
 const CLOUD_CONFIGS = [
   { x: -28, y: 14.2, z: -36, drift: 0.55, scale: 1.2, seed: 101, segments: 22, bounds: [7.2, 1.9, 1.5] as [number, number, number], volume: 1.95, opacity: 0.52 },
@@ -516,6 +554,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   }, [landmarkType]);
   const fogColor = React.useMemo(() => THEME_FOG_COLORS[sceneTheme], [sceneTheme]);
   const backgroundColor = React.useMemo(() => THEME_BACKGROUND_COLORS[sceneTheme], [sceneTheme]);
+  const overworldSkyBackgroundUrl = React.useMemo(
+    () => (sceneTheme === 'FOREST' ? getOverworldSkyBackgroundPath(sceneTheme) : null),
+    [sceneTheme]
+  );
   const hemisphereColors = React.useMemo(() => THEME_HEMISPHERE_COLORS[sceneTheme], [sceneTheme]);
   const landmarkRadius = React.useMemo(() => {
     switch(landmarkType) { case 'VOLCANO': return 8.5; case 'PYRAMID': return 8.5; case 'HELL': return 7.0; case 'FOREST': case 'SKULL': return 5.5; default: return 4.5; }
@@ -1111,7 +1153,11 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
 
   return (
     <>
-      <color attach="background" args={[backgroundColor]} />
+      {showOverworldScene && !showBattleScene && overworldSkyBackgroundUrl ? (
+        <TexturedSceneBackground url={overworldSkyBackgroundUrl} />
+      ) : (
+        <color attach="background" args={[backgroundColor]} />
+      )}
       {showDefaultSky && !useMutedGameplayBackdrop && <Sky sunPosition={[100, 50, 100]} rayleigh={2} turbidity={10} mieCoefficient={0.005} mieDirectionalG={0.7} />}
       {sceneTheme === 'SKY' && !useMutedGameplayBackdrop && <Sky sunPosition={[0, 1, 0]} turbidity={0.5} />}
       {showStars && (!useMutedGameplayBackdrop || showGameplayStars) && <Stars radius={80} depth={50} count={3000} factor={4} fade />}
