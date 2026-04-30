@@ -40,7 +40,10 @@ const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {
 const EXTERNAL_GROUND_VARIANT_COUNT = 4;
 const EXTERNAL_GROUND_TILE_PIXELS = 1024;
 const PROCEDURAL_OVERLAY_TILE_PIXELS = 128;
-const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v8';
+const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v9';
+
+const usesExternalOverlayTile = (themeType: ThemeName) =>
+    themeType === 'VOLCANO' || themeType === 'CYBER';
 
 const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
     FOREST:   { side: '#7AA64B', bottom: '#4E7130' },
@@ -441,7 +444,7 @@ const drawGroundOverlayLayer = (
     themeType: ThemeName,
     layerKey: string,
 ) => {
-    const size = themeType === 'VOLCANO' ? EXTERNAL_GROUND_TILE_PIXELS : PROCEDURAL_OVERLAY_TILE_PIXELS;
+    const size = usesExternalOverlayTile(themeType) ? EXTERNAL_GROUND_TILE_PIXELS : PROCEDURAL_OVERLAY_TILE_PIXELS;
     const grid = 32;
     const px = size / grid;
     ctx.clearRect(0, 0, size, size);
@@ -475,6 +478,30 @@ const drawGroundOverlayLayer = (
                 } else {
                     rawRect(offset, lineStart, segmentLength, lineThickness, 'rgba(249,115,22,0.54)');
                     rawRect(offset + Math.round(segmentLength * 0.18), lineStart + Math.floor((lineThickness - hotCore) / 2), segmentLength * 0.58, hotCore, 'rgba(253,224,71,0.68)');
+                }
+            }
+        }
+    };
+
+    const drawCyberGridPulse = (orientation: 'vertical' | 'horizontal') => {
+        const blockStep = size / 5;
+        const lineThickness = Math.max(4, Math.round(size / 170));
+        const nodeSize = Math.max(3, Math.round(lineThickness * 0.8));
+        const segmentLength = Math.round(blockStep * 0.2);
+        const segmentGap = Math.round(blockStep * 0.42);
+        const lineCount = 5;
+
+        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+            const lineCenter = lineIndex * blockStep;
+            const lineStart = lineIndex === 0 ? 0 : Math.round(lineCenter - lineThickness / 2);
+
+            for (let offset = -segmentGap; offset < size + segmentGap; offset += segmentGap) {
+                if (orientation === 'vertical') {
+                    rawRect(lineStart, offset, lineThickness, segmentLength, '#67e8f9');
+                    rawRect(lineStart + Math.floor((lineThickness - nodeSize) / 2), offset + segmentLength, nodeSize, nodeSize, '#86efac');
+                } else {
+                    rawRect(offset, lineStart, segmentLength, lineThickness, '#38bdf8');
+                    rawRect(offset + segmentLength, lineStart + Math.floor((lineThickness - nodeSize) / 2), nodeSize, nodeSize, '#c4b5fd');
                 }
             }
         }
@@ -517,19 +544,9 @@ const drawGroundOverlayLayer = (
         rect(23, 5, 1, 2, 'rgba(240,171,252,0.36)');
     } else if (themeType === 'CYBER') {
         if (layerKey === 'cyber-vertical') {
-            [4, 21].forEach((x) => {
-                for (let y = -2; y < grid + 2; y += 12) {
-                    rect(x, y, 1, 4, '#67e8f9');
-                    rect(x, y + 4, 1, 1, '#86efac');
-                }
-            });
+            drawCyberGridPulse('vertical');
         } else {
-            [4, 24].forEach((y) => {
-                for (let x = -2; x < grid + 2; x += 12) {
-                    rect(x, y, 4, 1, '#38bdf8');
-                    rect(x + 4, y, 1, 1, '#c4b5fd');
-                }
-            });
+            drawCyberGridPulse('horizontal');
         }
     } else if (themeType === 'VOID') {
         rect(5, 8, 1, 1, '#e9d5ff');
@@ -647,7 +664,7 @@ const drawRandomOverlayParticles = (
 };
 
 const createAnimatedOverlayTexture = (themeType: ThemeName, spec: AnimatedOverlaySpec, repeat: THREE.Vector2) => {
-    const size = themeType === 'VOLCANO' ? EXTERNAL_GROUND_TILE_PIXELS : PROCEDURAL_OVERLAY_TILE_PIXELS;
+    const size = usesExternalOverlayTile(themeType) ? EXTERNAL_GROUND_TILE_PIXELS : PROCEDURAL_OVERLAY_TILE_PIXELS;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -748,7 +765,7 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
     const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
     const externalTileWorldSize = mode === 'BATTLE' ? 14 : 16;
     const uvScale = useMemo(() => new THREE.Vector2(width / tileWorldSize, height / tileWorldSize), [width, height, tileWorldSize]);
-    const overlayTileWorldSize = themeType === 'VOLCANO' ? externalTileWorldSize : tileWorldSize;
+    const overlayTileWorldSize = usesExternalOverlayTile(themeType) ? externalTileWorldSize : tileWorldSize;
     const overlayUvScale = useMemo(() => new THREE.Vector2(width / overlayTileWorldSize, height / overlayTileWorldSize), [width, height, overlayTileWorldSize]);
 
     const texture = useMemo(() => {

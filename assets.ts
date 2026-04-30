@@ -106,6 +106,7 @@ const PROP_SPRITE_FILE_NAMES = {
   TOXIC_BARREL: 'toxic_barrel.png',
   SLUDGE_POOL: 'sludge_pool.png',
   BOG_TRASH_PILE: 'bog_trash_pile.png',
+  CYBER_SERVER: 'cyber_server.png',
   SERVER: 'server.png',
   NEON_SIGN: 'neon_sign.png',
   CABLE_POST: 'cable_post.png',
