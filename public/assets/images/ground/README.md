@@ -42,6 +42,11 @@ than snow-only ground. Keep cyan seams, frosty cracks, snow speckles, and small
 frozen e-waste accents: batteries, cable scraps, circuit chips, fan fragments,
 cracked phone glass, and blue caps.
 
+For Stage 4 magma refinery ground, use dark red-brown metal floor panels with a
+consistent glowing orange/yellow lava conduit grid. Keep charred e-waste as
+small flat accents: burned batteries, black cable scraps, circuit chips, soot,
+and oil stains.
+
 The top ground surface renders the image with an unlit material so scene lights
 and shadows do not darken the authored texture. Side and bottom faces remain lit to
 keep the slab depth readable.

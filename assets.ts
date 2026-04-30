@@ -93,6 +93,7 @@ const PROP_SPRITE_FILE_NAMES = {
   LAVA_PILLAR: 'lava_pillar.png',
   OIL_DRUM: 'oil_drum.png',
   EMBER_VENT: 'ember_vent.png',
+  SCORCHED_EWASTE_PILE: 'scorched_ewaste_pile.png',
   CACTUS: 'cactus.png',
   PALM: 'palm.png',
   GLASS_DUNE: 'glass_dune.png',

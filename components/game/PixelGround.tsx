@@ -39,7 +39,8 @@ const groundTileAvailabilityCache: Record<string, Promise<boolean>> = {};
 const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {};
 const EXTERNAL_GROUND_VARIANT_COUNT = 4;
 const EXTERNAL_GROUND_TILE_PIXELS = 1024;
-const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v5';
+const PROCEDURAL_OVERLAY_TILE_PIXELS = 128;
+const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v6';
 
 const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
     FOREST:   { side: '#7AA64B', bottom: '#4E7130' },
@@ -387,9 +388,10 @@ const getAnimatedOverlaySpecs = (themeType: ThemeName, mode: 'OVERWORLD' | 'BATT
     }
 
     if (themeType === 'VOLCANO') {
+        const volcanoSpeedScale = mode === 'BATTLE' ? 4 / 14 : 5 / 16;
         return [
-            { key: 'volcano-vertical', speedX: 0, speedY: -0.08, opacity: 0.24 * combatFade, pulse: 0.08 * combatFade, pulseSpeed: 1.8 },
-            { key: 'volcano-horizontal', speedX: 0.1, speedY: 0, opacity: 0.18 * combatFade, pulse: 0.06 * combatFade, pulseSpeed: 2.2 },
+            { key: 'volcano-vertical', speedX: 0, speedY: -0.08 * volcanoSpeedScale, opacity: 0.24 * combatFade, pulse: 0.08 * combatFade, pulseSpeed: 1.8 },
+            { key: 'volcano-horizontal', speedX: 0.1 * volcanoSpeedScale, speedY: 0, opacity: 0.18 * combatFade, pulse: 0.06 * combatFade, pulseSpeed: 2.2 },
         ];
     }
 
@@ -439,14 +441,43 @@ const drawGroundOverlayLayer = (
     themeType: ThemeName,
     layerKey: string,
 ) => {
-    const size = 128;
+    const size = themeType === 'VOLCANO' ? EXTERNAL_GROUND_TILE_PIXELS : PROCEDURAL_OVERLAY_TILE_PIXELS;
     const grid = 32;
     const px = size / grid;
     ctx.clearRect(0, 0, size, size);
 
+    const rawRect = (x: number, y: number, w: number, h: number, color: string) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
+    };
+
     const rect = (x: number, y: number, w: number, h: number, color: string) => {
         ctx.fillStyle = color;
         ctx.fillRect(Math.floor(x) * px, Math.floor(y) * px, Math.ceil(w) * px, Math.ceil(h) * px);
+    };
+
+    const drawVolcanoConduitPulse = (orientation: 'vertical' | 'horizontal') => {
+        const blockStep = size / 5;
+        const lineThickness = Math.max(4, Math.round(size / 160));
+        const hotCore = Math.max(2, Math.round(lineThickness * 0.34));
+        const segmentLength = Math.round(blockStep * 0.2);
+        const segmentGap = Math.round(blockStep * 0.42);
+        const lineCount = 5;
+
+        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+            const lineCenter = lineIndex * blockStep;
+            const lineStart = lineIndex === 0 ? 0 : Math.round(lineCenter - lineThickness / 2);
+
+            for (let offset = -segmentGap; offset < size + segmentGap; offset += segmentGap) {
+                if (orientation === 'vertical') {
+                    rawRect(lineStart, offset, lineThickness, segmentLength, 'rgba(249,115,22,0.58)');
+                    rawRect(lineStart + Math.floor((lineThickness - hotCore) / 2), offset + Math.round(segmentLength * 0.18), hotCore, segmentLength * 0.58, 'rgba(253,224,71,0.72)');
+                } else {
+                    rawRect(offset, lineStart, segmentLength, lineThickness, 'rgba(249,115,22,0.54)');
+                    rawRect(offset + Math.round(segmentLength * 0.18), lineStart + Math.floor((lineThickness - hotCore) / 2), segmentLength * 0.58, hotCore, 'rgba(253,224,71,0.68)');
+                }
+            }
+        }
     };
 
     if (themeType === 'FOREST') {
@@ -468,16 +499,9 @@ const drawGroundOverlayLayer = (
         rect(4, 19, 4, 1, 'rgba(186,230,253,0.38)');
     } else if (themeType === 'VOLCANO') {
         if (layerKey === 'volcano-vertical') {
-            for (let y = -4; y < grid + 4; y += 8) {
-                rect(10, y, 1, 4, '#fde047');
-                rect(9, y + 1, 3, 2, 'rgba(249,115,22,0.72)');
-                rect(24, y + 4, 1, 3, 'rgba(251,146,60,0.75)');
-            }
+            drawVolcanoConduitPulse('vertical');
         } else {
-            for (let x = -4; x < grid + 4; x += 8) {
-                rect(x, 21, 4, 1, '#fde047');
-                rect(x + 1, 20, 3, 3, 'rgba(249,115,22,0.68)');
-            }
+            drawVolcanoConduitPulse('horizontal');
         }
     } else if (themeType === 'PYRAMID') {
         rect(0, 7, 8, 1, 'rgba(254,243,199,0.34)');
@@ -623,7 +647,7 @@ const drawRandomOverlayParticles = (
 };
 
 const createAnimatedOverlayTexture = (themeType: ThemeName, spec: AnimatedOverlaySpec, repeat: THREE.Vector2) => {
-    const size = 128;
+    const size = themeType === 'VOLCANO' ? EXTERNAL_GROUND_TILE_PIXELS : PROCEDURAL_OVERLAY_TILE_PIXELS;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -724,6 +748,8 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
     const tileWorldSize = mode === 'BATTLE' ? 4 : 5;
     const externalTileWorldSize = mode === 'BATTLE' ? 14 : 16;
     const uvScale = useMemo(() => new THREE.Vector2(width / tileWorldSize, height / tileWorldSize), [width, height, tileWorldSize]);
+    const overlayTileWorldSize = themeType === 'VOLCANO' ? externalTileWorldSize : tileWorldSize;
+    const overlayUvScale = useMemo(() => new THREE.Vector2(width / overlayTileWorldSize, height / overlayTileWorldSize), [width, height, overlayTileWorldSize]);
 
     const texture = useMemo(() => {
         const size = 128;
@@ -775,7 +801,7 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
                 boxDepth={boxDepth}
                 themeType={themeType}
                 mode={mode}
-                uvScale={uvScale}
+                uvScale={overlayUvScale}
             />
         </group>
     );
