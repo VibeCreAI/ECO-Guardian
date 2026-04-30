@@ -42,6 +42,9 @@ Props:
 - Save prop sprites in `public/assets/images/props/`.
 - Use transparent PNGs named by prop type, for example `tree.png`,
   `tree_stump.png`, `plastic_bag_shrub.png`, `bottle_pile.png`.
+- If a shared prop needs theme-specific art, add a theme-specific prop type and
+  asset instead of overwriting the shared file. Example: Stage 2 uses
+  `SKULL_STONE` / `skull_stone.png` rather than replacing `stone.png`.
 - Keep prop canvases full-resolution `512x512`.
 - Do not downsample or code-pixelate props after generation. The cartoon
   pixel-art style should come from the generated artwork itself.
@@ -54,29 +57,39 @@ Props:
 
 1. Use `$generate2dmap` to confirm the stage theme, visual direction, and whether
    the existing four-variant ground contract is still sufficient.
-2. Generate or edit four grass tile variants with `$imagegen`.
-3. Keep the current Stage 1 direction as the reference:
+2. Generate the first tile with `$imagegen` as the style anchor.
+3. Make the first tile visible as a reference, then generate variants 2-4 from
+   that reference. Preserve palette, brightness, line weight, material scale,
+   detail density, and camera direction; vary only layout and small detail
+   placement.
+4. For Stage 1 forest, keep the current direction:
    - high-quality image-generated grass texture
    - sparse litter and flowers
    - a little readable trash in the ground art
    - not neon lime
    - not overly blocky or visibly tiled
    - not painterly/dense with micro-detail
-4. Keep all variants in the same color family. If needed, normalize only green
-   grass pixels so flowers and litter remain readable.
-5. Check final stats. Variant luminance should be close enough that random tile
+5. For Stage 2 skull/e-waste, use gray paving stone ground rather than dark
+   green grass. Keep electronic trash as small ground accents: batteries, wire
+   scraps, circuit-board fragments, plugs, caps, and broken phone glass.
+6. Keep all variants in the same color family. If needed, normalize only the
+   base terrain color so flowers, litter, or e-waste remain readable.
+7. Check final stats. Variant luminance should be close enough that random tile
    placement does not create a checkerboard effect.
-6. Save only `_overworld` files. Do not create separate battle copies.
+8. Save only `_overworld` files. Do not create separate battle copies.
 
 Suggested ground prompt shape:
 
 ```text
-Create four 1024x1024 variants of a seamless forest grass ground tile for ECO Guardian.
-Style: bright but controlled cartoon pixel-art-inspired game ground, high-quality
-raster, sparse readable detail, small flat plastic litter, tiny white flowers,
-simple grass tufts, mostly open grass. Keep all variants the same base green,
-brightness, density, and direction. Avoid neon lime, painterly micro-texture,
-visible borders, large props, rocks, trees, characters, shadows, labels, or UI.
+Create one 1024x1024 seamless ground tile for ECO Guardian Stage {stage}.
+Style: cartoon pixel-art-inspired game ground, high-quality raster, sparse
+readable detail, mostly open walkable terrain. Match the stage material:
+Stage 1 uses controlled forest grass with small plastic litter and flowers;
+Stage 2 uses gray paving stones with tiny electronic trash accents. Avoid
+visible borders, large props, trees, characters, shadows, labels, or UI.
+After the first tile is approved, use it as the reference for variants 2-4 and
+preserve its palette, brightness, material scale, line weight, density, and
+direction while changing only layout and small detail placement.
 ```
 
 ## Prop Workflow
@@ -117,7 +130,7 @@ No labels, no text, no watermark, no shadows on the background.
 
 For every prop PNG:
 
-- Image size is `1024x1024`.
+- Image size is `512x512`.
 - Alpha channel exists.
 - Transparent corners.
 - Visible base is near the lower edge.
@@ -127,7 +140,7 @@ For every prop PNG:
 
 For every ground PNG:
 
-- Image size is `512x512`.
+- Image size is `1024x1024`.
 - No visible borders.
 - No rotated directional lighting between variants.
 - Variant brightness and color are tightly matched.

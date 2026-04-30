@@ -386,7 +386,7 @@ const getLandmarkType = (stage: number, config: AiStageConfig | null) => {
 
 const THEME_PROP_POOLS: Record<ThemeName, string[]> = {
   FOREST: ['TREE', 'TREE_STUMP', 'PLASTIC_BAG_SHRUB', 'BOTTLE_PILE', 'MUSHROOM', 'STONE'],
-  SKULL: ['GRAVE', 'RUIN', 'BATTERY_GRAVE', 'CABLE_ROOTS', 'STONE'],
+  SKULL: ['GRAVE', 'RUIN', 'BATTERY_GRAVE', 'CABLE_ROOTS', 'SKULL_STONE', 'BONE_TRASH_PILE'],
   ICE: ['SNOW_TREE', 'CRYSTAL', 'FROZEN_SERVER', 'ICE_SHARD', 'STONE'],
   VOLCANO: ['MAGMA_ROCK', 'LAVA_PILLAR', 'OIL_DRUM', 'EMBER_VENT', 'SPIKE_ROCK'],
   PYRAMID: ['CACTUS', 'PALM', 'GLASS_DUNE', 'SILICON_SPIRE', 'STONE'],
@@ -407,7 +407,7 @@ const getPropScale = (type: string) => {
     if (type.includes('PILLAR') || type === 'RUIN' || type.includes('SERVER') || type.includes('GATE') || type === 'NEON_SIGN' || type === 'BILLBOARD_RUIN' || type === 'HELL_OBELISK') return 3.0;
     if (type === 'SATELLITE_DISH' || type === 'SILICON_SPIRE' || type === 'STATIC_RIFT') return 2.7;
     if (type === 'MUSHROOM' || type.includes('CRYSTAL') || type === 'CACTUS' || type.includes('GRAVE') || type === 'TRASH_CAN' || type.includes('BARREL') || type === 'OIL_DRUM') return 2.2;
-    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') return 1.8;
+    if (type.includes('STONE') || type.includes('ROCK') || type === 'VINE' || type === 'BOTTLE_PILE' || type === 'BONE_TRASH_PILE' || type === 'CABLE_ROOTS' || type === 'SLUDGE_POOL' || type === 'EMBER_VENT') return 1.8;
     return 2.0;
 };
 

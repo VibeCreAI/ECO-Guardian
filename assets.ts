@@ -81,6 +81,8 @@ const PROP_SPRITE_FILE_NAMES = {
   RUIN: 'ruin.png',
   BATTERY_GRAVE: 'battery_grave.png',
   CABLE_ROOTS: 'cable_roots.png',
+  SKULL_STONE: 'skull_stone.png',
+  BONE_TRASH_PILE: 'bone_trash_pile.png',
   CRYSTAL: 'crystal.png',
   SNOW_TREE: 'snow_tree.png',
   FROZEN_SERVER: 'frozen_server.png',

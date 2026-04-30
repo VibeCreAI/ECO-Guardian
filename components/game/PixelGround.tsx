@@ -39,7 +39,7 @@ const groundTileAvailabilityCache: Record<string, Promise<boolean>> = {};
 const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {};
 const EXTERNAL_GROUND_VARIANT_COUNT = 4;
 const EXTERNAL_GROUND_TILE_PIXELS = 1024;
-const EXTERNAL_GROUND_ASSET_VERSION = 'stage1-ground-1024-trash-v1';
+const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v4';
 
 const THEME_SIDE_COLORS: Record<ThemeName, { side: string; bottom: string }> = {
     FOREST:   { side: '#7AA64B', bottom: '#4E7130' },

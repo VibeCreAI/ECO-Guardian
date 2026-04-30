@@ -19,3 +19,6 @@ so billboards sit on the ground instead of appearing to float.
 For polluted forest stages, integrate readable trash accents into multiple props
 instead of isolating all litter in one pile: bottles, bags, cans, wrappers, and
 cardboard should be bold enough to read at gameplay scale.
+For later stages, prefer theme-specific prop aliases when a shared prop would
+need different art. For example, Stage 2 uses `skull_stone.png` instead of
+overwriting the shared `stone.png`.

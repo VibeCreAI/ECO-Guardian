@@ -189,7 +189,7 @@ const drawProceduralProp = (ctx: CanvasRenderingContext2D, type: string) => {
         r(17, 36, 30, 18, '#14532d'); r(14, 41, 36, 10, '#166534'); r(22, 31, 20, 13, '#22c55e');
         r(25, 25, 16, 23, '#f8fafc'); r(28, 28, 10, 16, '#e2e8f0'); r(30, 25, 3, 5, '#cbd5e1'); r(35, 26, 3, 4, '#cbd5e1');
         r(27, 35, 10, 2, '#94a3b8'); p(22, 45, '#f472b6'); p(42, 42, '#38bdf8');
-    } else if (t === 'BOTTLE_PILE') {
+    } else if (t === 'BOTTLE_PILE' || t === 'BONE_TRASH_PILE') {
         shadow(15, 36);
         r(18, 45, 13, 7, rim); r(20, 39, 8, 14, '#38bdf8'); r(22, 35, 4, 4, '#e0f2fe');
         r(31, 43, 16, 7, rim); r(34, 37, 9, 15, '#86efac'); r(36, 33, 4, 5, '#dcfce7');
@@ -232,7 +232,7 @@ const drawProceduralProp = (ctx: CanvasRenderingContext2D, type: string) => {
         drawPixelTriangle(r, 15, 34, 34, 17, rim); drawPixelTriangle(r, 17, 35, 30, 14, '#e0f2fe');
         drawPixelTriangle(r, 18, 23, 28, 18, rim); drawPixelTriangle(r, 20, 24, 24, 15, '#bae6fd');
         drawPixelTriangle(r, 22, 13, 20, 15, rim); drawPixelTriangle(r, 24, 14, 16, 12, '#f8fafc');
-    } else if (t === 'MAGMA_ROCK' || t === 'SPIKE_ROCK' || t === 'VOID_ROCK' || t === 'STONE') {
+    } else if (t === 'MAGMA_ROCK' || t === 'SPIKE_ROCK' || t === 'VOID_ROCK' || t.includes('STONE')) {
         shadow(13, 38);
         const hot = t === 'MAGMA_ROCK' || t === 'SPIKE_ROCK';
         const voided = t === 'VOID_ROCK';
@@ -921,7 +921,7 @@ const getPropGroundingStyle = (type: string): PropGroundingStyle => {
         style.shadowOpacity = 0.3;
         style.shadowScaleX = 0.42;
         style.shadowScaleZ = 0.17;
-    } else if (t.includes('ROCK') || t === 'STONE' || t === 'RUIN' || t === 'GRAVE') {
+    } else if (t.includes('ROCK') || t.includes('STONE') || t === 'RUIN' || t.includes('GRAVE') || t === 'BONE_TRASH_PILE') {
         style.shadowOpacity = 0.28;
         style.shadowScaleX = 0.38;
         style.shadowScaleZ = 0.15;

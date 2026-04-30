@@ -22,14 +22,21 @@ When replacing same-name ground PNGs, bump `EXTERNAL_GROUND_ASSET_VERSION` in
 The game renders a procedural pixel tile first. If a matching PNG exists, the
 runtime swaps it into the ground material. If variants are present, the runtime
 builds a deterministic random mosaic from the available tiles. Variants should
-share the same base grass color, brightness, density, and orientation; the
-runtime places them without rotating or flipping them.
+share the same base terrain color, brightness, density, material scale, line
+weight, and orientation; the runtime places them without rotating or flipping
+them. Generate the first tile as the style anchor, then use that first tile as
+the reference for `_v2`, `_v3`, and `_v4`.
 
 For Stage 1 forest ground, keep the current image-generated grass direction:
 sparse readable details, consistent brightness across variants, controlled
 forest greens, and no neon lime. Avoid pushing the ground into overly blocky
 patches or dense painterly micro-texture.
 
+For Stage 2 skull/e-waste ground, use gray paving stones rather than dark green
+grass. Keep electronic trash as small ground accents around the paving:
+batteries, wire scraps, circuit-board fragments, plugs, caps, and broken phone
+glass.
+
 The top ground surface renders the image with an unlit material so scene lights
-and shadows do not darken the grass texture. Side and bottom faces remain lit to
+and shadows do not darken the authored texture. Side and bottom faces remain lit to
 keep the slab depth readable.
