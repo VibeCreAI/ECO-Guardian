@@ -21,4 +21,5 @@ instead of isolating all litter in one pile: bottles, bags, cans, wrappers, and
 cardboard should be bold enough to read at gameplay scale.
 For later stages, prefer theme-specific prop aliases when a shared prop would
 need different art. For example, Stage 2 uses `skull_stone.png` instead of
-overwriting the shared `stone.png`.
+overwriting the shared `stone.png`; Stage 3 uses `ice_stone.png` for frozen
+rock art.

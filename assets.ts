@@ -87,6 +87,8 @@ const PROP_SPRITE_FILE_NAMES = {
   SNOW_TREE: 'snow_tree.png',
   FROZEN_SERVER: 'frozen_server.png',
   ICE_SHARD: 'ice_shard.png',
+  ICE_STONE: 'ice_stone.png',
+  FROZEN_CABLE_PILE: 'frozen_cable_pile.png',
   MAGMA_ROCK: 'magma_rock.png',
   LAVA_PILLAR: 'lava_pillar.png',
   OIL_DRUM: 'oil_drum.png',

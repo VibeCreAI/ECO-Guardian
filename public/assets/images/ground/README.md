@@ -37,6 +37,11 @@ grass. Keep electronic trash as small ground accents around the paving:
 batteries, wire scraps, circuit-board fragments, plugs, caps, and broken phone
 glass.
 
+For Stage 3 ice/frozen server farm ground, use pale blue ice floor slabs rather
+than snow-only ground. Keep cyan seams, frosty cracks, snow speckles, and small
+frozen e-waste accents: batteries, cable scraps, circuit chips, fan fragments,
+cracked phone glass, and blue caps.
+
 The top ground surface renders the image with an unlit material so scene lights
 and shadows do not darken the authored texture. Side and bottom faces remain lit to
 keep the slab depth readable.

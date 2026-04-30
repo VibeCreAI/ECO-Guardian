@@ -72,11 +72,15 @@ Props:
 5. For Stage 2 skull/e-waste, use gray paving stone ground rather than dark
    green grass. Keep electronic trash as small ground accents: batteries, wire
    scraps, circuit-board fragments, plugs, caps, and broken phone glass.
-6. Keep all variants in the same color family. If needed, normalize only the
+6. For Stage 3 ice/frozen server farm, use pale blue ice floor slabs rather than
+   snow-only ground. Keep cyan seams, frosty cracks, snow speckles, and small
+   frozen e-waste accents: batteries, cable scraps, circuit chips, fan fragments,
+   cracked phone glass, and blue caps.
+7. Keep all variants in the same color family. If needed, normalize only the
    base terrain color so flowers, litter, or e-waste remain readable.
-7. Check final stats. Variant luminance should be close enough that random tile
+8. Check final stats. Variant luminance should be close enough that random tile
    placement does not create a checkerboard effect.
-8. Save only `_overworld` files. Do not create separate battle copies.
+9. Save only `_overworld` files. Do not create separate battle copies.
 
 Suggested ground prompt shape:
 
@@ -85,8 +89,9 @@ Create one 1024x1024 seamless ground tile for ECO Guardian Stage {stage}.
 Style: cartoon pixel-art-inspired game ground, high-quality raster, sparse
 readable detail, mostly open walkable terrain. Match the stage material:
 Stage 1 uses controlled forest grass with small plastic litter and flowers;
-Stage 2 uses gray paving stones with tiny electronic trash accents. Avoid
-visible borders, large props, trees, characters, shadows, labels, or UI.
+Stage 2 uses gray paving stones with tiny electronic trash accents; Stage 3 uses
+pale blue ice floor slabs with frozen e-waste. Avoid visible borders, large
+props, trees, characters, shadows, labels, or UI.
 After the first tile is approved, use it as the reference for variants 2-4 and
 preserve its palette, brightness, material scale, line weight, density, and
 direction while changing only layout and small detail placement.
