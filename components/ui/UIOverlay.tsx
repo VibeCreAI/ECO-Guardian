@@ -265,7 +265,7 @@ const formatSavedRunTimestamp = (savedAt: number) => {
 };
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, isMobile }) => {
-  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, hideVibeJam, playMode, setPlayMode, hasSavedRun, savedRunSummary, resumeSavedRun, discardSavedRun } = useGameStore(useShallow((s) => ({
+  const { mode, playerStats, dashCooldownCurrent, resetGame, selectUpgrade, levelUpOptions, setMode, worldPosition, portals, battleWon, finalEndingCinematic, markFinalEndingVideoEnded, activeStage, highScores, submitScore, chestReward, claimChestReward, preloadGame, startGame, quizResult, dismissQuizResult, bossNarrativeOpen, dismissBossNarrative, togglePause, isImpactOpen, setImpactOpen, highlightedPortalId, askForUpgradeAdvice, adviceLoading, adviceResult, rerollLevelUpOptions, isMuted, toggleMute, musicMuted, sfxMuted, musicVolume, sfxVolume, toggleMusicMute, toggleSfxMute, setMusicVolume, setSfxVolume, showNarrative, setShowNarrative, narrativeDismissed, setNarrativeDismissed, fetchLeaderboard, dbStatus, isStageReady, stageLoadProgress, isOverworldSceneReady, cameraZoom, setCameraZoom, isPortalEntry, hideVibeJam, playMode, setPlayMode, hasSavedRun, savedRunSummary, resumeSavedRun, discardSavedRun } = useGameStore(useShallow((s) => ({
     mode: s.mode,
     playerStats: s.playerStats,
     dashCooldownCurrent: s.dashCooldownCurrent,
@@ -314,6 +314,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
     fetchLeaderboard: s.fetchLeaderboard,
     dbStatus: s.dbStatus,
     isStageReady: s.isStageReady,
+    stageLoadProgress: s.stageLoadProgress,
     isOverworldSceneReady: s.isOverworldSceneReady,
     cameraZoom: s.cameraZoom,
     setCameraZoom: s.setCameraZoom,
@@ -1828,6 +1829,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   // stages, after a save resume, or on portal entry. Without this, the
   // procedural placeholder art could flash for a frame on slow loads.
   if (mode === GameMode.LOADING_LEVEL) {
+      const stageLoadPercent = Math.max(0, Math.min(100, Math.round(stageLoadProgress * 100)));
+
       return (
           <div className="absolute inset-0 flex items-center justify-center ui-backdrop z-[100] animate-in fade-in duration-200">
               <div className="ui-card px-6 py-5 flex flex-col items-center gap-3">
@@ -1836,8 +1839,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       {currentConfig?.stageName ?? `STAGE ${activeStage}`}
                   </p>
                   <div className="w-40 h-1 bg-white/10 rounded overflow-hidden">
-                      <div className="h-full w-full bg-green-400 ui-stage-loading-fill" />
+                      <div
+                          className="h-full bg-green-400 ui-stage-loading-fill"
+                          style={{ width: `${stageLoadPercent}%` }}
+                      />
                   </div>
+                  <p className="text-[10px] ui-muted">{stageLoadPercent}%</p>
               </div>
           </div>
       );

@@ -342,7 +342,8 @@ export const ensureImageLoaded = (url: string): Promise<HTMLImageElement | null>
 export const preloadStageAssets = async (
   themeName: string,
   stageNumber: number,
-  quizExplanationImageSrc?: string
+  quizExplanationImageSrc?: string,
+  onProgress?: (loaded: number, total: number, assetUrl: string) => void
 ): Promise<void> => {
   const groundUrls = getVersionedGroundTileUrls(themeName, 'OVERWORLD');
   const propTypes = STAGE_PROP_POOL_BY_THEME[themeName] ?? [];
@@ -356,11 +357,26 @@ export const preloadStageAssets = async (
   const audioUrls = [
     ASSET_PATHS.audio.music.stage(clampStageMusicNumber(stageNumber)),
   ];
+  const queue = [...imageUrls, ...audioUrls];
+  const total = queue.length;
+  let loaded = 0;
 
-  await Promise.all([
-    ...imageUrls.map((url) => ensureImageLoaded(url)),
-    ...audioUrls.map((url) => preloadAudioAsset(url)),
-  ]);
+  onProgress?.(loaded, total, '');
+
+  await Promise.all(
+    queue.map(async (assetUrl) => {
+      try {
+        if (isAudioAsset(assetUrl)) {
+          await preloadAudioAsset(assetUrl);
+        } else {
+          await ensureImageLoaded(assetUrl);
+        }
+      } finally {
+        loaded += 1;
+        onProgress?.(loaded, total, assetUrl);
+      }
+    })
+  );
 };
 
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);

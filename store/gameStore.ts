@@ -16,16 +16,33 @@ const SAVE_KEY = 'pixel_realm_save_v1';
 const RUN_SAVE_KEY = 'eco_guardian_run_save_v1';
 const RUN_SAVE_VERSION = 1;
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
+const STAGE_GENERATION_PROGRESS = 0.2;
 const getOverworldSpawn = () => ({ x: 0, z: 6 });
 
 const resolveStageTheme = (stage: number, config: AiStageConfig | null | undefined): string => {
   return config?.theme?.landmarkType ?? getStageDefaultTheme(stage);
 };
 
-const preloadStageAssetsForActive = (stage: number): Promise<void> => {
+const preloadStageAssetsForActive = (
+  stage: number,
+  onProgress?: (loaded: number, total: number, assetUrl: string) => void,
+): Promise<void> => {
   const config = useAiDirectorStore.getState().currentConfig;
-  return preloadStageAssets(resolveStageTheme(stage, config), stage, config?.quiz?.explanationImageSrc)
+  return preloadStageAssets(resolveStageTheme(stage, config), stage, config?.quiz?.explanationImageSrc, onProgress)
     .catch(() => undefined);
+};
+
+const clampStageLoadProgress = (value: number) =>
+  Math.min(1, Math.max(0, value));
+
+const mapAssetLoadProgress = (
+  loaded: number,
+  total: number,
+  start: number,
+  span: number,
+) => {
+  const assetProgress = total <= 0 ? 1 : loaded / total;
+  return clampStageLoadProgress(start + assetProgress * span);
 };
 
 const preloadQuizExplanationImageForActive = (): Promise<void> => {
@@ -197,6 +214,7 @@ interface GameState {
   isQuizOpen: boolean;
   isImpactOpen: boolean; 
   isStageReady: boolean;
+  stageLoadProgress: number;
   isOverworldSceneReady: boolean;
   
   // Narrative State
@@ -477,6 +495,7 @@ const createHydratedRunState = (
     hasSavedRun: Boolean(savedSummary),
     savedRunSummary: savedSummary,
     isStageReady: true,
+    stageLoadProgress: 1,
     isOverworldSceneReady: false,
     playerStats: saved.playerStats,
     activeStage: saved.activeStage,
@@ -1087,6 +1106,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   isQuizOpen: false,
   isImpactOpen: false,
   isStageReady: false,
+  stageLoadProgress: 0,
   isOverworldSceneReady: false,
   highlightedPortalId: null,
 
@@ -1402,13 +1422,26 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       mode: GameMode.LOADING_LEVEL,
       isStageReady: false,
+      stageLoadProgress: 0.05,
       isOverworldSceneReady: false,
       finalEndingCinematic: createFinalEndingCinematicState(),
     });
     const stageSeed = Number.isFinite(seed) ? seed ?? null : null;
     const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial', stageSeed);
     useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey)
-      .then(() => preloadStageAssetsForActive(newStage))
+      .then(() => {
+        set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+        return preloadStageAssetsForActive(newStage, (loaded, total) => {
+          set({
+            stageLoadProgress: mapAssetLoadProgress(
+              loaded,
+              total,
+              STAGE_GENERATION_PROGRESS,
+              1 - STAGE_GENERATION_PROGRESS,
+            ),
+          });
+        });
+      })
       .then(() => {
       set((prevState) => ({
         activeStage: newStage,
@@ -1419,6 +1452,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         mode: GameMode.OVERWORLD,
         lastGameplayMode: GameMode.OVERWORLD,
         isStageReady: true,
+        stageLoadProgress: 1,
         isOverworldSceneReady: false,
         battleWon: false,
         finalEndingCinematic: createFinalEndingCinematicState(),
@@ -1517,10 +1551,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     // then snap to the saved mode so the player never sees procedural art.
     const hydrated = createHydratedRunState(get(), savedRun, { isPortalEntry: false, portalRefUrl: null });
     const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
-    set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false });
+    set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0 });
 
-    preloadStageAssetsForActive(savedRun.game.activeStage).then(() => {
-      set({ mode: resumeMode, isStageReady: true });
+    preloadStageAssetsForActive(savedRun.game.activeStage, (loaded, total) => {
+      set({ stageLoadProgress: mapAssetLoadProgress(loaded, total, 0, 1) });
+    }).then(() => {
+      set({ mode: resumeMode, isStageReady: true, stageLoadProgress: 1 });
     });
     return true;
   },
@@ -1626,6 +1662,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ 
           mode: GameMode.INSTRUCTIONS,
           isStageReady: false,
+          stageLoadProgress: 0.05,
           isOverworldSceneReady: false,
           playerStats: freshStats,
           activeStage: 1,
@@ -1656,11 +1693,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0)
-          .then(() => preloadStageAssetsForActive(1))
+          .then(() => {
+              set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+              return preloadStageAssetsForActive(1, (loaded, total) => {
+                  set({
+                      stageLoadProgress: mapAssetLoadProgress(
+                          loaded,
+                          total,
+                          STAGE_GENERATION_PROGRESS,
+                          1 - STAGE_GENERATION_PROGRESS,
+                      ),
+                  });
+              });
+          })
           .then(() => {
               set((state) => {
                   const baseUpdate = {
                       isStageReady: true,
+                      stageLoadProgress: 1,
                       isOverworldSceneReady: false,
                       portals: generatePortals(1),
                       activeStage: 1,
@@ -1681,9 +1731,11 @@ export const useGameStore = create<GameState>((set, get) => ({
           hydrateAiDirectorFromRunSave(savedRun);
           const hydrated = createHydratedRunState(get(), savedRun, { isPortalEntry: true, portalRefUrl: refUrl });
           const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
-          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false });
-          preloadStageAssetsForActive(savedRun.game.activeStage).then(() => {
-              set({ mode: resumeMode, isStageReady: true });
+          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0 });
+          preloadStageAssetsForActive(savedRun.game.activeStage, (loaded, total) => {
+              set({ stageLoadProgress: mapAssetLoadProgress(loaded, total, 0, 1) });
+          }).then(() => {
+              set({ mode: resumeMode, isStageReady: true, stageLoadProgress: 1 });
           });
           return;
       }
@@ -1695,6 +1747,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
           mode: GameMode.INSTRUCTIONS,
           isStageReady: false,
+          stageLoadProgress: 0.05,
           isOverworldSceneReady: false,
           playerStats: freshStats,
           activeStage: 1,
@@ -1725,11 +1778,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0)
-          .then(() => preloadStageAssetsForActive(1))
+          .then(() => {
+              set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+              return preloadStageAssetsForActive(1, (loaded, total) => {
+                  set({
+                      stageLoadProgress: mapAssetLoadProgress(
+                          loaded,
+                          total,
+                          STAGE_GENERATION_PROGRESS,
+                          1 - STAGE_GENERATION_PROGRESS,
+                      ),
+                  });
+              });
+          })
           .then(() => {
               set((state) => {
                   const baseUpdate = {
                       isStageReady: true,
+                      stageLoadProgress: 1,
                       isOverworldSceneReady: false,
                       portals: generatePortals(1),
                       activeStage: 1,
@@ -1754,6 +1820,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           set({
             mode: GameMode.LOADING_LEVEL,
             lastGameplayMode: GameMode.OVERWORLD,
+            stageLoadProgress: Math.max(state.stageLoadProgress, 0.05),
             finalEndingCinematic: createFinalEndingCinematicState(),
           });
       }
@@ -1842,6 +1909,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           mode: GameMode.LOADING_LEVEL,
           lastGameplayMode: GameMode.OVERWORLD,
           isStageReady: false,
+          stageLoadProgress: 0.05,
           isOverworldSceneReady: false,
           playMode: 'solo',
           highlightedPortalId: null,
@@ -1849,7 +1917,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
 
       await useAiDirectorStore.getState().generateNextStage(state.playerStats, targetStage - 1, 'Stage debug preview', `debug-stage-${targetStage}`);
-      await preloadStageAssetsForActive(targetStage);
+      set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+      await preloadStageAssetsForActive(targetStage, (loaded, total) => {
+          set({
+              stageLoadProgress: mapAssetLoadProgress(
+                  loaded,
+                  total,
+                  STAGE_GENERATION_PROGRESS,
+                  1 - STAGE_GENERATION_PROGRESS,
+              ),
+          });
+      });
 
       set((prevState) => ({
           activeStage: targetStage,
@@ -1866,6 +1944,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           isQuizOpen: false,
           isImpactOpen: false,
           isStageReady: true,
+          stageLoadProgress: 1,
           isOverworldSceneReady: false,
           showNarrative: false,
           narrativeDismissed: true,
@@ -2642,6 +2721,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           set((s) => ({
             mode: GameMode.LOADING_LEVEL,
             isStageReady: false,
+            stageLoadProgress: 0.05,
             isOverworldSceneReady: false,
             finalEndingCinematic: createFinalEndingCinematicState(),
             multiplayer: {
@@ -2679,13 +2759,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         mode: GameMode.LOADING_LEVEL,
         isStageReady: false,
+        stageLoadProgress: 0.05,
         isOverworldSceneReady: false,
         finalEndingCinematic: createFinalEndingCinematicState(),
       });
       
       const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial', stageSeed);
       useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey)
-        .then(() => preloadStageAssetsForActive(nextStage))
+        .then(() => {
+          set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+          return preloadStageAssetsForActive(nextStage, (loaded, total) => {
+            set({
+              stageLoadProgress: mapAssetLoadProgress(
+                loaded,
+                total,
+                STAGE_GENERATION_PROGRESS,
+                1 - STAGE_GENERATION_PROGRESS,
+              ),
+            });
+          });
+        })
         .then(() => {
           set((prevState) => ({
             activeStage: nextStage,
@@ -2696,6 +2789,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             mode: GameMode.OVERWORLD,
             lastGameplayMode: GameMode.OVERWORLD,
             isStageReady: true,
+            stageLoadProgress: 1,
             isOverworldSceneReady: false,
             battleWon: false,
             finalEndingCinematic: createFinalEndingCinematicState(),
@@ -2751,6 +2845,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       showNarrative: false,
       narrativeDismissed: false,
       isStageReady: false,
+      stageLoadProgress: 0,
       isOverworldSceneReady: false,
       highlightedPortalId: null,
       adviceLoading: false,
