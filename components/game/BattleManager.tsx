@@ -1843,7 +1843,6 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   return (
     <group>
       <PixelGround width={50} height={50} themeId={themeId} mode="BATTLE" aiConfig={aiConfig} />
-      <group position={[0, 0.1, 0]}><mesh position={[0, 0, 25]}><boxGeometry args={[50, 0.5, 0.5]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh><mesh position={[0, 0, -25]}><boxGeometry args={[50, 0.5, 0.5]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh><mesh position={[25, 0, 0]}><boxGeometry args={[0.5, 0.5, 50]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh><mesh position={[-25, 0, 0]}><boxGeometry args={[0.5, 0.5, 50]} /><meshStandardMaterial color="#000000" transparent opacity={0.5} /></mesh></group>
       {renderEnemies.map(e => {
           // Fix: TypeScript narrowing issue causing 'BOSS' comparison error by casting to string
           const eType = e.type as string;
