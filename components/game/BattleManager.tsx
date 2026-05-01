@@ -27,24 +27,28 @@ const NORMAL_MOB_PROJECTILE_BALANCE = {
     novaThreshold: 0.8,
     burstThreshold: 0.6,
     spreadThreshold: 0.4,
+    hardProjectileCap: 60,
   },
   8: {
     attackCooldown: 2.05,
     novaThreshold: 0.84,
     burstThreshold: 0.6,
     spreadThreshold: 0.4,
+    hardProjectileCap: 70,
   },
   9: {
     attackCooldown: 2.1,
     novaThreshold: 0.83,
     burstThreshold: 0.62,
     spreadThreshold: 0.39,
+    hardProjectileCap: 80,
   },
   10: {
     attackCooldown: 2.08,
     novaThreshold: 0.82,
     burstThreshold: 0.62,
     spreadThreshold: 0.39,
+    hardProjectileCap: 90,
   },
 } as const;
 
@@ -457,6 +461,14 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
   const weaponTimers = useRef({ magicMissile: 0, axe: 0, aura: 0, thunder: 0, orbital: 0, cross: 0, dagger: 0, magicArrow: 0, flamethrower: 0, fireMortar: 0, toxicFlask: 0, javelin: 0, chainLightning: 0, spear: 0, slimeBall: 0, shuriken: 0, bible: 0, katana: 0, toxinGun: 0, holyBeam: 0, plagueSpreader: 0, teslaCoil: 0 });
   
   const isPaused = (mode as any) === GameMode.REWARD || (mode as any) === GameMode.CHEST_REWARD || mode === GameMode.LOADING_LEVEL || mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP || isQuizOpen || isImpactOpen;
+  const countHostileProjectiles = () => {
+      let count = 0;
+      const projectiles = projectilesRef.current;
+      for (let i = 0; i < projectiles.length; i++) {
+          if (!projectiles[i].fromPlayer) count++;
+      }
+      return count;
+  };
   const enemyHpMultiplier =
     activeStage === 1 &&
     !activeBattle.isBoss &&
@@ -1279,15 +1291,26 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
             // Ranged attack
             enemy.attackCooldown = (enemy.attackCooldown || 0) + delta;
             if (dist < 12 && dist > 2 && enemy.attackCooldown > 1.5) {
-                const a = Math.atan2(dz, dx);
-                const dmg = enemy.damage;
-                // Triple spread of "fake news" projectiles
-                for (let i = -1; i <= 1; i++) {
-                    const spreadA = a + (i * 0.25);
-                    projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*7, vz: Math.sin(spreadA)*7, damage: dmg, fromPlayer: false, color: '#dc2626', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                const projectileBalance = getNormalMobProjectileBalance(activeStage);
+                const activeHostileProjectiles = countHostileProjectiles();
+                const remainingProjectileBudget = projectileBalance.hardProjectileCap - activeHostileProjectiles;
+
+                if (remainingProjectileBudget >= 3) {
+                    const a = Math.atan2(dz, dx);
+                    const dmg = enemy.damage;
+
+                    // Triple spread of "fake news" projectiles. If the full pattern
+                    // does not fit the hostile projectile budget, hold fire and retry.
+                    for (const offset of [-1, 0, 1]) {
+                        const spreadA = a + (offset * 0.25);
+                        projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*7, vz: Math.sin(spreadA)*7, damage: dmg, fromPlayer: false, color: '#dc2626', life: 3, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                    }
+
+                    projectilesChanged = true;
+                    enemy.attackCooldown = 0;
+                } else {
+                    enemy.attackCooldown = 1.0;
                 }
-                projectilesChanged = true;
-                enemy.attackCooldown = 0;
             }
         }
         else {
@@ -1301,43 +1324,65 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
                      vx = 0; vz = 0;
                      const projectileBalance = getNormalMobProjectileBalance(activeStage);
                      if (enemy.attackCooldown > projectileBalance.attackCooldown) { 
-                         // SCALED ENEMY PROJECTILE PATTERNS
-                         const a = Math.atan2(dz, dx);
-                         const dmg = (15 + activeStage * 2);
-                         const roll = Math.random();
-                         
-                         let didAttack = false;
+                         const activeHostileProjectiles = countHostileProjectiles();
+                         const remainingProjectileBudget = projectileBalance.hardProjectileCap - activeHostileProjectiles;
+                         const holdFire = () => {
+                             enemy.attackCooldown = projectileBalance.attackCooldown * (0.75 + Math.random() * 0.15);
+                         };
 
-                         if (activeStage >= 8 && roll > projectileBalance.novaThreshold) {
-                             // Nova (8-way)
-                             const count = 8;
-                             for(let i=0; i<count; i++) {
-                                 const na = (i / count) * Math.PI * 2;
-                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(na)*6, vz: Math.sin(na)*6, damage: dmg * 0.8, fromPlayer: false, color: '#f87171', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             }
-                             didAttack = true;
-                         } else if (activeStage >= 5 && roll > projectileBalance.burstThreshold) {
-                             // Rapid Burst (3 fast shots)
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*10, vz: Math.sin(a)*10, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             didAttack = true;
-                         } else if (activeStage >= 3 && roll > projectileBalance.spreadThreshold) {
-                             // Triple Spread
-                             for(let i=-1; i<=1; i++) {
-                                 const spreadA = a + (i * 0.3);
-                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*7, vz: Math.sin(spreadA)*7, damage: dmg, fromPlayer: false, color: '#a3e635', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             }
-                             didAttack = true;
+                         if (remainingProjectileBudget <= 0) {
+                             holdFire();
                          } else {
-                             // Standard Single Shot
-                             projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*7, vz: Math.sin(a)*7, damage: dmg, fromPlayer: false, color: 'red', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
-                             didAttack = true;
-                         }
+                             // SCALED ENEMY PROJECTILE PATTERNS
+                             const a = Math.atan2(dz, dx);
+                             const dmg = (15 + activeStage * 2);
+                             const roll = Math.random();
+                             let selectedPattern: 'NOVA' | 'BURST' | 'SPREAD' | 'SINGLE' = 'SINGLE';
+                             let projectileCost = 1;
 
-                         if (didAttack) {
-                            projectilesChanged = true;
-                            enemy.attackCooldown = 0;
+                             if (activeStage >= 8 && roll > projectileBalance.novaThreshold) {
+                                 selectedPattern = 'NOVA';
+                                 projectileCost = 8;
+                             } else if (activeStage >= 5 && roll > projectileBalance.burstThreshold) {
+                                 selectedPattern = 'BURST';
+                                 projectileCost = 3;
+                             } else if (activeStage >= 3 && roll > projectileBalance.spreadThreshold) {
+                                 selectedPattern = 'SPREAD';
+                                 projectileCost = 3;
+                             }
+
+                             if (remainingProjectileBudget < projectileCost) {
+                                 holdFire();
+                             } else if (selectedPattern === 'NOVA') {
+                                 // Nova (8-way)
+                                 const count = 8;
+                                 for(let i=0; i<count; i++) {
+                                     const na = (i / count) * Math.PI * 2;
+                                     projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(na)*6, vz: Math.sin(na)*6, damage: dmg * 0.8, fromPlayer: false, color: '#f87171', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 }
+                                 projectilesChanged = true;
+                                 enemy.attackCooldown = 0;
+                             } else if (selectedPattern === 'BURST') {
+                                 // Rapid Burst (3 fast shots)
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*10, vz: Math.sin(a)*10, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*8, vz: Math.sin(a)*8, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*6, vz: Math.sin(a)*6, damage: dmg * 0.7, fromPlayer: false, color: '#facc15', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 projectilesChanged = true;
+                                 enemy.attackCooldown = 0;
+                             } else if (selectedPattern === 'SPREAD') {
+                                 // Triple Spread
+                                 for(let i=-1; i<=1; i++) {
+                                     const spreadA = a + (i * 0.3);
+                                     projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(spreadA)*7, vz: Math.sin(spreadA)*7, damage: dmg, fromPlayer: false, color: '#a3e635', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 }
+                                 projectilesChanged = true;
+                                 enemy.attackCooldown = 0;
+                             } else {
+                                 // Standard Single Shot
+                                 projectilesRef.current.push({ id: Math.random().toString(), x: enemy.x, z: enemy.z, vx: Math.cos(a)*7, vz: Math.sin(a)*7, damage: dmg, fromPlayer: false, color: 'red', life: 5, type: 'NORMAL', variant: 'ENEMY_NORMAL' });
+                                 projectilesChanged = true;
+                                 enemy.attackCooldown = 0;
+                             }
                          }
                      }
                  }
