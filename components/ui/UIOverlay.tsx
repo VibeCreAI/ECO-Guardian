@@ -1836,7 +1836,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
                       {currentConfig?.stageName ?? `STAGE ${activeStage}`}
                   </p>
                   <div className="w-40 h-1 bg-white/10 rounded overflow-hidden">
-                      <div className="h-full bg-green-400 animate-pulse" style={{ width: '60%' }} />
+                      <div className="h-full w-full bg-green-400 ui-stage-loading-fill" />
                   </div>
               </div>
           </div>
