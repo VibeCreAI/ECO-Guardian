@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import {
     ASSET_PATHS,
     PROP_SPRITE_ASSET_VERSION,
+    REWARD_SPRITE_ASSET_VERSION,
     ensureImageLoaded,
     getEnemySpriteSheetPath,
     getPropSpritePath,
@@ -128,6 +129,14 @@ const getVersionedPropUrl = (type: string): string | null => {
     const rawSpriteUrl = getPropSpritePath(type);
     if (!rawSpriteUrl) return null;
     return versionedAssetUrl(rawSpriteUrl, PROP_SPRITE_ASSET_VERSION);
+};
+
+const getExternalBillboardSpritePath = (type: string): string | undefined => {
+    if (type === 'CHEST') {
+        return versionedAssetUrl(ASSET_PATHS.images.reward.recycleBin, REWARD_SPRITE_ASSET_VERSION);
+    }
+
+    return getEnemySpriteSheetPath(type);
 };
 
 const maybeApplyExternalPropSprite = (texture: THREE.Texture, type: string) => {
@@ -342,7 +351,7 @@ const drawProceduralProp = (ctx: CanvasRenderingContext2D, type: string) => {
 };
 
 const generateTexture = (type: string, color: string, variant: string = '') => {
-    const externalSpriteUrl = getEnemySpriteSheetPath(type);
+    const externalSpriteUrl = getExternalBillboardSpritePath(type);
     const cacheKey = externalSpriteUrl ? `external_${externalSpriteUrl}` : `${type}_${color}_${variant}`;
     if (textureCache[cacheKey]) {
         const cachedTexture = textureCache[cacheKey];

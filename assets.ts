@@ -203,6 +203,9 @@ export const ASSET_PATHS = {
       explanation: (stageSlug: string, questionNumber: number) =>
         assetPath(`images/ui/quiz/${stageSlug}_ex${String(questionNumber).padStart(2, '0')}.png`),
     },
+    reward: {
+      recycleBin: assetPath('images/ui/recycle_reward_bin.png'),
+    },
     start: {
       background: assetPath('images/start/background.png'),
       favicon: assetPath('images/start/favicon.png'),
@@ -220,6 +223,7 @@ export const STARTUP_PRELOAD_ASSETS = [
   ASSET_PATHS.images.player.walkNorth,
   ASSET_PATHS.images.player.walkEast,
   ASSET_PATHS.images.player.walkWest,
+  ASSET_PATHS.images.reward.recycleBin,
   ...Object.values(ENEMY_SPRITE_SHEET_PATHS),
   ASSET_PATHS.audio.music.menu,
   ASSET_PATHS.audio.music.battle,
@@ -243,6 +247,7 @@ export const getOverworldSkyBackgroundPath = (themeName: string) =>
 // Bumping these versions invalidates browser-cached art when the source files change.
 export const GROUND_TILE_ASSET_VERSION = 'stage-ground-1024-v13';
 export const PROP_SPRITE_ASSET_VERSION = 'stage-props-512-v1';
+export const REWARD_SPRITE_ASSET_VERSION = 'reward-bin-v1';
 export const GROUND_TILE_VARIANT_COUNT = 4;
 
 export const versionedAssetUrl = (url: string, version: string) =>
