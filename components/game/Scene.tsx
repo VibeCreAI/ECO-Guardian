@@ -1087,7 +1087,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const showDefaultSky = !showStars && sceneTheme !== 'CYBER' && sceneTheme !== 'SKY';
   const showOverworldScene = (
     mode === GameMode.OVERWORLD ||
-    mode === GameMode.INSTRUCTIONS ||
+    // INSTRUCTIONS gates on isStageReady so the scene only mounts after
+    // stage-1's ground/prop images are preloaded — otherwise the prop
+    // texture cache gets baked with procedural art before PNGs arrive.
+    (mode === GameMode.INSTRUCTIONS && isStageReady) ||
     // LOADING_LEVEL is intentionally excluded: the loading overlay covers
     // the canvas, and skipping the scene render here prevents prop/ground
     // textures from being baked with procedural art before stage assets
