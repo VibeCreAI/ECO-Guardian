@@ -6,19 +6,6 @@ const assetSlug = (value: string) =>
 const assetPath = (relativePath: string) =>
   `${assetRoot}/${relativePath.replace(/^\/+/, '')}`;
 
-const OVERWORLD_SKY_BACKGROUND_THEMES = [
-  'FOREST',
-  'SKULL',
-  'ICE',
-  'VOLCANO',
-  'PYRAMID',
-  'MUSHROOM',
-  'CYBER',
-  'VOID',
-  'SKY',
-  'HELL',
-] as const;
-
 const ENEMY_SPRITE_SHEET_PATHS = {
   BOTTLE_SPRITE: assetPath('images/enemies/stage_1_plastic_woods/water_bottle.png'),
   WRAPPER_MOTH: assetPath('images/enemies/stage_1_plastic_woods/plastic_bag.png'),
@@ -233,12 +220,8 @@ export const STARTUP_PRELOAD_ASSETS = [
   ASSET_PATHS.images.player.walkNorth,
   ASSET_PATHS.images.player.walkEast,
   ASSET_PATHS.images.player.walkWest,
-  ...OVERWORLD_SKY_BACKGROUND_THEMES.map((themeName) =>
-    ASSET_PATHS.images.backgrounds.overworldSkyByTheme(themeName)
-  ),
   ...Object.values(ENEMY_SPRITE_SHEET_PATHS),
   ASSET_PATHS.audio.music.menu,
-  ASSET_PATHS.audio.music.stage(1),
   ASSET_PATHS.audio.music.battle,
 ] as const;
 
@@ -312,6 +295,8 @@ export const getStageDefaultTheme = (stage: number): string => {
 // loaders so consumers can skip the procedural fallback when art is ready.
 const preloadedImageCache = new Map<string, HTMLImageElement>();
 const inFlightImageLoads = new Map<string, Promise<HTMLImageElement | null>>();
+const clampStageMusicNumber = (stageNumber: number) =>
+  Math.min(10, Math.max(1, Math.floor(stageNumber)));
 
 export const peekPreloadedImage = (url: string): HTMLImageElement | null =>
   preloadedImageCache.get(url) ?? null;
@@ -349,11 +334,28 @@ export const ensureImageLoaded = (url: string): Promise<HTMLImageElement | null>
   return promise;
 };
 
-export const preloadStageAssets = async (themeName: string): Promise<void> => {
+export const preloadStageAssets = async (
+  themeName: string,
+  stageNumber: number,
+  quizExplanationImageSrc?: string
+): Promise<void> => {
   const groundUrls = getVersionedGroundTileUrls(themeName, 'OVERWORLD');
   const propTypes = STAGE_PROP_POOL_BY_THEME[themeName] ?? [];
   const propUrls = propTypes.map(getVersionedPropSpriteUrl);
-  await Promise.all([...groundUrls, ...propUrls].map((url) => ensureImageLoaded(url)));
+  const imageUrls = [
+    getOverworldSkyBackgroundPath(themeName),
+    ...groundUrls,
+    ...propUrls,
+    ...(quizExplanationImageSrc ? [quizExplanationImageSrc] : []),
+  ];
+  const audioUrls = [
+    ASSET_PATHS.audio.music.stage(clampStageMusicNumber(stageNumber)),
+  ];
+
+  await Promise.all([
+    ...imageUrls.map((url) => ensureImageLoaded(url)),
+    ...audioUrls.map((url) => preloadAudioAsset(url)),
+  ]);
 };
 
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);

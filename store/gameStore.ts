@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { GameMode, PlayerStats, UpgradeOption, Portal, ActiveBattleState, HighScore, ImpactLogEntry, QuizDifficulty, AdviceResult, AiStageConfig } from '../types';
 import { useAiDirectorStore } from './aiDirectorStore';
-import { getStageDefaultTheme, preloadStageAssets } from '../assets';
+import { ensureImageLoaded, getStageDefaultTheme, preloadStageAssets } from '../assets';
 import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint, PassiveDef } from '../constants';
 import type { EnemySnapshotEntry, PeerState, MultiplayerMessage } from '../multiplayer/sync';
 import { MAX_GROUP_SIZE, type SlotIndex } from '../multiplayer/config';
@@ -24,7 +24,14 @@ const resolveStageTheme = (stage: number, config: AiStageConfig | null | undefin
 
 const preloadStageAssetsForActive = (stage: number): Promise<void> => {
   const config = useAiDirectorStore.getState().currentConfig;
-  return preloadStageAssets(resolveStageTheme(stage, config)).catch(() => undefined);
+  return preloadStageAssets(resolveStageTheme(stage, config), stage, config?.quiz?.explanationImageSrc)
+    .catch(() => undefined);
+};
+
+const preloadQuizExplanationImageForActive = (): Promise<void> => {
+  const imageSrc = useAiDirectorStore.getState().currentConfig?.quiz?.explanationImageSrc;
+  if (!imageSrc) return Promise.resolve();
+  return ensureImageLoaded(imageSrc).then(() => undefined).catch(() => undefined);
 };
 
 const buildMultiplayerQuizSeed = (
@@ -2570,7 +2577,9 @@ export const useGameStore = create<GameState>((set, get) => ({
             'mid',
             state.multiplayer.quizStageSeed
           );
-          useAiDirectorStore.getState().generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty, quizSeedKey);
+          void useAiDirectorStore.getState()
+            .generateMidStageQuiz(state.activeStage, ['A', 'B'], state.playerStats.quizDifficulty, quizSeedKey)
+            .then(() => preloadQuizExplanationImageForActive());
 
           return {
               portals: freshPortals,
