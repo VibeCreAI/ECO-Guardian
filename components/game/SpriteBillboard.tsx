@@ -362,6 +362,34 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     }
 
     if (externalSpriteUrl) {
+        const preloadedSprite = peekPreloadedImage(externalSpriteUrl);
+        if (preloadedSprite) {
+            let textureImage: HTMLImageElement | HTMLCanvasElement = preloadedSprite;
+            if (type === 'BOSS' || isEnemyRenderType(type)) {
+                const outlineCanvas = document.createElement('canvas');
+                outlineCanvas.width = preloadedSprite.width;
+                outlineCanvas.height = preloadedSprite.height;
+                const outlineCtx = outlineCanvas.getContext('2d');
+                if (outlineCtx) {
+                    outlineCtx.clearRect(0, 0, outlineCanvas.width, outlineCanvas.height);
+                    outlineCtx.drawImage(preloadedSprite, 0, 0);
+                    bakeAlphaOutline(outlineCtx, outlineCanvas.width, outlineCanvas.height, OUTLINE_HEX);
+                    textureImage = outlineCanvas;
+                }
+            }
+
+            const tex = new THREE.Texture(textureImage);
+            tex.needsUpdate = true;
+            tex.minFilter = THREE.NearestFilter;
+            tex.magFilter = THREE.NearestFilter;
+            tex.generateMipmaps = false;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            textureCache[cacheKey] = tex;
+            return tex;
+        }
+
         const tex = textureLoader.load(externalSpriteUrl, (loadedTexture) => {
             if (type === 'BOSS' || isEnemyRenderType(type)) {
                 const image = loadedTexture.image as { width?: number; height?: number } | undefined;

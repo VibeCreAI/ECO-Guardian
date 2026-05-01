@@ -70,6 +70,19 @@ const ENEMY_SPRITE_SHEET_PATHS = {
   MISINFORMATION: assetPath('images/enemies/misinformation.png'),
 } as const satisfies Record<string, string>;
 
+const STAGE_ENEMY_SPRITE_KEYS = [
+  ['BOTTLE_SPRITE', 'WRAPPER_MOTH', 'STRAW_CRAWLER', 'SIXPACK_VINE', 'STYROFOAM_TREANT', 'COMPOST_HULK'],
+  ['CIRCUIT_WRAITH', 'WIRE_PHANTOM', 'BATTERY_ZOMBIE', 'MONITOR_GHOUL', 'MOTHERBOARD_GOLEM', 'PRINTER_REVENANT'],
+  ['COOLANT_WISP', 'FAN_BLADE_DJINN', 'FROZEN_PHONE', 'FROST_CABLE', 'SERVER_RACK_YETI', 'CRYO_DUMP_BEAST'],
+  ['EMBER_BAG', 'ASH_FLIER', 'SLAG_DRUM', 'SMELT_RAT', 'FURNACE_TITAN', 'REFINERY_COLOSSUS'],
+  ['GLASS_SCARAB', 'SILICON_WASP', 'SAND_BATTERY', 'DUST_FILTER', 'PYRAMID_JUNK', 'DUNE_COMPACTOR'],
+  ['SPORE_AEROSOL', 'SWAMP_DIAPER', 'ALGAE_BARREL', 'FUNGAL_TIRE', 'SLUDGE_TOAD', 'BOG_HEAP'],
+  ['NEON_WRAPPER', 'DRONE_LITTER', 'VENDING_HUSK', 'TRAFFIC_CONE_BOT', 'DUMPSTER_MECH', 'BILLBOARD_TANK'],
+  ['VOID_PARTICLE', 'NULL_EMISSION', 'ENTROPY_CAN', 'STATIC_WASTE', 'ABYSS_LANDFILL', 'OBLIVION_SLUDGE'],
+  ['CLOUD_BAG', 'CONTRAIL_SERPENT', 'SATELLITE_JUNK', 'DATA_SMOG', 'STRATOSPHERE_HEAP', 'OZONE_EATER'],
+  ['HELLFIRE_WRAPPER', 'DAMNED_DRONE', 'INFERNAL_BARREL', 'BRIMSTONE_PHONE', 'WASTE_DEMON', 'LANDFILL_ARCHFIEND'],
+] as const satisfies readonly (readonly (keyof typeof ENEMY_SPRITE_SHEET_PATHS)[])[];
+
 const PROP_SPRITE_FILE_NAMES = {
   TREE: 'tree.png',
   TREE_STUMP: 'tree_stump.png',
@@ -303,6 +316,15 @@ const inFlightImageLoads = new Map<string, Promise<HTMLImageElement | null>>();
 const clampStageMusicNumber = (stageNumber: number) =>
   Math.min(10, Math.max(1, Math.floor(stageNumber)));
 
+const getStageEnemySpriteUrls = (stageNumber: number): string[] => {
+  const stageIndex = clampStageMusicNumber(stageNumber) - 1;
+  return [
+    ...STAGE_ENEMY_SPRITE_KEYS[stageIndex].map((key) => ENEMY_SPRITE_SHEET_PATHS[key]),
+    ENEMY_SPRITE_SHEET_PATHS.MISINFORMATION,
+    ASSET_PATHS.images.bosses.byStage(clampStageMusicNumber(stageNumber)),
+  ];
+};
+
 export const peekPreloadedImage = (url: string): HTMLImageElement | null =>
   preloadedImageCache.get(url) ?? null;
 
@@ -348,10 +370,12 @@ export const preloadStageAssets = async (
   const groundUrls = getVersionedGroundTileUrls(themeName, 'OVERWORLD');
   const propTypes = STAGE_PROP_POOL_BY_THEME[themeName] ?? [];
   const propUrls = propTypes.map(getVersionedPropSpriteUrl);
+  const enemyUrls = getStageEnemySpriteUrls(stageNumber);
   const imageUrls = [
     getOverworldSkyBackgroundPath(themeName),
     ...groundUrls,
     ...propUrls,
+    ...enemyUrls,
     ...(quizExplanationImageSrc ? [quizExplanationImageSrc] : []),
   ];
   const audioUrls = [

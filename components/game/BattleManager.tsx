@@ -5,7 +5,7 @@ import { Enemy, Projectile, GameMode, ActiveBattleState, XpOrb, Chest } from '..
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore';
 import { SpriteBillboard, ExternalBossSprite } from './SpriteBillboard';
-import { ProjectilesInstanced, SpecialProjectiles } from './ProjectilesInstanced';
+import { HostileProjectilesInstanced, ProjectilesInstanced, SpecialProjectiles } from './ProjectilesInstanced';
 import { PixelGround } from './PixelGround';
 import { WEAPONS_DATA } from '../../constants';
 import { ASSET_PATHS } from '../../assets';
@@ -1903,6 +1903,7 @@ export const BattleManager: React.FC<BattleManagerProps> = ({ playerPosition, ac
           return <SpriteBillboard key={e.id} color={getEnemyColor(e.type, activeStage)} scale={eType === 'BOSS' ? 4.5 : eType === 'MISINFORMATION' ? 4.0 : 1.8} entity={e} type={e.type} variant={e.visualVariant || e.name} />;
       })}
       <ProjectilesInstanced projectilesRef={projectilesRef} />
+      <HostileProjectilesInstanced projectilesRef={projectilesRef} />
       <SpecialProjectiles projectilesRef={projectilesRef} />
       {renderEffects.map((ef: VisualEffect) => {
           if (ef.type === 'BOSS_DEATH') {

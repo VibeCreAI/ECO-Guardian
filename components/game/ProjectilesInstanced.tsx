@@ -11,10 +11,16 @@ import {
     getProjectileTexture,
     projectileTextureKey,
 } from './projectileVisuals';
-import { AreaEffectRender, MortarProjectile, HolyBeamRender, VoxelProjectile } from './ProjectileRender';
+import { AreaEffectRender, MortarProjectile, HolyBeamRender } from './ProjectileRender';
 
 const PLANE_GEO = new THREE.PlaneGeometry(1, 1);
+const VOXEL_CORE_GEO = new THREE.BoxGeometry(1, 1, 1);
+const VOXEL_BIT_GEO = new THREE.BoxGeometry(1, 1, 1);
 const INSTANCE_CAPACITY = 256;
+const MAX_INSTANCE_CAPACITY = 4096;
+const HOSTILE_VOXEL_SCALE = 0.35;
+const HOSTILE_VOXEL_BIT_OFFSET = HOSTILE_VOXEL_SCALE * 0.8;
+const HOSTILE_VOXEL_BIT_SCALE = HOSTILE_VOXEL_SCALE * 0.4;
 
 const BILLBOARD_VERTEX_SNIPPET = `
 vec3 iPos  = vec3(instanceMatrix[3]);
@@ -46,6 +52,21 @@ const makeBillboardMaterial = (texture: THREE.Texture): THREE.MeshBasicMaterial 
     return mat;
 };
 
+const getInstanceCapacity = (required: number) => {
+    let capacity = INSTANCE_CAPACITY;
+    while (capacity < required && capacity < MAX_INSTANCE_CAPACITY) {
+        capacity *= 2;
+    }
+    return Math.min(capacity, MAX_INSTANCE_CAPACITY);
+};
+
+const disposeInstancedMesh = (mesh: THREE.InstancedMesh) => {
+    const mat = mesh.material as THREE.Material | THREE.Material[];
+    if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+    else mat.dispose();
+    mesh.dispose();
+};
+
 const isInstanceable = (p: Projectile): boolean => {
     if (!p.fromPlayer) return false;
     const v = p.variant;
@@ -72,11 +93,7 @@ export const ProjectilesInstanced: React.FC<ProjectilesInstancedProps> = ({ proj
             const host = hostRef.current;
             meshesRef.current.forEach((mesh) => {
                 if (host) host.remove(mesh);
-                mesh.geometry = PLANE_GEO;
-                const mat = mesh.material as THREE.Material | THREE.Material[];
-                if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-                else mat.dispose();
-                mesh.dispose();
+                disposeInstancedMesh(mesh);
             });
             meshesRef.current.clear();
             idleFramesRef.current.clear();
@@ -108,7 +125,12 @@ export const ProjectilesInstanced: React.FC<ProjectilesInstancedProps> = ({ proj
 
         groups.forEach((arr, key) => {
             let mesh = meshesRef.current.get(key);
-            if (!mesh) {
+            const requiredCapacity = getInstanceCapacity(arr.length);
+            if (!mesh || mesh.instanceMatrix.count < requiredCapacity) {
+                if (mesh) {
+                    host.remove(mesh);
+                    disposeInstancedMesh(mesh);
+                }
                 const sample = arr[0];
                 const tex = getProjectileTexture(
                     sample.variant ?? 'NORMAL',
@@ -116,13 +138,13 @@ export const ProjectilesInstanced: React.FC<ProjectilesInstancedProps> = ({ proj
                     sample.color,
                 );
                 const material = makeBillboardMaterial(tex);
-                mesh = new THREE.InstancedMesh(PLANE_GEO, material, INSTANCE_CAPACITY);
+                mesh = new THREE.InstancedMesh(PLANE_GEO, material, requiredCapacity);
                 mesh.frustumCulled = false;
                 mesh.count = 0;
                 meshesRef.current.set(key, mesh);
                 host.add(mesh);
             }
-            const capacity = mesh.count === 0 ? INSTANCE_CAPACITY : (mesh.instanceMatrix.count);
+            const capacity = mesh.instanceMatrix.count;
             const limit = Math.min(arr.length, capacity);
             for (let i = 0; i < limit; i++) {
                 const p = arr[i];
@@ -155,10 +177,7 @@ export const ProjectilesInstanced: React.FC<ProjectilesInstancedProps> = ({ proj
             const idle = (idleFramesRef.current.get(key) ?? 0) + 1;
             if (idle > 60) {
                 host.remove(mesh);
-                const mat = mesh.material as THREE.Material | THREE.Material[];
-                if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-                else mat.dispose();
-                mesh.dispose();
+                disposeInstancedMesh(mesh);
                 meshesRef.current.delete(key);
                 idleFramesRef.current.delete(key);
             } else {
@@ -180,16 +199,184 @@ export const ProjectilesInstanced: React.FC<ProjectilesInstancedProps> = ({ proj
     return <group ref={hostRef} />;
 };
 
+interface HostileProjectilesInstancedProps {
+    projectilesRef: MutableRefObject<Projectile[]>;
+}
+
+type HostileVoxelGroup = {
+    core: THREE.InstancedMesh;
+    bits: THREE.InstancedMesh;
+};
+
+type HostileSpin = {
+    rx: number;
+    rz: number;
+    bitAngle: number;
+};
+
+const makeHostileVoxelGroup = (color: string, capacity: number): HostileVoxelGroup => {
+    const coreMaterial = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.8,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 1,
+    });
+    const bitMaterial = new THREE.MeshStandardMaterial({
+        color: '#1a1a1a',
+        transparent: true,
+        opacity: 1,
+    });
+    const core = new THREE.InstancedMesh(VOXEL_CORE_GEO, coreMaterial, capacity);
+    const bits = new THREE.InstancedMesh(VOXEL_BIT_GEO, bitMaterial, capacity * 2);
+    core.frustumCulled = false;
+    bits.frustumCulled = false;
+    core.count = 0;
+    bits.count = 0;
+    return { core, bits };
+};
+
+const disposeHostileVoxelGroup = (group: HostileVoxelGroup) => {
+    disposeInstancedMesh(group.core);
+    disposeInstancedMesh(group.bits);
+};
+
+export const HostileProjectilesInstanced: React.FC<HostileProjectilesInstancedProps> = ({ projectilesRef }) => {
+    const hostRef = useRef<THREE.Group>(null);
+    const groupsRef = useRef<Map<string, HostileVoxelGroup>>(new Map());
+    const idleFramesRef = useRef<Map<string, number>>(new Map());
+    const spinRef = useRef<Map<string, HostileSpin>>(new Map());
+    const spinGcCounterRef = useRef(0);
+    const dummy = useRef(new THREE.Object3D()).current;
+
+    useEffect(() => {
+        return () => {
+            const host = hostRef.current;
+            groupsRef.current.forEach((group) => {
+                if (host) {
+                    host.remove(group.core);
+                    host.remove(group.bits);
+                }
+                disposeHostileVoxelGroup(group);
+            });
+            groupsRef.current.clear();
+            idleFramesRef.current.clear();
+            spinRef.current.clear();
+        };
+    }, []);
+
+    useFrame((_, delta) => {
+        const host = hostRef.current;
+        if (!host) return;
+
+        const byColor = new Map<string, Projectile[]>();
+        const projectiles = projectilesRef.current;
+        for (let i = 0; i < projectiles.length; i++) {
+            const p = projectiles[i];
+            if (p.fromPlayer) continue;
+            const key = p.color || '#ffffff';
+            let arr = byColor.get(key);
+            if (!arr) { arr = []; byColor.set(key, arr); }
+            arr.push(p);
+        }
+
+        byColor.forEach((arr, color) => {
+            const requiredCapacity = getInstanceCapacity(arr.length);
+            let group = groupsRef.current.get(color);
+            if (!group || group.core.instanceMatrix.count < requiredCapacity) {
+                if (group) {
+                    host.remove(group.core);
+                    host.remove(group.bits);
+                    disposeHostileVoxelGroup(group);
+                }
+                group = makeHostileVoxelGroup(color, requiredCapacity);
+                groupsRef.current.set(color, group);
+                host.add(group.core);
+                host.add(group.bits);
+            }
+
+            const capacity = group.core.instanceMatrix.count;
+            const limit = Math.min(arr.length, capacity);
+            for (let i = 0; i < limit; i++) {
+                const p = arr[i];
+                const spin = spinRef.current.get(p.id) ?? { rx: 0, rz: 0, bitAngle: 0 };
+                spin.rx += delta * 2.5;
+                spin.rz += delta * 1.5;
+                spin.bitAngle -= delta * 4;
+                spinRef.current.set(p.id, spin);
+
+                dummy.position.set(p.x, 1, p.z);
+                dummy.rotation.set(spin.rx, 0, spin.rz);
+                dummy.scale.set(HOSTILE_VOXEL_SCALE, HOSTILE_VOXEL_SCALE, HOSTILE_VOXEL_SCALE);
+                dummy.updateMatrix();
+                group.core.setMatrixAt(i, dummy.matrix);
+
+                const bitBaseIndex = i * 2;
+                for (let side = 0; side < 2; side++) {
+                    const angle = spin.bitAngle + side * Math.PI;
+                    dummy.position.set(
+                        p.x + Math.cos(angle) * HOSTILE_VOXEL_BIT_OFFSET,
+                        1,
+                        p.z + Math.sin(angle) * HOSTILE_VOXEL_BIT_OFFSET,
+                    );
+                    dummy.rotation.set(spin.rx, angle, spin.rz);
+                    dummy.scale.set(HOSTILE_VOXEL_BIT_SCALE, HOSTILE_VOXEL_BIT_SCALE, HOSTILE_VOXEL_BIT_SCALE);
+                    dummy.updateMatrix();
+                    group.bits.setMatrixAt(bitBaseIndex + side, dummy.matrix);
+                }
+            }
+
+            group.core.count = limit;
+            group.bits.count = limit * 2;
+            group.core.instanceMatrix.needsUpdate = true;
+            group.bits.instanceMatrix.needsUpdate = true;
+            idleFramesRef.current.set(color, 0);
+        });
+
+        groupsRef.current.forEach((group, color) => {
+            if (byColor.has(color)) return;
+            if (group.core.count !== 0 || group.bits.count !== 0) {
+                group.core.count = 0;
+                group.bits.count = 0;
+                group.core.instanceMatrix.needsUpdate = true;
+                group.bits.instanceMatrix.needsUpdate = true;
+            }
+            const idle = (idleFramesRef.current.get(color) ?? 0) + 1;
+            if (idle > 60) {
+                host.remove(group.core);
+                host.remove(group.bits);
+                disposeHostileVoxelGroup(group);
+                groupsRef.current.delete(color);
+                idleFramesRef.current.delete(color);
+            } else {
+                idleFramesRef.current.set(color, idle);
+            }
+        });
+
+        spinGcCounterRef.current += 1;
+        if (spinGcCounterRef.current >= 30) {
+            spinGcCounterRef.current = 0;
+            const liveHostileIds = new Set<string>();
+            for (let i = 0; i < projectiles.length; i++) {
+                if (!projectiles[i].fromPlayer) liveHostileIds.add(projectiles[i].id);
+            }
+            spinRef.current.forEach((_, id) => {
+                if (!liveHostileIds.has(id)) spinRef.current.delete(id);
+            });
+        }
+    });
+
+    return <group ref={hostRef} />;
+};
+
 interface SpecialProjectilesProps {
     projectilesRef: MutableRefObject<Projectile[]>;
 }
 
 const isSpecial = (p: Projectile): boolean => {
-    if (!p.fromPlayer) return true;
-    const v = p.variant;
-    return v === 'LAVA_POOL' || v === 'POISON_CLOUD' || v === 'PLAGUE_SPREADER'
-        || v === 'FIRE_MORTAR' || v === 'TOXIC_FLASK'
-        || v === 'HOLY_BEAM';
+    if (!p.fromPlayer) return false;
+    return !isInstanceable(p);
 };
 
 export const SpecialProjectiles: React.FC<SpecialProjectilesProps> = ({ projectilesRef }) => {
@@ -221,9 +408,6 @@ export const SpecialProjectiles: React.FC<SpecialProjectilesProps> = ({ projecti
                 }
                 if (p.variant === 'HOLY_BEAM') {
                     return <HolyBeamRender key={p.id} projectile={p} />;
-                }
-                if (!p.fromPlayer) {
-                    return <VoxelProjectile key={p.id} projectile={p} />;
                 }
                 return null;
             })}
