@@ -24,8 +24,8 @@ import {
   BOSS_GROUND_TEXT_PANEL,
   QUIZ_GROUND_TEXT_PANEL,
   SHOP_GROUND_TEXT_PANEL,
-  STAGE_INTRO_GROUND_TEXT_PANEL,
   VIBEJAM_GROUND_TEXT_PANEL,
+  getStageIntroGroundTextPanel,
 } from './InWorldText';
 import type { GroundTextHighlights } from './InWorldText';
 import { requestGaiaNarration, requestQuizNarration, requestSfx } from './AudioManager';
@@ -577,9 +577,13 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const LANDMARK_POS = { x: 0, z: -10 };
   const SHOP_POS = { x: 15, z: -5 };
   const QUIZ_PORTAL_CENTER_POS = { x: 0, z: 6 };
+  const stageIntroGroundTextPanel = React.useMemo(
+    () => getStageIntroGroundTextPanel(aiConfig?.stageName),
+    [aiConfig?.stageName],
+  );
   const stageIntroGroundTextCenter = {
     x: LANDMARK_POS.x,
-    z: LANDMARK_POS.z + STAGE_INTRO_GROUND_TEXT_PANEL.offsetZ,
+    z: LANDMARK_POS.z + stageIntroGroundTextPanel.offsetZ,
   };
   const quizGroundTextCenter = {
     x: QUIZ_PORTAL_CENTER_POS.x,
@@ -861,7 +865,7 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
           isQuizGroundTextVisible &&
           isInsideGroundTextPanel(playerX, playerZ, quizGroundTextCenter, QUIZ_GROUND_TEXT_PANEL);
         const nextGroundTextHighlights: GroundTextHighlights = {
-          stageIntro: isOverworldMode && Boolean(aiConfig) && isInsideGroundTextPanel(playerX, playerZ, stageIntroGroundTextCenter, STAGE_INTRO_GROUND_TEXT_PANEL),
+          stageIntro: isOverworldMode && Boolean(aiConfig) && isInsideGroundTextPanel(playerX, playerZ, stageIntroGroundTextCenter, stageIntroGroundTextPanel),
           quiz: insideQuizGroundText,
           boss: isOverworldMode && Boolean(bossGroundTextCenter) && isInsideGroundTextPanel(playerX, playerZ, bossGroundTextCenter ?? stageIntroGroundTextCenter, BOSS_GROUND_TEXT_PANEL),
           shop: isOverworldMode && isInsideGroundTextPanel(playerX, playerZ, shopGroundTextCenter, SHOP_GROUND_TEXT_PANEL),
@@ -887,8 +891,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         }
         if (mode === GameMode.OVERWORLD && stageIntroAudioSrc && stageIntroAudioKey) {
           const insideStageIntroText =
-            Math.abs(playerRef.current.position.x - stageIntroGroundTextCenter.x) <= STAGE_INTRO_GROUND_TEXT_PANEL.width / 2 &&
-            Math.abs(playerRef.current.position.z - stageIntroGroundTextCenter.z) <= STAGE_INTRO_GROUND_TEXT_PANEL.height / 2;
+            Math.abs(playerRef.current.position.x - stageIntroGroundTextCenter.x) <= stageIntroGroundTextPanel.width / 2 &&
+            Math.abs(playerRef.current.position.z - stageIntroGroundTextCenter.z) <= stageIntroGroundTextPanel.height / 2;
 
           if (insideStageIntroText && !stageIntroGroundInsideRef.current) {
             requestGaiaNarration(stageIntroAudioSrc, stageIntroAudioKey);

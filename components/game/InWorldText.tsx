@@ -24,6 +24,17 @@ export const STAGE_INTRO_GROUND_TEXT_PANEL = {
   offsetZ: 8,
 } as const;
 
+export const getStageIntroGroundTextPanel = (stageName?: string | null) => {
+  if (stageName === 'The Null Void') {
+    return {
+      ...STAGE_INTRO_GROUND_TEXT_PANEL,
+      height: 5.3,
+    };
+  }
+
+  return STAGE_INTRO_GROUND_TEXT_PANEL;
+};
+
 export const SHOP_GROUND_TEXT_PANEL = {
   width: 11.2,
   height: 2.9,
@@ -187,10 +198,15 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
   const quizHeaderRef = useRef<any>(null);
   const quizQuestionRef = useRef<any>(null);
   const quizBgRef = useRef<THREE.MeshBasicMaterial>(null);
+  const stageIntroPanel = useMemo(
+    () => getStageIntroGroundTextPanel(stageConfig?.stageName),
+    [stageConfig?.stageName],
+  );
+  const stageIntroUsesTallPanel = stageIntroPanel.height > STAGE_INTRO_GROUND_TEXT_PANEL.height;
 
   const narrativePosition = useMemo<[number, number, number]>(
-    () => [landmarkPos[0], 0.08, landmarkPos[2] + STAGE_INTRO_GROUND_TEXT_PANEL.offsetZ],
-    [landmarkPos],
+    () => [landmarkPos[0], 0.08, landmarkPos[2] + stageIntroPanel.offsetZ],
+    [landmarkPos, stageIntroPanel.offsetZ],
   );
 
   const quizPosition = useMemo<[number, number, number]>(
@@ -254,8 +270,8 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
       {stageConfig && (
         <group position={narrativePosition} rotation={[-Math.PI / 2, 0, 0]}>
           <GroundTextPanel
-            width={STAGE_INTRO_GROUND_TEXT_PANEL.width}
-            height={STAGE_INTRO_GROUND_TEXT_PANEL.height}
+            width={stageIntroPanel.width}
+            height={stageIntroPanel.height}
             materialRef={narrativeBgRef}
             opacity={0.32}
             highlighted={Boolean(highlights?.stageIntro)}
@@ -266,7 +282,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
             font={groundTextFontUrl}
             fontSize={1.25}
             color="#a3ff12"
-            position={[0, 1.08, 0.01]}
+            position={[0, stageIntroUsesTallPanel ? 1.48 : 1.08, 0.01]}
             anchorX="center"
             anchorY="middle"
             maxWidth={12.5}
@@ -282,7 +298,7 @@ export const InWorldText: React.FC<InWorldTextProps> = ({
             font={groundTextFontUrl}
             fontSize={0.72}
             color="#d8ffd0"
-            position={[0, -0.62, 0.01]}
+            position={[0, stageIntroUsesTallPanel ? -0.82 : -0.62, 0.01]}
             anchorX="center"
             anchorY="middle"
             maxWidth={12.5}
