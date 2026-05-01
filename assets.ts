@@ -257,6 +257,105 @@ export const getGroundTileVariantPath = (themeName: string, mode: string, varian
 export const getOverworldSkyBackgroundPath = (themeName: string) =>
   ASSET_PATHS.images.backgrounds.overworldSkyByTheme(themeName);
 
+// Bumping these versions invalidates browser-cached art when the source files change.
+export const GROUND_TILE_ASSET_VERSION = 'stage-ground-1024-v13';
+export const PROP_SPRITE_ASSET_VERSION = 'stage-props-512-v1';
+export const GROUND_TILE_VARIANT_COUNT = 4;
+
+export const versionedAssetUrl = (url: string, version: string) =>
+  `${url}${url.includes('?') ? '&' : '?'}v=${version}`;
+
+export const getVersionedGroundTileUrls = (themeName: string, mode: string = 'OVERWORLD') =>
+  Array.from({ length: GROUND_TILE_VARIANT_COUNT }, (_, index) =>
+    versionedAssetUrl(
+      index === 0 ? getGroundTilePath(themeName, mode) : getGroundTileVariantPath(themeName, mode, index),
+      GROUND_TILE_ASSET_VERSION,
+    ),
+  );
+
+export const getVersionedPropSpriteUrl = (propType: string) =>
+  versionedAssetUrl(getPropSpritePath(propType), PROP_SPRITE_ASSET_VERSION);
+
+// Mirror of the Scene's THEME_PROP_POOLS, kept here so the stage preloader
+// can warm browser + texture caches before the scene mounts.
+export const STAGE_PROP_POOL_BY_THEME: Record<string, readonly string[]> = {
+  FOREST: ['TREE', 'TREE_STUMP', 'PLASTIC_BAG_SHRUB', 'BOTTLE_PILE', 'MUSHROOM', 'STONE'],
+  SKULL: ['GRAVE', 'RUIN', 'BATTERY_GRAVE', 'CABLE_ROOTS', 'SKULL_STONE', 'BONE_TRASH_PILE'],
+  ICE: ['SNOW_TREE', 'CRYSTAL', 'FROZEN_SERVER', 'ICE_SHARD', 'ICE_STONE', 'FROZEN_CABLE_PILE'],
+  VOLCANO: ['MAGMA_ROCK', 'LAVA_PILLAR', 'OIL_DRUM', 'EMBER_VENT', 'SPIKE_ROCK', 'SCORCHED_EWASTE_PILE'],
+  PYRAMID: ['CACTUS', 'PALM', 'GLASS_DUNE', 'SILICON_SPIRE', 'PYRAMID_STONE', 'SILICON_EWASTE_PILE'],
+  MUSHROOM: ['SWAMP_TREE', 'VINE', 'TOXIC_MUSHROOM', 'TOXIC_BARREL', 'SLUDGE_POOL', 'BOG_TRASH_PILE'],
+  CYBER: ['CYBER_SERVER', 'NEON_SIGN', 'CABLE_POST', 'TRASH_CAN', 'BILLBOARD_RUIN'],
+  VOID: ['VOID_ROCK', 'STAR_PILLAR', 'NULL_CRYSTAL', 'STATIC_RIFT'],
+  SKY: ['CLOUD_PILLAR', 'GOLD_GATE', 'SKY_SERVER', 'SATELLITE_DISH', 'SERVER'],
+  HELL: ['HELL_SPIKE_ROCK', 'HELL_LAVA_PILLAR', 'HELL_OBELISK', 'BURNED_SERVER', 'HELL_MAGMA_ROCK'],
+};
+
+export const getStageDefaultTheme = (stage: number): string => {
+  const cycle = ((Math.max(1, stage) - 1) % 10) + 1;
+  switch (cycle) {
+    case 2: return 'SKULL';
+    case 3: return 'ICE';
+    case 4: return 'VOLCANO';
+    case 5: return 'PYRAMID';
+    case 6: return 'MUSHROOM';
+    case 7: return 'CYBER';
+    case 8: return 'VOID';
+    case 9: return 'SKY';
+    case 10: return 'HELL';
+    default: return 'FOREST';
+  }
+};
+
+// Synchronous "is this image already loaded?" cache, shared across PixelGround
+// and SpriteBillboard. Populated by preloadStageAssets and by component-level
+// loaders so consumers can skip the procedural fallback when art is ready.
+const preloadedImageCache = new Map<string, HTMLImageElement>();
+const inFlightImageLoads = new Map<string, Promise<HTMLImageElement | null>>();
+
+export const peekPreloadedImage = (url: string): HTMLImageElement | null =>
+  preloadedImageCache.get(url) ?? null;
+
+export const ensureImageLoaded = (url: string): Promise<HTMLImageElement | null> => {
+  const cached = preloadedImageCache.get(url);
+  if (cached) return Promise.resolve(cached);
+
+  const inFlight = inFlightImageLoads.get(url);
+  if (inFlight) return inFlight;
+
+  const promise = new Promise<HTMLImageElement | null>((resolve) => {
+    if (typeof Image === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => {
+      preloadedImageCache.set(url, image);
+      resolve(image);
+    };
+    image.onerror = () => resolve(null);
+    image.src = url;
+    if (image.complete && image.naturalWidth > 0) {
+      preloadedImageCache.set(url, image);
+      resolve(image);
+    }
+  }).then((image) => {
+    inFlightImageLoads.delete(url);
+    return image;
+  });
+
+  inFlightImageLoads.set(url, promise);
+  return promise;
+};
+
+export const preloadStageAssets = async (themeName: string): Promise<void> => {
+  const groundUrls = getVersionedGroundTileUrls(themeName, 'OVERWORLD');
+  const propTypes = STAGE_PROP_POOL_BY_THEME[themeName] ?? [];
+  const propUrls = propTypes.map(getVersionedPropSpriteUrl);
+  await Promise.all([...groundUrls, ...propUrls].map((url) => ensureImageLoaded(url)));
+};
+
 const isAudioAsset = (assetUrl: string) => /\.(mp3|ogg|wav)$/i.test(assetUrl);
 
 const preloadImageAsset = (assetUrl: string) =>

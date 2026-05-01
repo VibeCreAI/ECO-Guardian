@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { useAiDirectorStore } from '../../store/aiDirectorStore'; 
 import { GameMode, Vector2, AiStageConfig } from '../../types';
-import { ASSET_PATHS, getOverworldSkyBackgroundPath } from '../../assets';
+import { ASSET_PATHS, getOverworldSkyBackgroundPath, STAGE_PROP_POOL_BY_THEME } from '../../assets';
 import { PropSpriteBatch, PlayerSpriteBillboard } from './SpriteBillboard';
 import { RemotePlayer } from './RemotePlayer';
 import { BattleManager } from './BattleManager';
@@ -446,21 +446,8 @@ const getLandmarkType = (stage: number, config: AiStageConfig | null) => {
     switch(cycle) { case 1: return 'FOREST'; case 2: return 'SKULL'; case 3: return 'ICE'; case 4: return 'VOLCANO'; case 5: return 'PYRAMID'; case 6: return 'MUSHROOM'; case 7: return 'CYBER'; case 8: return 'VOID'; case 9: return 'SKY'; case 10: return 'HELL'; default: return 'FOREST'; }
 }
 
-const THEME_PROP_POOLS: Record<ThemeName, string[]> = {
-  FOREST: ['TREE', 'TREE_STUMP', 'PLASTIC_BAG_SHRUB', 'BOTTLE_PILE', 'MUSHROOM', 'STONE'],
-  SKULL: ['GRAVE', 'RUIN', 'BATTERY_GRAVE', 'CABLE_ROOTS', 'SKULL_STONE', 'BONE_TRASH_PILE'],
-  ICE: ['SNOW_TREE', 'CRYSTAL', 'FROZEN_SERVER', 'ICE_SHARD', 'ICE_STONE', 'FROZEN_CABLE_PILE'],
-  VOLCANO: ['MAGMA_ROCK', 'LAVA_PILLAR', 'OIL_DRUM', 'EMBER_VENT', 'SPIKE_ROCK', 'SCORCHED_EWASTE_PILE'],
-  PYRAMID: ['CACTUS', 'PALM', 'GLASS_DUNE', 'SILICON_SPIRE', 'PYRAMID_STONE', 'SILICON_EWASTE_PILE'],
-  MUSHROOM: ['SWAMP_TREE', 'VINE', 'TOXIC_MUSHROOM', 'TOXIC_BARREL', 'SLUDGE_POOL', 'BOG_TRASH_PILE'],
-  CYBER: ['CYBER_SERVER', 'NEON_SIGN', 'CABLE_POST', 'TRASH_CAN', 'BILLBOARD_RUIN'],
-  VOID: ['VOID_ROCK', 'STAR_PILLAR', 'NULL_CRYSTAL', 'STATIC_RIFT'],
-  SKY: ['CLOUD_PILLAR', 'GOLD_GATE', 'SKY_SERVER', 'SATELLITE_DISH', 'SERVER'],
-  HELL: ['HELL_SPIKE_ROCK', 'HELL_LAVA_PILLAR', 'HELL_OBELISK', 'BURNED_SERVER', 'HELL_MAGMA_ROCK'],
-};
-
 const getThemePropPool = (theme: ThemeName, primaryProp?: string) => {
-  const pool = THEME_PROP_POOLS[theme] ?? THEME_PROP_POOLS.FOREST;
+  const pool = STAGE_PROP_POOL_BY_THEME[theme] ?? STAGE_PROP_POOL_BY_THEME.FOREST;
   return primaryProp ? Array.from(new Set([primaryProp, ...pool])) : pool;
 };
 
@@ -1097,7 +1084,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const showOverworldScene = (
     mode === GameMode.OVERWORLD ||
     mode === GameMode.INSTRUCTIONS ||
-    mode === GameMode.LOADING_LEVEL ||
+    // LOADING_LEVEL is intentionally excluded: the loading overlay covers
+    // the canvas, and skipping the scene render here prevents prop/ground
+    // textures from being baked with procedural art before stage assets
+    // finish preloading.
     ((mode === GameMode.PAUSED || mode === GameMode.SHOP || mode === GameMode.STATUS || mode === GameMode.LIBRARY) && lastGameplayMode === GameMode.OVERWORLD)
   );
   const showBattleScene = (mode === GameMode.BATTLE || mode === GameMode.REWARD || mode === GameMode.CHEST_REWARD || ((mode === GameMode.PAUSED || mode === GameMode.STATUS || mode === GameMode.LIBRARY || mode === GameMode.SHOP) && lastGameplayMode === GameMode.BATTLE));

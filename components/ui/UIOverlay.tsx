@@ -1832,6 +1832,26 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
       );
   }
 
+  // --- Stage loading screen ---
+  // Covers the canvas while ground tiles + prop sprites preload between
+  // stages, after a save resume, or on portal entry. Without this, the
+  // procedural placeholder art could flash for a frame on slow loads.
+  if (mode === GameMode.LOADING_LEVEL) {
+      return (
+          <div className="absolute inset-0 flex items-center justify-center ui-backdrop z-[100] animate-in fade-in duration-200">
+              <div className="ui-card px-6 py-5 flex flex-col items-center gap-3">
+                  <p className="text-[10px] uppercase ui-muted">Loading next stage</p>
+                  <p className="text-base text-green-300 font-bold tracking-wider">
+                      {currentConfig?.stageName ?? `STAGE ${activeStage}`}
+                  </p>
+                  <div className="w-40 h-1 bg-white/10 rounded overflow-hidden">
+                      <div className="h-full bg-green-400 animate-pulse" style={{ width: '60%' }} />
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   // --- QUIZ RESULT MODAL ---
   if (mode === GameMode.QUIZ_RESULT && quizResult) {
       return (

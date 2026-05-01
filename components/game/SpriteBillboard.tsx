@@ -2,7 +2,15 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
-import { ASSET_PATHS, getEnemySpriteSheetPath, getPropSpritePath } from '../../assets';
+import {
+    ASSET_PATHS,
+    PROP_SPRITE_ASSET_VERSION,
+    ensureImageLoaded,
+    getEnemySpriteSheetPath,
+    getPropSpritePath,
+    peekPreloadedImage,
+    versionedAssetUrl,
+} from '../../assets';
 import { drawEnemySheet, ENEMY_RENDER_TYPES, ENEMY_SHEET_HEIGHT, ENEMY_SHEET_WIDTH, isEnemyRenderType, isGhostEnemyType, usesPixelEnemyStyle } from './enemyDrawing';
 import { getCachedPlayerSlotTextures, getPlayerSlotTextures } from './playerTint';
 
@@ -58,10 +66,8 @@ interface ExternalBossSpriteProps {
 }
 
 const textureCache: Record<string, THREE.Texture> = {};
-const propSpriteImageCache: Record<string, Promise<HTMLImageElement | null>> = {};
 const proceduralPropTextureCacheKeys = new Set<string>();
 const propSpriteTextureUrlByTexture = new WeakMap<THREE.Texture, string>();
-const EXTERNAL_PROP_ASSET_VERSION = 'stage-props-512-v1';
 const MOBS: readonly string[] = ENEMY_RENDER_TYPES;
 const textureLoader = new THREE.TextureLoader();
 const OUTLINE_HEX = '#f8fafc';
@@ -118,46 +124,20 @@ const createPixelDrawer = (ctx: CanvasRenderingContext2D, size: number, gridSize
     return { p, r };
 };
 
-const versionPropSpriteUrl = (url: string) =>
-    `${url}${url.includes('?') ? '&' : '?'}v=${EXTERNAL_PROP_ASSET_VERSION}`;
-
-const loadExternalPropImage = (url: string) => {
-    if (!propSpriteImageCache[url]) {
-        propSpriteImageCache[url] = new Promise<HTMLImageElement | null>((resolve) => {
-            const image = new Image();
-
-            const finish = (loadedImage: HTMLImageElement | null) => {
-                image.onload = null;
-                image.onerror = null;
-                resolve(loadedImage);
-            };
-
-            image.onload = () => finish(image);
-            image.onerror = () => finish(null);
-            image.decoding = 'async';
-            image.src = url;
-
-            if (image.complete) {
-                finish(image.naturalWidth > 0 ? image : null);
-            }
-        }).then((image) => {
-            if (!image) delete propSpriteImageCache[url];
-            return image;
-        });
-    }
-
-    return propSpriteImageCache[url];
+const getVersionedPropUrl = (type: string): string | null => {
+    const rawSpriteUrl = getPropSpritePath(type);
+    if (!rawSpriteUrl) return null;
+    return versionedAssetUrl(rawSpriteUrl, PROP_SPRITE_ASSET_VERSION);
 };
 
 const maybeApplyExternalPropSprite = (texture: THREE.Texture, type: string) => {
-    const rawSpriteUrl = getPropSpritePath(type);
-    if (!rawSpriteUrl || typeof window === 'undefined' || typeof Image === 'undefined') return;
+    const spriteUrl = getVersionedPropUrl(type);
+    if (!spriteUrl || typeof window === 'undefined' || typeof Image === 'undefined') return;
 
-    const spriteUrl = versionPropSpriteUrl(rawSpriteUrl);
     if (propSpriteTextureUrlByTexture.get(texture) === spriteUrl) return;
 
     propSpriteTextureUrlByTexture.set(texture, spriteUrl);
-    loadExternalPropImage(spriteUrl).then((image) => {
+    ensureImageLoaded(spriteUrl).then((image) => {
         if (!image) {
             propSpriteTextureUrlByTexture.delete(texture);
             return;
@@ -613,7 +593,16 @@ const generateTexture = (type: string, color: string, variant: string = '') => {
     }
     else {
         isProceduralProp = true;
-        drawProceduralProp(ctx, type);
+        // Fast path: if the prop sprite was preloaded by the stage-loading
+        // flow, paint the real PNG into the canvas instead of the procedural
+        // placeholder so the user never sees the code-generated art.
+        const preloadedSpriteUrl = getVersionedPropUrl(type);
+        const preloadedSprite = preloadedSpriteUrl ? peekPreloadedImage(preloadedSpriteUrl) : null;
+        if (preloadedSprite) {
+            ctx.drawImage(preloadedSprite, 0, 0, canvas.width, canvas.height);
+        } else {
+            drawProceduralProp(ctx, type);
+        }
     }
     if (type === 'BOSS' || isEnemyRenderType(type)) {
         bakeAlphaOutline(ctx, canvas.width, canvas.height, OUTLINE_HEX);

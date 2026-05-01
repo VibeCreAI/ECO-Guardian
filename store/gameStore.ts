@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { GameMode, PlayerStats, UpgradeOption, Portal, ActiveBattleState, HighScore, ImpactLogEntry, QuizDifficulty, AdviceResult, AiStageConfig } from '../types';
 import { useAiDirectorStore } from './aiDirectorStore';
+import { getStageDefaultTheme, preloadStageAssets } from '../assets';
 import { WEAPONS_DATA, PASSIVES_DATA, EVOLUTION_RECIPES, getEvolutionHint, PassiveDef } from '../constants';
 import type { EnemySnapshotEntry, PeerState, MultiplayerMessage } from '../multiplayer/sync';
 import { MAX_GROUP_SIZE, type SlotIndex } from '../multiplayer/config';
@@ -16,6 +17,15 @@ const RUN_SAVE_KEY = 'eco_guardian_run_save_v1';
 const RUN_SAVE_VERSION = 1;
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
 const getOverworldSpawn = () => ({ x: 0, z: 6 });
+
+const resolveStageTheme = (stage: number, config: AiStageConfig | null | undefined): string => {
+  return config?.theme?.landmarkType ?? getStageDefaultTheme(stage);
+};
+
+const preloadStageAssetsForActive = (stage: number): Promise<void> => {
+  const config = useAiDirectorStore.getState().currentConfig;
+  return preloadStageAssets(resolveStageTheme(stage, config)).catch(() => undefined);
+};
 
 const buildMultiplayerQuizSeed = (
   groupId: string | null,
@@ -1390,7 +1400,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
     const stageSeed = Number.isFinite(seed) ? seed ?? null : null;
     const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial', stageSeed);
-    useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey).then(() => {
+    useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey)
+      .then(() => preloadStageAssetsForActive(newStage))
+      .then(() => {
       set((prevState) => ({
         activeStage: newStage,
         portals: generatePortals(newStage),
@@ -1493,7 +1505,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 
     hydrateAiDirectorFromRunSave(savedRun);
-    set((state) => createHydratedRunState(state, savedRun, { isPortalEntry: false, portalRefUrl: null }));
+
+    // Show LOADING_LEVEL while we warm the stage's ground/prop image cache,
+    // then snap to the saved mode so the player never sees procedural art.
+    const hydrated = createHydratedRunState(get(), savedRun, { isPortalEntry: false, portalRefUrl: null });
+    const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
+    set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false });
+
+    preloadStageAssetsForActive(savedRun.game.activeStage).then(() => {
+      set({ mode: resumeMode, isStageReady: true });
+    });
     return true;
   },
 
@@ -1627,20 +1648,22 @@ export const useGameStore = create<GameState>((set, get) => ({
           savedRunSummary: null,
       });
 
-      useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
-          set((state) => {
-              const baseUpdate = {
-                  isStageReady: true,
-                  isOverworldSceneReady: false,
-                  portals: generatePortals(1),
-                  activeStage: 1,
-              };
-              if (state.mode === GameMode.LOADING_LEVEL) {
-                  return { ...baseUpdate, mode: GameMode.OVERWORLD };
-              }
-              return baseUpdate;
+      useAiDirectorStore.getState().generateNextStage(freshStats, 0)
+          .then(() => preloadStageAssetsForActive(1))
+          .then(() => {
+              set((state) => {
+                  const baseUpdate = {
+                      isStageReady: true,
+                      isOverworldSceneReady: false,
+                      portals: generatePortals(1),
+                      activeStage: 1,
+                  };
+                  if (state.mode === GameMode.LOADING_LEVEL) {
+                      return { ...baseUpdate, mode: GameMode.OVERWORLD };
+                  }
+                  return baseUpdate;
+              });
           });
-      });
   },
 
   preloadGameFromPortal: (refUrl) => {
@@ -1649,7 +1672,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       const savedRun = loadRunProgress();
       if (savedRun) {
           hydrateAiDirectorFromRunSave(savedRun);
-          set((state) => createHydratedRunState(state, savedRun, { isPortalEntry: true, portalRefUrl: refUrl }));
+          const hydrated = createHydratedRunState(get(), savedRun, { isPortalEntry: true, portalRefUrl: refUrl });
+          const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
+          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false });
+          preloadStageAssetsForActive(savedRun.game.activeStage).then(() => {
+              set({ mode: resumeMode, isStageReady: true });
+          });
           return;
       }
 
@@ -1689,20 +1717,22 @@ export const useGameStore = create<GameState>((set, get) => ({
           savedRunSummary: null,
       });
 
-      useAiDirectorStore.getState().generateNextStage(freshStats, 0).then(() => {
-          set((state) => {
-              const baseUpdate = {
-                  isStageReady: true,
-                  isOverworldSceneReady: false,
-                  portals: generatePortals(1),
-                  activeStage: 1,
-              };
-              if (state.mode === GameMode.LOADING_LEVEL) {
-                  return { ...baseUpdate, mode: GameMode.OVERWORLD };
-              }
-              return baseUpdate;
+      useAiDirectorStore.getState().generateNextStage(freshStats, 0)
+          .then(() => preloadStageAssetsForActive(1))
+          .then(() => {
+              set((state) => {
+                  const baseUpdate = {
+                      isStageReady: true,
+                      isOverworldSceneReady: false,
+                      portals: generatePortals(1),
+                      activeStage: 1,
+                  };
+                  if (state.mode === GameMode.LOADING_LEVEL) {
+                      return { ...baseUpdate, mode: GameMode.OVERWORLD };
+                  }
+                  return baseUpdate;
+              });
           });
-      });
   },
 
   startGame: () => {
@@ -1812,6 +1842,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
 
       await useAiDirectorStore.getState().generateNextStage(state.playerStats, targetStage - 1, 'Stage debug preview', `debug-stage-${targetStage}`);
+      await preloadStageAssetsForActive(targetStage);
 
       set((prevState) => ({
           activeStage: targetStage,
@@ -2644,7 +2675,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
       
       const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial', stageSeed);
-      useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey).then(() => {
+      useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey)
+        .then(() => preloadStageAssetsForActive(nextStage))
+        .then(() => {
           set((prevState) => ({
             activeStage: nextStage,
             portals: generatePortals(nextStage),

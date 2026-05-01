@@ -3,7 +3,12 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AiStageConfig } from '../../types';
-import { getGroundTilePath, getGroundTileVariantPath } from '../../assets';
+import {
+    GROUND_TILE_VARIANT_COUNT,
+    ensureImageLoaded,
+    getVersionedGroundTileUrls,
+    peekPreloadedImage,
+} from '../../assets';
 
 interface PixelGroundProps {
     width: number;
@@ -35,12 +40,9 @@ type OverlayParticle = {
     colorIndex: number;
 };
 
-const groundTileAvailabilityCache: Record<string, Promise<boolean>> = {};
-const groundTileImageCache: Record<string, Promise<HTMLImageElement | null>> = {};
-const EXTERNAL_GROUND_VARIANT_COUNT = 4;
+const EXTERNAL_GROUND_VARIANT_COUNT = GROUND_TILE_VARIANT_COUNT;
 const EXTERNAL_GROUND_TILE_PIXELS = 1024;
 const PROCEDURAL_OVERLAY_TILE_PIXELS = 128;
-const EXTERNAL_GROUND_ASSET_VERSION = 'stage-ground-1024-v13';
 
 const usesExternalOverlayTile = (themeType: ThemeName) =>
     themeType === 'VOLCANO' || themeType === 'CYBER' || themeType === 'HELL';
@@ -94,39 +96,8 @@ const createSeededRandom = (seedInput: string) => {
     };
 };
 
-const versionGroundTileUrl = (url: string) =>
-    `${url}${url.includes('?') ? '&' : '?'}v=${EXTERNAL_GROUND_ASSET_VERSION}`;
-
 const getExternalGroundTileUrls = (themeType: ThemeName, mode: 'OVERWORLD' | 'BATTLE') =>
-    Array.from({ length: EXTERNAL_GROUND_VARIANT_COUNT }, (_, index) =>
-        versionGroundTileUrl(index === 0 ? getGroundTilePath(themeType, mode) : getGroundTileVariantPath(themeType, mode, index))
-    );
-
-const checkGroundTileAvailable = (url: string) => {
-    if (!groundTileAvailabilityCache[url]) {
-        groundTileAvailabilityCache[url] = fetch(url, { method: 'HEAD', cache: 'force-cache' })
-            .then((response) => {
-                const contentType = response.headers.get('content-type') ?? '';
-                return response.ok && contentType.toLowerCase().startsWith('image/');
-            })
-            .catch(() => false);
-    }
-
-    return groundTileAvailabilityCache[url];
-};
-
-const loadGroundTileImage = (url: string) => {
-    if (!groundTileImageCache[url]) {
-        groundTileImageCache[url] = new Promise((resolve) => {
-            const image = new Image();
-            image.onload = () => resolve(image);
-            image.onerror = () => resolve(null);
-            image.src = url;
-        });
-    }
-
-    return groundTileImageCache[url];
-};
+    getVersionedGroundTileUrls(themeType, mode);
 
 const createGroundTileMosaic = (
     images: HTMLImageElement[],
@@ -189,14 +160,10 @@ const maybeApplyExternalGroundTile = (
     height: number,
     tileWorldSize: number,
 ) => {
-    if (typeof window === 'undefined' || typeof fetch !== 'function' || typeof Image === 'undefined') return;
+    if (typeof window === 'undefined' || typeof Image === 'undefined') return;
 
     const tileUrls = getExternalGroundTileUrls(themeType, mode);
-    Promise.all(tileUrls.map(async (url) => {
-        const available = await checkGroundTileAvailable(url);
-        if (!available) return null;
-        return loadGroundTileImage(url);
-    })).then((loadedImages) => {
+    Promise.all(tileUrls.map((url) => ensureImageLoaded(url))).then((loadedImages) => {
         const images = loadedImages.filter((image): image is HTMLImageElement => Boolean(image));
         if (images.length === 0) return;
 
@@ -797,6 +764,37 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
     );
 
     const texture = useMemo(() => {
+        const tileUrls = getExternalGroundTileUrls(themeType, mode);
+        const cachedImages = tileUrls.map((url) => peekPreloadedImage(url));
+        const allCached = cachedImages.every((image): image is HTMLImageElement => image !== null);
+
+        // Fast path: stage assets were preloaded, so we can build the real
+        // mosaic synchronously and skip the procedural placeholder entirely.
+        if (allCached) {
+            const images = cachedImages as HTMLImageElement[];
+            const mosaic = createGroundTileMosaic(
+                images,
+                width,
+                height,
+                externalTileWorldSize,
+                `external-ground:${themeType}:${mode}:${width}x${height}`,
+            );
+            if (mosaic) {
+                const tex = new THREE.CanvasTexture(mosaic);
+                tex.minFilter = THREE.NearestFilter;
+                tex.magFilter = THREE.NearestFilter;
+                tex.generateMipmaps = false;
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.repeat.set(1, 1);
+                return tex;
+            }
+        }
+
+        // Fallback: procedural canvas keeps something on screen while the
+        // external image loads. The stage-loading flow normally prevents this
+        // path from being seen, but it stays here as a safety net.
         const size = 128;
         const canvas = document.createElement('canvas');
         canvas.width = size;
@@ -804,7 +802,7 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
         const ctx = canvas.getContext('2d');
 
         if (ctx) drawGroundTile(ctx, themeType, mode);
-        
+
         const tex = new THREE.CanvasTexture(canvas);
         tex.minFilter = THREE.NearestFilter;
         tex.magFilter = THREE.NearestFilter;
@@ -812,10 +810,10 @@ export const PixelGround: React.FC<PixelGroundProps> = ({ width, height, themeId
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         tex.colorSpace = THREE.SRGBColorSpace;
-        
+
         tex.repeat.set(uvScale.x, uvScale.y);
         maybeApplyExternalGroundTile(tex, themeType, mode, width, height, externalTileWorldSize);
-        
+
         return tex;
     }, [themeType, width, height, mode, uvScale, externalTileWorldSize]);
 
