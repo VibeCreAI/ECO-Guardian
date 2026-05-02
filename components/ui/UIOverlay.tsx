@@ -726,21 +726,19 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
         <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-[var(--eco-acid)] border-2 border-black -translate-x-1/2 -translate-y-1/2" />
         
         {/* SHOP ICON ON MINIMAP */}
-        <div 
-            className="absolute text-[10px] -translate-x-1/2 -translate-y-1/2"
-            style={{ 
-                top: center + shopPinY, 
-                left: center + shopPinX 
+        <div
+            className="absolute top-0 left-0 text-[10px]"
+            style={{
+                transform: `translate(calc(${center + shopPinX}px - 50%), calc(${center + shopPinY}px - 50%))`,
             }}
         >
             ♻️
         </div>
 
         {!hideVibeJam && <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 border border-black bg-cyan-400 text-[7px] leading-[10px] text-black text-center font-bold"
+            className="absolute top-0 left-0 w-3 h-3 border border-black bg-cyan-400 text-[7px] leading-[10px] text-black text-center font-bold"
             style={{
-                top: center + vibeNextPinY,
-                left: center + vibeNextPinX
+                transform: `translate(calc(${center + vibeNextPinX}px - 50%), calc(${center + vibeNextPinY}px - 50%))`,
             }}
             title="Vibe Portal"
         >
@@ -748,10 +746,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
         </div>}
         {!hideVibeJam && isPortalEntry && (
             <div
-                className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 border border-black bg-orange-400 text-[7px] leading-[10px] text-black text-center font-bold"
+                className="absolute top-0 left-0 w-3 h-3 border border-black bg-orange-400 text-[7px] leading-[10px] text-black text-center font-bold"
                 style={{
-                    top: center + vibeReturnPinY,
-                    left: center + vibeReturnPinX
+                    transform: `translate(calc(${center + vibeReturnPinX}px - 50%), calc(${center + vibeReturnPinY}px - 50%))`,
                 }}
                 title="Return Portal"
             >
@@ -771,15 +768,19 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
             const isHighlighted = highlightedPortalId === portal.id;
 
             return (
-                <div key={portal.id} className="absolute" style={{ top: center + pinY, left: center + pinX }}>
-                    <div 
+                <div
+                    key={portal.id}
+                    className="absolute top-0 left-0"
+                    style={{ transform: `translate(${center + pinX}px, ${center + pinY}px)` }}
+                >
+                    <div
                         className={`absolute -translate-x-1/2 -translate-y-1/2 border-2 border-black flex items-center justify-center ${portal.type === 'BOSS' || isHighlighted ? 'animate-pulse' : ''}`}
-                        style={{ 
-                            width: (isHighlighted ? size * 7 : size * 4), 
-                            height: (isHighlighted ? size * 7 : size * 4), 
-                            backgroundColor: portalColor, 
+                        style={{
+                            width: (isHighlighted ? size * 7 : size * 4),
+                            height: (isHighlighted ? size * 7 : size * 4),
+                            backgroundColor: portalColor,
                             zIndex: isHighlighted ? 10 : 1
-                        }} 
+                        }}
                     >
                         {portal.quizOption && (
                             <span className="text-[7px] font-bold text-white">
@@ -2106,9 +2107,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
         )}
         
         <div className="w-36 md:w-64 h-6 ui-progress relative">
-          <div 
-            className="h-full ui-progress-fill-health transition-all duration-200"
-            style={{ width: `${(playerStats.hp / playerStats.maxHp) * 100}%` }}
+          <div
+            className="absolute inset-0 ui-progress-fill-health transition-transform duration-200 origin-left"
+            style={{ transform: `scaleX(${playerStats.hp / playerStats.maxHp})` }}
           />
           <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold whitespace-nowrap" style={{ textShadow: '1px 1px 0 #000' }}>
             HP {Math.ceil(playerStats.hp)}/{playerStats.maxHp}
@@ -2117,8 +2118,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
 
         <div className="w-36 md:w-64 h-6 ui-progress relative -mt-1">
           <div
-            className="h-full ui-progress-fill-xp transition-all duration-200"
-            style={{ width: `${Math.min(100, (playerStats.xp / playerStats.xpToNextLevel) * 100)}%` }}
+            className="absolute inset-0 ui-progress-fill-xp transition-transform duration-200 origin-left"
+            style={{ transform: `scaleX(${Math.min(1, playerStats.xp / playerStats.xpToNextLevel)})` }}
           />
           <span className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold whitespace-nowrap" style={{ textShadow: '1px 1px 0 #000' }}>
             XP {Math.floor(playerStats.xp)}/{playerStats.xpToNextLevel}
@@ -2289,8 +2290,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
           >
              <div className="absolute inset-3 ui-dash-meter pointer-events-none overflow-hidden">
                 <div
-                    className="absolute bottom-0 left-0 right-0 ui-progress-fill-dash transition-[height] duration-75 ease-linear"
-                    style={{ height: `${dashProgress * 100}%` }}
+                    className="absolute inset-0 ui-progress-fill-dash transition-transform duration-75 ease-linear origin-bottom"
+                    style={{ transform: `scaleY(${dashProgress})` }}
                 />
              </div>
              <span className={`absolute inset-0 flex items-center justify-center font-bold text-white z-10 pointer-events-none ${isShortHeight ? 'text-xs' : 'text-xs'}`}>
