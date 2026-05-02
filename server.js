@@ -158,6 +158,13 @@ app.post('/api/leaderboard', async (req, res) => {
     }
 });
 
+// Retired route: normalize old runway links back to the main game.
+app.get(/^\/runway(?:\/.*)?$/, (req, res) => {
+    const queryIndex = req.url.indexOf('?');
+    const query = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
+    res.redirect(308, `/${query}`);
+});
+
 // Catch-all handler for SPA
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));

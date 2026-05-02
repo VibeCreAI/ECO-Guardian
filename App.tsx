@@ -13,6 +13,9 @@ import { useHostPortalVoteTick } from './multiplayer/useHostPortalVoteTick';
 
 const RUN_AUTOSAVE_THROTTLE_MS = 800;
 
+const isRetiredRunwayPath = () =>
+  window.location.pathname === '/runway' || window.location.pathname.startsWith('/runway/');
+
 const App: React.FC = () => {
   // Input References (mutable ref to avoid re-renders on every frame input)
   const inputVector = useRef<Vector2>({ x: 0, y: 0 });
@@ -121,8 +124,15 @@ const App: React.FC = () => {
     }
   }, [gameMode, mpGroupId, mpStatus, activeStage, playMode]);
 
+  // Retired route: keep old /runway links from remaining in the address bar.
+  useLayoutEffect(() => {
+    if (!isRetiredRunwayPath()) return;
+    window.history.replaceState(null, '', `/${window.location.search}${window.location.hash}`);
+  }, []);
+
   // VibeJam portal entry detection — must run before any other init
   useLayoutEffect(() => {
+    if (isRetiredRunwayPath()) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('portal') === 'true') {
       if (portalEntryHandledRef.current) return;
@@ -133,21 +143,12 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Hide all VibeJam UI on competition-clean routes (e.g. /runway)
+  // Inject VibeJam widget dynamically.
   useEffect(() => {
-    if (window.location.pathname === '/runway') {
-      useGameStore.getState().setHideVibeJam(true);
-    }
-  }, []);
-
-  // Inject VibeJam widget dynamically so it's skipped on clean routes
-  useEffect(() => {
-    if (window.location.pathname !== '/runway') {
-      const s = document.createElement('script');
-      s.async = true;
-      s.src = 'https://vibej.am/2026/widget.js';
-      document.head.appendChild(s);
-    }
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://vibej.am/2026/widget.js';
+    document.head.appendChild(s);
   }, []);
 
   // Platform detection

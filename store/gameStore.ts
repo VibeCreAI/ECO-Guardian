@@ -1788,9 +1788,35 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   preloadGameFromPortal: (refUrl) => {
       // Portal entries should land directly in-game, but still use the full
-      // loading overlay while stage 1 is warmed.
+      // loading overlay while the saved or fresh stage is warmed.
       const loadStartedAt = Date.now();
       const portalContext = rememberPortalSessionContext(refUrl);
+      const savedRun = loadRunProgress();
+
+      if (savedRun) {
+          hydrateAiDirectorFromRunSave(savedRun);
+          const hydrated = createHydratedRunState(get(), savedRun, portalContext);
+          const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
+
+          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0.05 });
+
+          preloadStageAssetsForActive(savedRun.game.activeStage, (loaded, total) => {
+              set({
+                  stageLoadProgress: mapAssetLoadProgress(
+                      loaded,
+                      total,
+                      0.05,
+                      PORTAL_ENTRY_PROGRESS_CAP - 0.05,
+                  ),
+              });
+          })
+          .then(() => waitForMinimumElapsed(loadStartedAt, PORTAL_ENTRY_MIN_LOADING_MS))
+          .then(() => {
+              set({ mode: resumeMode, isStageReady: true, stageLoadProgress: 1 });
+          });
+          return;
+      }
+
       const freshStats = getInitialStats(false);
       freshStats.quizDifficulty = 'MEDIUM';
       localStorage.removeItem(SAVE_KEY);
