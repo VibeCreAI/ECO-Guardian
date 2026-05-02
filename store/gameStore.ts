@@ -16,8 +16,60 @@ const SAVE_KEY = 'pixel_realm_save_v1';
 const RUN_SAVE_KEY = 'eco_guardian_run_save_v1';
 const RUN_SAVE_VERSION = 1;
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
+const PORTAL_SESSION_KEY = 'eco_guardian_portal_session_v1';
 const STAGE_GENERATION_PROGRESS = 0.2;
+const PORTAL_ENTRY_MIN_LOADING_MS = 650;
+const PORTAL_ENTRY_PROGRESS_CAP = 0.95;
 const getOverworldSpawn = () => ({ x: 0, z: 6 });
+
+type PortalSessionContext = {
+  isPortalEntry: boolean;
+  portalRefUrl: string | null;
+};
+
+const EMPTY_PORTAL_CONTEXT: PortalSessionContext = {
+  isPortalEntry: false,
+  portalRefUrl: null,
+};
+
+const readPortalSessionContext = (): PortalSessionContext => {
+  try {
+    if (typeof sessionStorage === 'undefined') return EMPTY_PORTAL_CONTEXT;
+    const raw = sessionStorage.getItem(PORTAL_SESSION_KEY);
+    if (!raw) return EMPTY_PORTAL_CONTEXT;
+    const parsed = JSON.parse(raw) as Partial<PortalSessionContext>;
+    if (!parsed.isPortalEntry) return EMPTY_PORTAL_CONTEXT;
+    return {
+      isPortalEntry: true,
+      portalRefUrl: typeof parsed.portalRefUrl === 'string' ? parsed.portalRefUrl : null,
+    };
+  } catch {
+    return EMPTY_PORTAL_CONTEXT;
+  }
+};
+
+const rememberPortalSessionContext = (portalRefUrl: string | null): PortalSessionContext => {
+  const context: PortalSessionContext = { isPortalEntry: true, portalRefUrl };
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(PORTAL_SESSION_KEY, JSON.stringify(context));
+    }
+  } catch {
+    // Session storage is best-effort only; in-memory state still carries this run.
+  }
+  return context;
+};
+
+const resolvePortalSessionContext = (state: GameState): PortalSessionContext => {
+  const stored = readPortalSessionContext();
+  if (state.isPortalEntry) {
+    return {
+      isPortalEntry: true,
+      portalRefUrl: state.portalRefUrl ?? stored.portalRefUrl,
+    };
+  }
+  return stored;
+};
 
 const resolveStageTheme = (stage: number, config: AiStageConfig | null | undefined): string => {
   return config?.theme?.landmarkType ?? getStageDefaultTheme(stage);
@@ -43,6 +95,12 @@ const mapAssetLoadProgress = (
 ) => {
   const assetProgress = total <= 0 ? 1 : loaded / total;
   return clampStageLoadProgress(start + assetProgress * span);
+};
+
+const waitForMinimumElapsed = (startedAt: number, minimumMs: number): Promise<void> => {
+  const remainingMs = minimumMs - (Date.now() - startedAt);
+  if (remainingMs <= 0) return Promise.resolve();
+  return new Promise((resolve) => window.setTimeout(resolve, remainingMs));
 };
 
 const preloadQuizExplanationImageForActive = (): Promise<void> => {
@@ -445,6 +503,10 @@ const isBattleContextMode = (mode: GameMode) =>
   mode === GameMode.CHEST_REWARD;
 
 const normalizeSavedRunMode = (saved: RunSaveState): GameMode => {
+  if (saved.mode === GameMode.LOADING_LEVEL) {
+    return GameMode.OVERWORLD;
+  }
+
   if (saved.mode === GameMode.PAUSED || saved.mode === GameMode.STATUS || saved.mode === GameMode.LIBRARY) {
     return saved.lastGameplayMode === GameMode.BATTLE ? GameMode.BATTLE : GameMode.OVERWORLD;
   }
@@ -1549,7 +1611,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     // Show LOADING_LEVEL while we warm the stage's ground/prop image cache,
     // then snap to the saved mode so the player never sees procedural art.
-    const hydrated = createHydratedRunState(get(), savedRun, { isPortalEntry: false, portalRefUrl: null });
+    const hydrated = createHydratedRunState(get(), savedRun, resolvePortalSessionContext(get()));
     const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
     set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0 });
 
@@ -1654,6 +1716,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   preloadGame: (difficulty) => {
       const freshStats = getInitialStats(false);
+      const portalContext = resolvePortalSessionContext(get());
       freshStats.quizDifficulty = difficulty;
       localStorage.removeItem(SAVE_KEY);
       clearSavedRunProgress();
@@ -1686,8 +1749,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           lastGameplayMode: GameMode.OVERWORLD,
           highlightedPortalId: null,
           cameraZoom: 1.0,
-          isPortalEntry: false,
-          portalRefUrl: null,
+          isPortalEntry: portalContext.isPortalEntry,
+          portalRefUrl: portalContext.portalRefUrl,
           hasSavedRun: false,
           savedRunSummary: null,
       });
@@ -1724,28 +1787,18 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   preloadGameFromPortal: (refUrl) => {
-      // Same as preloadGame('MEDIUM') but marks this session as a portal entry
-      // so the in-game VibeJam portals render correctly and the grace period applies.
-      const savedRun = loadRunProgress();
-      if (savedRun) {
-          hydrateAiDirectorFromRunSave(savedRun);
-          const hydrated = createHydratedRunState(get(), savedRun, { isPortalEntry: true, portalRefUrl: refUrl });
-          const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
-          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0 });
-          preloadStageAssetsForActive(savedRun.game.activeStage, (loaded, total) => {
-              set({ stageLoadProgress: mapAssetLoadProgress(loaded, total, 0, 1) });
-          }).then(() => {
-              set({ mode: resumeMode, isStageReady: true, stageLoadProgress: 1 });
-          });
-          return;
-      }
-
+      // Portal entries should land directly in-game, but still use the full
+      // loading overlay while stage 1 is warmed.
+      const loadStartedAt = Date.now();
+      const portalContext = rememberPortalSessionContext(refUrl);
       const freshStats = getInitialStats(false);
       freshStats.quizDifficulty = 'MEDIUM';
+      localStorage.removeItem(SAVE_KEY);
+      clearSavedRunProgress();
       useAiDirectorStore.getState().resetQuizHistory();
 
       set({
-          mode: GameMode.INSTRUCTIONS,
+          mode: GameMode.LOADING_LEVEL,
           isStageReady: false,
           stageLoadProgress: 0.05,
           isOverworldSceneReady: false,
@@ -1771,8 +1824,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           lastGameplayMode: GameMode.OVERWORLD,
           highlightedPortalId: null,
           cameraZoom: 1.0,
-          isPortalEntry: true,
-          portalRefUrl: refUrl,
+          isPortalEntry: portalContext.isPortalEntry,
+          portalRefUrl: portalContext.portalRefUrl,
           hasSavedRun: false,
           savedRunSummary: null,
       });
@@ -1786,11 +1839,12 @@ export const useGameStore = create<GameState>((set, get) => ({
                           loaded,
                           total,
                           STAGE_GENERATION_PROGRESS,
-                          1 - STAGE_GENERATION_PROGRESS,
+                          PORTAL_ENTRY_PROGRESS_CAP - STAGE_GENERATION_PROGRESS,
                       ),
                   });
               });
           })
+          .then(() => waitForMinimumElapsed(loadStartedAt, PORTAL_ENTRY_MIN_LOADING_MS))
           .then(() => {
               set((state) => {
                   const baseUpdate = {
@@ -2816,6 +2870,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   resetGame: () => {
     const freshStats = getInitialStats(false);
+    const portalContext = resolvePortalSessionContext(get());
     localStorage.removeItem(SAVE_KEY);
     clearSavedRunProgress();
     useAiDirectorStore.getState().resetQuizHistory();
@@ -2858,8 +2913,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       musicVolume: 1,
       sfxVolume: 1,
       cameraZoom: 1.0,
-      isPortalEntry: false,
-      portalRefUrl: null,
+      isPortalEntry: portalContext.isPortalEntry,
+      portalRefUrl: portalContext.portalRefUrl,
     });
   },
 

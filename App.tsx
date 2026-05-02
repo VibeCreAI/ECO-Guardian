@@ -1,5 +1,5 @@
 
-import React, { Suspense, useRef, useEffect, useState, useCallback } from 'react';
+import React, { Suspense, useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Preload } from '@react-three/drei';
 import { UIOverlay } from './components/ui/UIOverlay';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const joystickVector = useRef<Vector2>({ x: 0, y: 0 });
   const dashTrigger = useRef<boolean>(false);
   const autosaveTimeoutRef = useRef<number | null>(null);
+  const portalEntryHandledRef = useRef(false);
   
   const [isMobile, setIsMobile] = useState(false);
 
@@ -121,9 +122,11 @@ const App: React.FC = () => {
   }, [gameMode, mpGroupId, mpStatus, activeStage, playMode]);
 
   // VibeJam portal entry detection — must run before any other init
-  useEffect(() => {
+  useLayoutEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('portal') === 'true') {
+      if (portalEntryHandledRef.current) return;
+      portalEntryHandledRef.current = true;
       const ref = params.get('ref');
       const refUrl = ref ? (ref.startsWith('http') ? ref : `https://${ref}`) : null;
       useGameStore.getState().preloadGameFromPortal(refUrl);

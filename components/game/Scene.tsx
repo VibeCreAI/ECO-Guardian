@@ -38,6 +38,9 @@ interface SceneProps {
 
 type ThemeName = 'FOREST' | 'SKULL' | 'ICE' | 'VOLCANO' | 'PYRAMID' | 'MUSHROOM' | 'CYBER' | 'VOID' | 'SKY' | 'HELL';
 
+const VIBEJAM_PORTAL_TRIGGER_RADIUS = 1.5;
+const VIBEJAM_PORTAL_REARM_RADIUS = VIBEJAM_PORTAL_TRIGGER_RADIUS + 0.35;
+
 const isInsideGroundTextPanel = (
   x: number,
   z: number,
@@ -555,7 +558,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
   const _portalVec = useRef(new THREE.Vector3());
   const _vjNextVec = useRef(new THREE.Vector3(-13, 0, -5));
   const _vjReturnVec = useRef(new THREE.Vector3(-25, 0, -5));
-  const portalGraceTimer = useRef(5.0); // 5-second grace period after portal entry
+  const vjNextPortalArmedRef = useRef(false);
+  const vjReturnPortalArmedRef = useRef(false);
   const joinSpawnAdjustedForGroupRef = useRef<string | null>(null);
   
   const themeId = React.useMemo(() => ((activeStage - 1) % 10) + 1, [activeStage]);
@@ -737,10 +741,13 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     joinSpawnAdjustedForGroupRef.current = mpGroupId;
   }, [mode, mpGroupId, mpJoinedAt, localSlotIndex, updatePosition]);
 
-  // Reset VibeJam portal grace timer whenever a portal entry session starts
+  // Redirect portals arm only after the player has been outside their trigger.
+  // That prevents instant bounce-outs if a future spawn/save lands on a portal,
+  // without adding a time-based delay.
   useEffect(() => {
-    if (isPortalEntry) { portalGraceTimer.current = 5.0; }
-  }, [isPortalEntry]);
+    vjNextPortalArmedRef.current = false;
+    vjReturnPortalArmedRef.current = false;
+  }, [activeStage, isPortalEntry, mode]);
 
   useEffect(() => {
     stageIntroGroundInsideRef.current = false;
@@ -980,12 +987,14 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
           }
         }
 
-        // VibeJam portal grace period countdown
-        if (isPortalEntry && portalGraceTimer.current > 0) { portalGraceTimer.current -= delta; }
-        const vjGraceActive = isPortalEntry && portalGraceTimer.current > 0;
+        const vjNextDistance = playerRef.current.position.distanceTo(_vjNextVec.current);
+        const vjReturnDistance = playerRef.current.position.distanceTo(_vjReturnVec.current);
+        if (vjNextDistance > VIBEJAM_PORTAL_REARM_RADIUS) vjNextPortalArmedRef.current = true;
+        if (vjReturnDistance > VIBEJAM_PORTAL_REARM_RADIUS) vjReturnPortalArmedRef.current = true;
 
         // VibeJam Next portal (green) — always present, sends player to vibej.am webring
-        if (mode === GameMode.OVERWORLD && !vjGraceActive && playerRef.current.position.distanceTo(_vjNextVec.current) < 1.5) {
+        if (mode === GameMode.OVERWORLD && !hideVibeJam && vjNextPortalArmedRef.current && vjNextDistance < VIBEJAM_PORTAL_TRIGGER_RADIUS) {
+          vjNextPortalArmedRef.current = false;
           updatePosition(playerRef.current.position.x, playerRef.current.position.z);
           useGameStore.getState().saveRunProgress();
           const params = new URLSearchParams();
@@ -997,7 +1006,8 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
         }
 
         // VibeJam Return portal (red) — only when player entered via ?portal=true
-        if (mode === GameMode.OVERWORLD && isPortalEntry && !vjGraceActive && playerRef.current.position.distanceTo(_vjReturnVec.current) < 1.5) {
+        if (mode === GameMode.OVERWORLD && !hideVibeJam && isPortalEntry && vjReturnPortalArmedRef.current && vjReturnDistance < VIBEJAM_PORTAL_TRIGGER_RADIUS) {
+          vjReturnPortalArmedRef.current = false;
           updatePosition(playerRef.current.position.x, playerRef.current.position.z);
           useGameStore.getState().saveRunProgress();
           const destination = portalRefUrl ?? 'https://vibej.am/portal/2026';
