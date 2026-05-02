@@ -380,7 +380,7 @@ const App: React.FC = () => {
       >
         <Canvas
           camera={{ position: [0, 10, 10], fov: 45 }}
-          dpr={[1, 1]}
+          dpr={[1, 1.5]}
           gl={{ powerPreference: 'high-performance' }}
         >
           <Suspense fallback={null}>
