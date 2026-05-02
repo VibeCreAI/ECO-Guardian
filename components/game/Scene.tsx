@@ -794,6 +794,10 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     });
   }, []);
 
+  // priority < 0 forces this useFrame to run BEFORE all default-priority child
+  // useFrames (sky backdrop, sprite billboards). That way the camera position
+  // and player position are finalized before any follower reads them, removing
+  // the 1-frame lag that caused sky/sprite stutter on sideways movement.
   useFrame((state, delta) => {
     if (showOverworldScene && !isOverworldSceneReady) {
       overworldWarmupFrames.current += 1;
@@ -1053,11 +1057,16 @@ export const Scene: React.FC<SceneProps> = ({ inputVector, dashTrigger }) => {
     const camZ = (16 * effectiveZoom) + portraitBoost;
 
     _camTarget.current.set(playerRef.current.position.x, playerRef.current.position.y + camY, playerRef.current.position.z + camZ);
-    camera.position.lerp(_camTarget.current, 4 * delta);
+    // Frame-rate independent damping — avoids snap-on-frame-drop that caused
+    // camera stutter (and induced lookAt yaw jitter) during sideways movement.
+    camera.position.x = THREE.MathUtils.damp(camera.position.x, _camTarget.current.x, 4, delta);
+    camera.position.y = THREE.MathUtils.damp(camera.position.y, _camTarget.current.y, 4, delta);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, _camTarget.current.z, 4, delta);
     
     if (shakeIntensity.current > 0) { const s = shakeIntensity.current; camera.position.x += (Math.random() - 0.5) * s; camera.position.y += (Math.random() - 0.5) * s; camera.position.z += (Math.random() - 0.5) * s; shakeIntensity.current = Math.max(0, shakeIntensity.current - (delta * 8.0)); }
     camera.lookAt(playerRef.current.position);
-  });
+    camera.updateMatrixWorld();
+  }, -1);
 
   useEffect(() => {
     if (!mpGroupId || !hasPeers) {
