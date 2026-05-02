@@ -18,9 +18,16 @@ const RUN_SAVE_VERSION = 1;
 const PENDING_SCORES_KEY = 'eco_pending_scores_v1';
 const PORTAL_SESSION_KEY = 'eco_guardian_portal_session_v1';
 const STAGE_GENERATION_PROGRESS = 0.2;
+const STAGE_LOAD_INITIAL_PROGRESS = 0.05;
+const STAGE_LOAD_WAITING_CAP = 0.78;
+const STAGE_LOAD_WAITING_TICK_MS = 100;
 const PORTAL_ENTRY_MIN_LOADING_MS = 650;
 const PORTAL_ENTRY_PROGRESS_CAP = 0.95;
 const getOverworldSpawn = () => ({ x: 0, z: 6 });
+
+type GameSet = (partial: Partial<GameState> | ((state: GameState) => Partial<GameState>)) => void;
+
+let stageLoadProgressTimer: ReturnType<typeof setInterval> | null = null;
 
 type PortalSessionContext = {
   isPortalEntry: boolean;
@@ -95,6 +102,43 @@ const mapAssetLoadProgress = (
 ) => {
   const assetProgress = total <= 0 ? 1 : loaded / total;
   return clampStageLoadProgress(start + assetProgress * span);
+};
+
+const setStageLoadProgressAtLeast = (set: GameSet, value: number) => {
+  const nextProgress = clampStageLoadProgress(value);
+  set((state) => ({
+    stageLoadProgress: Math.max(state.stageLoadProgress, nextProgress),
+  }));
+};
+
+const stopStageLoadProgressDriver = () => {
+  if (stageLoadProgressTimer === null) return;
+  clearInterval(stageLoadProgressTimer);
+  stageLoadProgressTimer = null;
+};
+
+const startStageLoadProgressDriver = (
+  set: GameSet,
+  get: () => GameState,
+  cap = STAGE_LOAD_WAITING_CAP,
+) => {
+  stopStageLoadProgressDriver();
+  const startedAt = Date.now();
+  setStageLoadProgressAtLeast(set, STAGE_LOAD_INITIAL_PROGRESS);
+
+  stageLoadProgressTimer = setInterval(() => {
+    const state = get();
+    if (state.mode !== GameMode.LOADING_LEVEL || state.isStageReady) {
+      stopStageLoadProgressDriver();
+      return;
+    }
+
+    const elapsed = Date.now() - startedAt;
+    const easedProgress =
+      STAGE_LOAD_INITIAL_PROGRESS +
+      (cap - STAGE_LOAD_INITIAL_PROGRESS) * (1 - Math.exp(-elapsed / 1800));
+    setStageLoadProgressAtLeast(set, Math.min(cap, easedProgress));
+  }, STAGE_LOAD_WAITING_TICK_MS);
 };
 
 const waitForMinimumElapsed = (startedAt: number, minimumMs: number): Promise<void> => {
@@ -1484,27 +1528,30 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       mode: GameMode.LOADING_LEVEL,
       isStageReady: false,
-      stageLoadProgress: 0.05,
+      stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS,
       isOverworldSceneReady: false,
       finalEndingCinematic: createFinalEndingCinematicState(),
     });
+    startStageLoadProgressDriver(set, get);
     const stageSeed = Number.isFinite(seed) ? seed ?? null : null;
     const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, newStage, 'initial', stageSeed);
     useAiDirectorStore.getState().generateNextStage(state.playerStats, newStage - 1, "Group advanced", quizSeedKey)
       .then(() => {
-        set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+        setStageLoadProgressAtLeast(set, STAGE_GENERATION_PROGRESS);
         return preloadStageAssetsForActive(newStage, (loaded, total) => {
-          set({
-            stageLoadProgress: mapAssetLoadProgress(
+          setStageLoadProgressAtLeast(
+            set,
+            mapAssetLoadProgress(
               loaded,
               total,
               STAGE_GENERATION_PROGRESS,
               1 - STAGE_GENERATION_PROGRESS,
             ),
-          });
+          );
         });
       })
       .then(() => {
+      stopStageLoadProgressDriver();
       set((prevState) => ({
         activeStage: newStage,
         portals: generatePortals(newStage),
@@ -1613,11 +1660,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     // then snap to the saved mode so the player never sees procedural art.
     const hydrated = createHydratedRunState(get(), savedRun, resolvePortalSessionContext(get()));
     const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
-    set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0 });
+    set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS });
+    startStageLoadProgressDriver(set, get);
 
     preloadStageAssetsForActive(savedRun.game.activeStage, (loaded, total) => {
-      set({ stageLoadProgress: mapAssetLoadProgress(loaded, total, 0, 1) });
+      setStageLoadProgressAtLeast(set, mapAssetLoadProgress(loaded, total, STAGE_LOAD_INITIAL_PROGRESS, 1 - STAGE_LOAD_INITIAL_PROGRESS));
     }).then(() => {
+      stopStageLoadProgressDriver();
       set({ mode: resumeMode, isStageReady: true, stageLoadProgress: 1 });
     });
     return true;
@@ -1725,7 +1774,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ 
           mode: GameMode.INSTRUCTIONS,
           isStageReady: false,
-          stageLoadProgress: 0.05,
+          stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS,
           isOverworldSceneReady: false,
           playerStats: freshStats,
           activeStage: 1,
@@ -1757,16 +1806,17 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0)
           .then(() => {
-              set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+              setStageLoadProgressAtLeast(set, STAGE_GENERATION_PROGRESS);
               return preloadStageAssetsForActive(1, (loaded, total) => {
-                  set({
-                      stageLoadProgress: mapAssetLoadProgress(
+                  setStageLoadProgressAtLeast(
+                      set,
+                      mapAssetLoadProgress(
                           loaded,
                           total,
                           STAGE_GENERATION_PROGRESS,
                           1 - STAGE_GENERATION_PROGRESS,
                       ),
-                  });
+                  );
               });
           })
           .then(() => {
@@ -1798,20 +1848,23 @@ export const useGameStore = create<GameState>((set, get) => ({
           const hydrated = createHydratedRunState(get(), savedRun, portalContext);
           const resumeMode = hydrated.mode ?? GameMode.OVERWORLD;
 
-          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: 0.05 });
+          set({ ...hydrated, mode: GameMode.LOADING_LEVEL, isStageReady: false, stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS });
+          startStageLoadProgressDriver(set, get, PORTAL_ENTRY_PROGRESS_CAP);
 
           preloadStageAssetsForActive(savedRun.game.activeStage, (loaded, total) => {
-              set({
-                  stageLoadProgress: mapAssetLoadProgress(
+              setStageLoadProgressAtLeast(
+                  set,
+                  mapAssetLoadProgress(
                       loaded,
                       total,
-                      0.05,
-                      PORTAL_ENTRY_PROGRESS_CAP - 0.05,
+                      STAGE_LOAD_INITIAL_PROGRESS,
+                      PORTAL_ENTRY_PROGRESS_CAP - STAGE_LOAD_INITIAL_PROGRESS,
                   ),
-              });
+              );
           })
           .then(() => waitForMinimumElapsed(loadStartedAt, PORTAL_ENTRY_MIN_LOADING_MS))
           .then(() => {
+              stopStageLoadProgressDriver();
               set({ mode: resumeMode, isStageReady: true, stageLoadProgress: 1 });
           });
           return;
@@ -1826,7 +1879,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
           mode: GameMode.LOADING_LEVEL,
           isStageReady: false,
-          stageLoadProgress: 0.05,
+          stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS,
           isOverworldSceneReady: false,
           playerStats: freshStats,
           activeStage: 1,
@@ -1855,23 +1908,26 @@ export const useGameStore = create<GameState>((set, get) => ({
           hasSavedRun: false,
           savedRunSummary: null,
       });
+      startStageLoadProgressDriver(set, get, PORTAL_ENTRY_PROGRESS_CAP);
 
       useAiDirectorStore.getState().generateNextStage(freshStats, 0)
           .then(() => {
-              set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+              setStageLoadProgressAtLeast(set, STAGE_GENERATION_PROGRESS);
               return preloadStageAssetsForActive(1, (loaded, total) => {
-                  set({
-                      stageLoadProgress: mapAssetLoadProgress(
+                  setStageLoadProgressAtLeast(
+                      set,
+                      mapAssetLoadProgress(
                           loaded,
                           total,
                           STAGE_GENERATION_PROGRESS,
                           PORTAL_ENTRY_PROGRESS_CAP - STAGE_GENERATION_PROGRESS,
                       ),
-                  });
+                  );
               });
           })
           .then(() => waitForMinimumElapsed(loadStartedAt, PORTAL_ENTRY_MIN_LOADING_MS))
           .then(() => {
+              stopStageLoadProgressDriver();
               set((state) => {
                   const baseUpdate = {
                       isStageReady: true,
@@ -1900,9 +1956,10 @@ export const useGameStore = create<GameState>((set, get) => ({
           set({
             mode: GameMode.LOADING_LEVEL,
             lastGameplayMode: GameMode.OVERWORLD,
-            stageLoadProgress: Math.max(state.stageLoadProgress, 0.05),
+            stageLoadProgress: Math.max(state.stageLoadProgress, STAGE_LOAD_INITIAL_PROGRESS),
             finalEndingCinematic: createFinalEndingCinematicState(),
           });
+          startStageLoadProgressDriver(set, get);
       }
   },
 
@@ -1989,26 +2046,29 @@ export const useGameStore = create<GameState>((set, get) => ({
           mode: GameMode.LOADING_LEVEL,
           lastGameplayMode: GameMode.OVERWORLD,
           isStageReady: false,
-          stageLoadProgress: 0.05,
+          stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS,
           isOverworldSceneReady: false,
           playMode: 'solo',
           highlightedPortalId: null,
           finalEndingCinematic: createFinalEndingCinematicState(),
       });
+      startStageLoadProgressDriver(set, get);
 
       await useAiDirectorStore.getState().generateNextStage(state.playerStats, targetStage - 1, 'Stage debug preview', `debug-stage-${targetStage}`);
-      set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+      setStageLoadProgressAtLeast(set, STAGE_GENERATION_PROGRESS);
       await preloadStageAssetsForActive(targetStage, (loaded, total) => {
-          set({
-              stageLoadProgress: mapAssetLoadProgress(
+          setStageLoadProgressAtLeast(
+              set,
+              mapAssetLoadProgress(
                   loaded,
                   total,
                   STAGE_GENERATION_PROGRESS,
                   1 - STAGE_GENERATION_PROGRESS,
               ),
-          });
+          );
       });
 
+      stopStageLoadProgressDriver();
       set((prevState) => ({
           activeStage: targetStage,
           portals: generatePortals(targetStage),
@@ -2801,7 +2861,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           set((s) => ({
             mode: GameMode.LOADING_LEVEL,
             isStageReady: false,
-            stageLoadProgress: 0.05,
+            stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS,
             isOverworldSceneReady: false,
             finalEndingCinematic: createFinalEndingCinematicState(),
             multiplayer: {
@@ -2809,6 +2869,7 @@ export const useGameStore = create<GameState>((set, get) => ({
               guideMessage: 'Waiting for group stage sync...',
             },
           }));
+          startStageLoadProgressDriver(set, get);
           return;
       }
 
@@ -2839,27 +2900,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         mode: GameMode.LOADING_LEVEL,
         isStageReady: false,
-        stageLoadProgress: 0.05,
+        stageLoadProgress: STAGE_LOAD_INITIAL_PROGRESS,
         isOverworldSceneReady: false,
         finalEndingCinematic: createFinalEndingCinematicState(),
       });
+      startStageLoadProgressDriver(set, get);
       
       const quizSeedKey = buildMultiplayerQuizSeed(state.multiplayer.groupId, nextStage, 'initial', stageSeed);
       useAiDirectorStore.getState().generateNextStage(state.playerStats, state.activeStage, lastResult, quizSeedKey)
         .then(() => {
-          set({ stageLoadProgress: STAGE_GENERATION_PROGRESS });
+          setStageLoadProgressAtLeast(set, STAGE_GENERATION_PROGRESS);
           return preloadStageAssetsForActive(nextStage, (loaded, total) => {
-            set({
-              stageLoadProgress: mapAssetLoadProgress(
+            setStageLoadProgressAtLeast(
+              set,
+              mapAssetLoadProgress(
                 loaded,
                 total,
                 STAGE_GENERATION_PROGRESS,
                 1 - STAGE_GENERATION_PROGRESS,
               ),
-            });
+            );
           });
         })
         .then(() => {
+          stopStageLoadProgressDriver();
           set((prevState) => ({
             activeStage: nextStage,
             portals: generatePortals(nextStage),
