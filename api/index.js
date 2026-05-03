@@ -111,7 +111,8 @@ app.post('/api/leaderboard', async (req, res) => {
     if (!supabase) return res.status(503).json({ error: 'Database not configured' });
 
     try {
-        await supabase.from('leaderboard').insert(entry);
+        const { error: insertError } = await supabase.from('leaderboard').insert(entry);
+        if (insertError) throw insertError;
         const { data, error } = await supabase
             .from('leaderboard')
             .select('*')
@@ -121,7 +122,7 @@ app.post('/api/leaderboard', async (req, res) => {
         return res.json(data.map(mapRow));
     } catch (e) {
         console.error('Supabase Write Error:', e.message);
-        return res.status(500).json({ error: 'Failed to save score' });
+        return res.status(500).json({ error: 'Failed to save score', reason: e.message });
     }
 });
 
