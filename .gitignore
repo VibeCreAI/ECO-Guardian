@@ -36,3 +36,4 @@ docs/
 docs/*
 !docs/stage-art-asset-workflow.md
 tmp/*
+.playwright-mcp/

@@ -466,6 +466,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   const lastNarrativeStage = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const victoryScrollRef = useRef<HTMLDivElement>(null);
+  const victoryTouchScrollRef = useRef<{ touchId: number; lastY: number } | null>(null);
   const startupSequenceRef = useRef(0);
   const startupLaunchTimeoutRef = useRef<number | null>(null);
   const startupShownAtRef = useRef<number>(0);
@@ -657,6 +659,44 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
           setIsSubmitting(false);
       }
   };
+
+  const handleVictoryTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      victoryTouchScrollRef.current = { touchId: touch.identifier, lastY: touch.clientY };
+  };
+
+  const handleVictoryTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+      const touchState = victoryTouchScrollRef.current;
+      const scrollEl = victoryScrollRef.current;
+      if (!touchState || !scrollEl) return;
+
+      for (let i = 0; i < e.changedTouches.length; i += 1) {
+          const touch = e.changedTouches[i];
+          if (touch.identifier !== touchState.touchId) continue;
+
+          const deltaY = touchState.lastY - touch.clientY;
+          touchState.lastY = touch.clientY;
+
+          if (scrollEl.scrollHeight > scrollEl.clientHeight && deltaY !== 0) {
+              scrollEl.scrollTop += deltaY;
+              e.stopPropagation();
+          }
+          return;
+      }
+  };
+
+  const handleVictoryTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+      const touchState = victoryTouchScrollRef.current;
+      if (!touchState) return;
+
+      for (let i = 0; i < e.changedTouches.length; i += 1) {
+          if (e.changedTouches[i].identifier === touchState.touchId) {
+              victoryTouchScrollRef.current = null;
+              return;
+          }
+      }
+  };
   
   const handleReset = () => {
       setScoreSubmitted(false);
@@ -819,35 +859,43 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({ onJoystickMove, onDash, is
   if (mode === GameMode.VICTORY) {
       return (
           <div className="absolute inset-0 flex items-center justify-center ui-backdrop z-[100] p-4 overflow-hidden">
-              <div className="ui-panel ui-card-warning w-full max-w-2xl p-8 text-center relative flex flex-col gap-6 animate-in zoom-in duration-700">
+              <div
+                  ref={victoryScrollRef}
+                  className="ui-panel ui-card-warning w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-8 text-center relative flex flex-col gap-6 animate-in zoom-in duration-700"
+                  style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
+                  onTouchStart={handleVictoryTouchStart}
+                  onTouchMove={handleVictoryTouchMove}
+                  onTouchEnd={handleVictoryTouchEnd}
+                  onTouchCancel={handleVictoryTouchEnd}
+              >
                   
                   <div className="mb-4">
                       <div className="text-6xl mb-4 animate-bounce">🏆</div>
                       <h1 className="text-3xl md:text-5xl font-black ui-title mb-2">
                           MISSION COMPLETE
                       </h1>
-                      <p className="text-yellow-200 font-bold text-sm uppercase">Protocol Gemini: Success</p>
+                      <p className="text-yellow-200 font-bold text-sm uppercase">Restoration Protocol: Success</p>
                   </div>
 
-                  <div className="bg-black/40 p-6 border-4 border-black grid grid-cols-2 gap-4 text-left">
-                      <div>
+                  <div className="bg-black/40 p-3 sm:p-6 border-4 border-black grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-left">
+                      <div className="min-w-0">
                           <div className="text-gray-400 text-xs uppercase mb-1">Final Clearance</div>
-                          <div className="text-white font-bold text-xl">Stage 10 Cleared</div>
+                          <div className="text-white font-bold text-lg sm:text-xl leading-tight break-words">Stage 10 Cleared</div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                           <div className="text-gray-400 text-xs uppercase mb-1">Eco-Rating</div>
-                          <div className="text-green-400 font-bold text-xl">S-Class Guardian</div>
+                          <div className="text-green-400 font-bold text-lg sm:text-xl leading-tight break-words">S-Class Guardian</div>
                       </div>
                       
-                      <div className="col-span-2 border-t-4 border-black my-2"></div>
+                      <div className="sm:col-span-2 border-t-4 border-black my-1 sm:my-2"></div>
 
-                      <div>
+                      <div className="min-w-0">
                           <div className="text-gray-400 text-xs uppercase mb-1">Total CO2 Saved</div>
-                          <div className="text-green-300 font-bold text-2xl">{playerStats.lifetimeCarbon || playerStats.carbonSaved} kg</div>
+                          <div className="text-green-300 font-bold text-xl sm:text-2xl leading-tight break-words">{playerStats.lifetimeCarbon || playerStats.carbonSaved} kg</div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                           <div className="text-gray-400 text-xs uppercase mb-1">Hostiles Purged</div>
-                          <div className="text-red-300 font-bold text-2xl">{playerStats.enemiesKilled}</div>
+                          <div className="text-red-300 font-bold text-xl sm:text-2xl leading-tight break-words">{playerStats.enemiesKilled}</div>
                       </div>
                   </div>
 
